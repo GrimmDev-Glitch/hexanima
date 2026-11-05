@@ -1,0 +1,175 @@
+Select	Pilih
+History	Riwayat
+Select all	Pilih semua
+Done	Selesai
+Selected: %d	Dipilih: %d
+Restore	Pulihkan
+Delete forever	Hapus permanen
+Delete %d forever?	Hapus %d secara permanen?
+Saved to gallery: %d	Disimpan ke galeri: %d
+Move %d to trash?	Pindahkan %d ke sampah?
+Yes	Ya
+Cancel	Batal
+All	Semua
+★ Favourites	★ Favorit
+Trash	Sampah
+Kept for 30 days	Disimpan selama 30 hari
+Empty	Kosongkan
+Empty the trash for good?	Kosongkan sampah secara permanen?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Belum ada apa-apa.\nGambar muncul di sini dan baru masuk ke galeri ponsel setelah menekan «Unduh».
+No favourites.\nStar a picture to keep it here.	Belum ada favorit.\nBeri bintang pada gambar agar tersimpan di sini.
+Trash is empty.	Sampah kosong.
+  ·  %.1f s	  ·  %.1f dtk
+Delete forever?	Hapus permanen?
+Download	Unduh
+Saved to gallery: Pictures/Anima	Disimpan ke galeri: Pictures/Anima
+Share	Bagikan
+Favourite	Favorit
+Reuse settings	Pakai pengaturan ini
+Move to trash	Pindahkan ke sampah
+Load	Muat
+Checking…	Memeriksa…
+Your picture will appear here	Gambar Anda akan muncul di sini
+PROMPT	DESKRIPSI
+Clear	Hapus
+SIZE	UKURAN
+Custom	Kustom
+width	lebar
+height	tinggi
+SEED  ·  -1 = random	SEED  ·  -1 = acak
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  total %.1f  ·  terpakai %.1f  ·  tersedia %.1f GB
+Models	Model
+Info	Info
+Language: %s	Bahasa: %s
+Wait for the generation to finish	Tunggu sampai pembuatan selesai
+Language	Bahasa
+no model	tanpa model
+Model catalog…	Katalog model…
+Model	Model
+Size: at least 256 on each side	Ukuran: minimal 256 di setiap sisi
+Width and height must be multiples of 16	Lebar dan tinggi harus kelipatan 16
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	Jumlah patch (%d) harus habis dibagi 32, mis. 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	Terlalu besar: maksimal 6144 patch (mis. 1536×960)
+Get a model	Dapatkan model
+Generate  ·  ~%d s	Buat  ·  ~%d dtk
+Model is loaded on the NPU, generation starts at once	Model sudah dimuat di NPU, pembuatan langsung dimulai
+Model is unloaded: it loads itself when you generate (~5 s)	Model belum dimuat: akan dimuat otomatis saat membuat gambar (~5 dtk)
+Unload	Bongkar
+Generating…	Membuat…
+Shell does not start: %s	Shell tidak dapat dimulai: %s
+Switching model…	Mengganti model…
+Loading the model…	Memuat model…
+Unloading the model…	Membongkar model…
+Enter a prompt	Masukkan deskripsi
+Starting…	Memulai…
+Saving…	Menyimpan…
+Decoding…	Mendekode…
+Step %d/%d	Langkah %d/%d
+Encoding the text…	Mengodekan teks…
+Generation failed (log: files/anima/animad.log)	Pembuatan gagal (log: files/anima/animad.log)
+Done in %.1f s	Selesai dalam %.1f dtk
+%s  ·  %.0f s	%s  ·  %.0f dtk
+Source	Sumber
+Catalog URL (…/resolve/main/)	URL katalog (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	Chip %s · didukung (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	Chip %s · hanya diuji di Snapdragon 8 Gen 1 / 8+ Gen 1
+Free %.1f GB	Tersedia %.1f GB
+Loading catalog…	Memuat katalog…
+Catalog unavailable: %s	Katalog tidak tersedia: %s
+~%d s at 512×768	~%d dtk pada 512×768
+%s GB	%s GB
+By %s	Oleh %s
+Delete	Hapus
+Download  %s GB	Unduh  %s GB
+The catalog is empty	Katalog kosong
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	Model pertama juga mengunduh berkas bersama (%s GB): pengode teks dan VAE, hanya sekali.
+Not enough space: need %s GB	Ruang tidak cukup: butuh %s GB
+Connecting…	Menghubungkan…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	Dibatalkan: berkas tetap tersimpan, Anda bisa melanjutkan
+Error: %s	Kesalahan: %s
+Model downloads	Unduhan model
+Downloading model files…	Mengunduh berkas model…
+Why always 4 steps	Mengapa selalu 4 langkah
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Model didistilasi (turbo) tepat untuk 4 langkah dan jadwal noise sudah tertanam di mesin. Langkah lebih sedikit membuat gambar buram, langkah lebih banyak tidak membantu dan hanya memperlambat, jadi tidak ada pengaturan langkah.
+Which sizes work	Ukuran yang bisa dipakai
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	Lebar dan tinggi kelipatan 16, jumlah patch (lebar/16 × tinggi/16) habis dibagi 32 dan paling banyak 6144. Contoh: 512×768, 640×640, 1024×1024, 960×1536. Tombol ⇄ menukar potret dan lanskap. Ukuran besar butuh waktu lebih lama dan didekode per petak.
+Seed	Seed
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 berarti acak setiap kali. Angka tertentu mengulang gambar yang sama dengan deskripsi, ukuran, dan model yang sama. Seed yang dipakai tampil di bawah gambar dan di riwayat.
+Why the first steps are faster	Mengapa langkah awal lebih cepat
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	Dua langkah pertama berjalan dengan resolusi lebih rendah (komposisi keseluruhan), dua langkah terakhir dengan resolusi penuh, sehingga detail tetap terjaga. Pada ukuran tidak lazim hal ini mati otomatis.
+Loading and unloading	Memuat dan membongkar
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	Model yang dimuat memakai beberapa gigabyte RAM. Jika ponsel melambat atau Anda sudah selesai, ketuk «Bongkar». Model dimuat otomatis saat membuat gambar (~5 dtk).
+Where pictures are stored	Tempat gambar disimpan
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Hanya di dalam aplikasi. Gambar masuk ke galeri ponsel (Pictures/Anima) setelah «Unduh». Gambar yang dihapus masuk ke sampah dan disimpan 30 hari.
+Supported phones	Ponsel yang didukung
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Diuji di Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Tidak perlu root. Chip lain tidak didukung.
+Licenses	Lisensi
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	Model MiaoMiao (oleh MIAOKA, Civitai) dibangun di atas Anima dari CircleStone Labs dan NVIDIA Cosmos. Hanya untuk penggunaan non-komersial. Pembuat model dapat meminta penghapusan dari katalog.
+Fast, 3D-render style	Cepat, gaya render 3D
+Fast, realistic skin	Cepat, kulit realistis
+Higher quality and detail	Kualitas dan detail lebih tinggi
+Higher quality, realistic skin	Kualitas lebih tinggi, kulit realistis
+Portrait	Potret
+Landscape	Lanskap
+Square	Persegi
+Chip %s: supported (Hexagon V69)	Chip %s: didukung (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	Chip %s: tidak didukung, diperlukan Snapdragon 8 Gen 1 / 8+ Gen 1
+RAM %.1f GB: enough	RAM %.1f GB: cukup
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB: kurang, perlu 8 GB atau lebih
+Free space %.1f GB: enough	Ruang kosong %.1f GB: cukup
+Free space %.1f GB: low, a model needs up to 5.4 GB	Ruang kosong %.1f GB: kurang, satu model butuh hingga 5,4 GB
+Templates	Templat
+Chip %s is not supported	Chip %s tidak didukung
+The phone is hot: speed is reduced	Ponsel panas: kecepatan dikurangi
+Battery saver slows the NPU	Penghemat baterai memperlambat NPU
+Low battery (%d%%)	Baterai lemah (%d%%)
+This file has no generation settings	Berkas ini tidak memiliki pengaturan pembuatan
+Settings loaded from the file	Pengaturan dimuat dari berkas
+Load settings from a PNG	Muat pengaturan dari PNG
+Settings	Pengaturan
+Save the current prompt	Simpan deskripsi saat ini
+Saved	Tersimpan
+Recent	Terbaru
+Generate ×%d  ·  ~%d s	Buat ×%d  ·  ~%d dtk
+Stopping…	Menghentikan…
+Stop	Berhenti
+The phone is very hot: generation will be slow	Ponsel sangat panas: pembuatan akan lambat
+Stopped	Dihentikan
+Finished pictures	Gambar selesai
+Done: %d pictures	Selesai: %d gambar
+Picture is ready	Gambar sudah siap
+Follow system	Ikuti sistem
+Light	Terang
+Dark	Gelap
+Theme	Tema
+Load the model at start	Muat model saat dibuka
+The first picture is faster, but the model holds RAM	Gambar pertama lebih cepat, tetapi model memakai RAM
+Never	Tidak pernah
+%d min	%d mnt
+Unload when idle	Bongkar saat menganggur
+Frees RAM when you have not generated anything for a while	Membebaskan RAM jika Anda lama tidak membuat gambar
+Keep the screen on while generating	Biarkan layar menyala saat membuat gambar
+Quality tags before the prompt	Tag kualitas sebelum deskripsi
+Reset to default	Kembalikan ke bawaan
+Welcome	Selamat datang
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	Buat gambar langsung di ponsel, tanpa internet dan tanpa root: jaringan berjalan di NPU Snapdragon.
+Your phone	Ponsel Anda
+Good to know	Perlu diketahui
+Later	Nanti
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	Mengunduh di chip yang tidak didukung adalah risiko Anda sendiri: aplikasi kemungkinan besar tidak akan berjalan.
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	Chip %s tidak didukung: model dibuat untuk Snapdragon 8 Gen 1 / 8+ Gen 1. Tetap unduh?
+Generation	Pembuatan
+Generating a picture…	Membuat gambar…
+Why there is no negative prompt	Mengapa tidak ada prompt negatif
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Model turbo berjalan tanpa CFG (scale 1), jadi prompt negatif tidak mengubah apa pun dan karena itu tidak ada kolomnya. Cukup jangan tulis hal yang tidak diinginkan di deskripsi.
+Quality tags and suggestions	Tag kualitas dan saran
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	Tag kualitas ditambahkan otomatis sebelum deskripsi Anda (ubah di Pengaturan). Saat mengetik muncul saran tag Danbooru, dan tombol Templat menyimpan deskripsi tersimpan dan terbaru.
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	Kecepatan: sekitar 7 detik per gambar 512×768 (model 2B) dan 12 detik (2.9B).
+Always 4 steps and no negative prompt: that is how turbo models work.	Selalu 4 langkah dan tanpa prompt negatif: begitulah cara kerja model turbo.
+Pictures stay inside the app and reach the gallery only after Download.	Gambar hanya tersimpan di dalam aplikasi dan masuk ke galeri setelah «Unduh».
+About	Tentang
+Chip %s · Android %s	Chip %s · Android %s
+Send the log	Kirim log
+Authors and links	Pembuat dan tautan
+Component licenses	Lisensi komponen

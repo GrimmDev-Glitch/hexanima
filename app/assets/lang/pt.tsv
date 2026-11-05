@@ -1,0 +1,175 @@
+Select	Selecionar
+History	Histórico
+Select all	Selecionar tudo
+Done	Concluir
+Selected: %d	Selecionadas: %d
+Restore	Restaurar
+Delete forever	Excluir permanentemente
+Delete %d forever?	Excluir %d permanentemente?
+Saved to gallery: %d	Salvas na galeria: %d
+Move %d to trash?	Mover %d para a lixeira?
+Yes	Sim
+Cancel	Cancelar
+All	Todas
+★ Favourites	★ Favoritas
+Trash	Lixeira
+Kept for 30 days	Mantidas por 30 dias
+Empty	Esvaziar
+Empty the trash for good?	Esvaziar a lixeira definitivamente?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Ainda não há nada aqui.\nAs imagens aparecem aqui e só vão para a galeria do telefone depois de tocar em «Baixar».
+No favourites.\nStar a picture to keep it here.	Sem favoritas.\nMarque uma imagem com estrela para mantê-la aqui.
+Trash is empty.	A lixeira está vazia.
+  ·  %.1f s	  ·  %.1f s
+Delete forever?	Excluir permanentemente?
+Download	Baixar
+Saved to gallery: Pictures/Anima	Salva na galeria: Pictures/Anima
+Share	Compartilhar
+Favourite	Favorita
+Reuse settings	Usar estas configurações
+Move to trash	Mover para a lixeira
+Load	Carregar
+Checking…	Verificando…
+Your picture will appear here	Sua imagem aparecerá aqui
+PROMPT	DESCRIÇÃO
+Clear	Limpar
+SIZE	TAMANHO
+Custom	Personalizado
+width	largura
+height	altura
+SEED  ·  -1 = random	SEED  ·  -1 = aleatória
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  total %.1f  ·  usada %.1f  ·  livre %.1f GB
+Models	Modelos
+Info	Info
+Language: %s	Idioma: %s
+Wait for the generation to finish	Aguarde o fim da geração
+Language	Idioma
+no model	sem modelo
+Model catalog…	Catálogo de modelos…
+Model	Modelo
+Size: at least 256 on each side	Tamanho: no mínimo 256 por lado
+Width and height must be multiples of 16	Largura e altura devem ser múltiplos de 16
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	O número de patches (%d) deve ser divisível por 32, por ex. 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	Grande demais: no máximo 6144 patches (por ex. 1536×960)
+Get a model	Obter um modelo
+Generate  ·  ~%d s	Gerar  ·  ~%d s
+Model is loaded on the NPU, generation starts at once	O modelo está carregado na NPU; a geração começa na hora
+Model is unloaded: it loads itself when you generate (~5 s)	O modelo está descarregado: ele carrega sozinho ao gerar (~5 s)
+Unload	Descarregar
+Generating…	Gerando…
+Shell does not start: %s	Não foi possível iniciar o shell: %s
+Switching model…	Trocando de modelo…
+Loading the model…	Carregando o modelo…
+Unloading the model…	Descarregando o modelo…
+Enter a prompt	Digite uma descrição
+Starting…	Iniciando…
+Saving…	Salvando…
+Decoding…	Decodificando…
+Step %d/%d	Passo %d/%d
+Encoding the text…	Codificando o texto…
+Generation failed (log: files/anima/animad.log)	Falha na geração (log: files/anima/animad.log)
+Done in %.1f s	Pronto em %.1f s
+%s  ·  %.0f s	%s  ·  %.0f s
+Source	Fonte
+Catalog URL (…/resolve/main/)	URL do catálogo (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	Chip %s · compatível (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	Chip %s · testado apenas em Snapdragon 8 Gen 1 / 8+ Gen 1
+Free %.1f GB	Livre %.1f GB
+Loading catalog…	Carregando catálogo…
+Catalog unavailable: %s	Catálogo indisponível: %s
+~%d s at 512×768	~%d s em 512×768
+%s GB	%s GB
+By %s	Por %s
+Delete	Excluir
+Download  %s GB	Baixar  %s GB
+The catalog is empty	O catálogo está vazio
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	O primeiro modelo também baixa os arquivos compartilhados (%s GB): codificador de texto e VAE, uma única vez.
+Not enough space: need %s GB	Espaço insuficiente: são necessários %s GB
+Connecting…	Conectando…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	Cancelado: os arquivos foram mantidos, você pode retomar
+Error: %s	Erro: %s
+Model downloads	Downloads de modelos
+Downloading model files…	Baixando arquivos do modelo…
+Why always 4 steps	Por que sempre 4 passos
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Os modelos são destilados (turbo) para exatamente 4 passos e o cronograma de ruído está embutido no motor. Menos passos deixam a imagem borrada e mais passos não melhoram, só demoram mais; por isso não há ajuste de passos.
+Which sizes work	Quais tamanhos funcionam
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	Largura e altura são múltiplos de 16, o número de patches (largura/16 × altura/16) é divisível por 32 e no máximo 6144. Exemplos: 512×768, 640×640, 1024×1024, 960×1536. O botão ⇄ alterna entre retrato e paisagem. Tamanhos maiores demoram mais e são decodificados em blocos.
+Seed	Seed
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 é aleatória a cada vez. Um número repete a mesma imagem com a mesma descrição, tamanho e modelo. A seed usada aparece abaixo da imagem e no histórico.
+Why the first steps are faster	Por que os primeiros passos são mais rápidos
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	Os dois primeiros passos rodam em resolução reduzida (composição geral) e os dois últimos em resolução total, então os detalhes são mantidos. Em alguns tamanhos incomuns isso se desativa automaticamente.
+Loading and unloading	Carregar e descarregar
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	Um modelo carregado ocupa vários gigabytes de RAM. Se o telefone ficar lento ou você terminar, toque em «Descarregar». Ele carrega sozinho ao gerar (~5 s).
+Where pictures are stored	Onde as imagens ficam
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Somente dentro do app. Uma imagem vai para a galeria do telefone (Pictures/Anima) depois de «Baixar». Imagens excluídas vão para a lixeira e ficam lá por 30 dias.
+Supported phones	Telefones compatíveis
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Testado em Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Não precisa de root. Outros chips não são compatíveis.
+Licenses	Licenças
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	Os modelos MiaoMiao (de MIAOKA, Civitai) são baseados no Anima da CircleStone Labs e no NVIDIA Cosmos. Somente uso não comercial. O autor de um modelo pode pedir sua remoção do catálogo.
+Fast, 3D-render style	Rápido, estilo render 3D
+Fast, realistic skin	Rápido, pele realista
+Higher quality and detail	Maior qualidade e detalhe
+Higher quality, realistic skin	Maior qualidade, pele realista
+Portrait	Retrato
+Landscape	Paisagem
+Square	Quadrado
+Chip %s: supported (Hexagon V69)	Chip %s: compatível (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	Chip %s: não compatível, é necessário um Snapdragon 8 Gen 1 / 8+ Gen 1
+RAM %.1f GB: enough	RAM %.1f GB: suficiente
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB: pouca, são necessários 8 GB ou mais
+Free space %.1f GB: enough	Espaço livre %.1f GB: suficiente
+Free space %.1f GB: low, a model needs up to 5.4 GB	Espaço livre %.1f GB: pouco, um modelo precisa de até 5,4 GB
+Templates	Modelos prontos
+Chip %s is not supported	O chip %s não é compatível
+The phone is hot: speed is reduced	O telefone está quente: velocidade reduzida
+Battery saver slows the NPU	A economia de bateria deixa a NPU mais lenta
+Low battery (%d%%)	Bateria baixa (%d%%)
+This file has no generation settings	Este arquivo não tem configurações de geração
+Settings loaded from the file	Configurações carregadas do arquivo
+Load settings from a PNG	Carregar configurações de um PNG
+Settings	Configurações
+Save the current prompt	Salvar a descrição atual
+Saved	Salvas
+Recent	Recentes
+Generate ×%d  ·  ~%d s	Gerar ×%d  ·  ~%d s
+Stopping…	Parando…
+Stop	Parar
+The phone is very hot: generation will be slow	O telefone está muito quente: a geração será lenta
+Stopped	Interrompido
+Finished pictures	Imagens prontas
+Done: %d pictures	Pronto: %d imagens
+Picture is ready	A imagem está pronta
+Follow system	Seguir o sistema
+Light	Claro
+Dark	Escuro
+Theme	Tema
+Load the model at start	Carregar o modelo ao iniciar
+The first picture is faster, but the model holds RAM	A primeira imagem é mais rápida, mas o modelo ocupa RAM
+Never	Nunca
+%d min	%d min
+Unload when idle	Descarregar quando ocioso
+Frees RAM when you have not generated anything for a while	Libera RAM quando você fica um tempo sem gerar nada
+Keep the screen on while generating	Manter a tela ligada ao gerar
+Quality tags before the prompt	Tags de qualidade antes da descrição
+Reset to default	Restaurar padrão
+Welcome	Bem-vindo
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	Gere imagens direto no telefone, sem internet e sem root: a rede neural roda na NPU do Snapdragon.
+Your phone	Seu telefone
+Good to know	Bom saber
+Later	Depois
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	Baixar em um chip não compatível é por sua conta e risco: o app provavelmente não vai funcionar.
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	O chip %s não é compatível: os modelos foram feitos para Snapdragon 8 Gen 1 / 8+ Gen 1. Baixar mesmo assim?
+Generation	Geração
+Generating a picture…	Gerando uma imagem…
+Why there is no negative prompt	Por que não há prompt negativo
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Os modelos turbo funcionam sem CFG (scale 1), então um prompt negativo não mudaria nada e por isso não há campo. Basta não escrever na descrição o que você não quer.
+Quality tags and suggestions	Tags de qualidade e sugestões
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	As tags de qualidade são adicionadas antes da sua descrição automaticamente (altere em Configurações). Enquanto você digita aparecem sugestões de tags do Danbooru, e o botão Modelos prontos guarda descrições salvas e recentes.
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	Velocidade: cerca de 7 segundos por imagem 512×768 (modelo 2B) e 12 segundos (2.9B).
+Always 4 steps and no negative prompt: that is how turbo models work.	Sempre 4 passos e sem prompt negativo: é assim que os modelos turbo funcionam.
+Pictures stay inside the app and reach the gallery only after Download.	As imagens ficam só dentro do app e vão para a galeria apenas depois de «Baixar».
+About	Sobre
+Chip %s · Android %s	Chip %s · Android %s
+Send the log	Enviar o log
+Authors and links	Autores e links
+Component licenses	Licenças dos componentes

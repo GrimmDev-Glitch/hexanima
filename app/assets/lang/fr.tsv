@@ -1,0 +1,175 @@
+Select	Sélectionner
+History	Historique
+Select all	Tout sélectionner
+Done	Terminé
+Selected: %d	Sélectionnées : %d
+Restore	Restaurer
+Delete forever	Supprimer définitivement
+Delete %d forever?	Supprimer %d définitivement ?
+Saved to gallery: %d	Enregistrées dans la galerie : %d
+Move %d to trash?	Déplacer %d vers la corbeille ?
+Yes	Oui
+Cancel	Annuler
+All	Toutes
+★ Favourites	★ Favoris
+Trash	Corbeille
+Kept for 30 days	Conservées 30 jours
+Empty	Vider
+Empty the trash for good?	Vider définitivement la corbeille ?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Rien ici pour le moment.\nLes images apparaissent ici et n’arrivent dans la galerie du téléphone qu’après « Télécharger ».
+No favourites.\nStar a picture to keep it here.	Aucun favori.\nMettez une étoile à une image pour la garder ici.
+Trash is empty.	La corbeille est vide.
+  ·  %.1f s	  ·  %.1f s
+Delete forever?	Supprimer définitivement ?
+Download	Télécharger
+Saved to gallery: Pictures/Anima	Enregistrée dans la galerie : Pictures/Anima
+Share	Partager
+Favourite	Favori
+Reuse settings	Réutiliser ces réglages
+Move to trash	Mettre à la corbeille
+Load	Charger
+Checking…	Vérification…
+Your picture will appear here	Votre image apparaîtra ici
+PROMPT	DESCRIPTION
+Clear	Effacer
+SIZE	TAILLE
+Custom	Personnalisée
+width	largeur
+height	hauteur
+SEED  ·  -1 = random	SEED  ·  -1 = aléatoire
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  total %.1f  ·  utilisée %.1f  ·  libre %.1f Go
+Models	Modèles
+Info	Infos
+Language: %s	Langue : %s
+Wait for the generation to finish	Attendez la fin de la génération
+Language	Langue
+no model	aucun modèle
+Model catalog…	Catalogue de modèles…
+Model	Modèle
+Size: at least 256 on each side	Taille : au moins 256 par côté
+Width and height must be multiples of 16	La largeur et la hauteur doivent être des multiples de 16
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	Le nombre de patchs (%d) doit être divisible par 32, p. ex. 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	Trop grand : 6144 patchs au maximum (p. ex. 1536×960)
+Get a model	Obtenir un modèle
+Generate  ·  ~%d s	Générer  ·  ~%d s
+Model is loaded on the NPU, generation starts at once	Le modèle est chargé sur le NPU, la génération démarre aussitôt
+Model is unloaded: it loads itself when you generate (~5 s)	Le modèle est déchargé : il se charge tout seul à la génération (~5 s)
+Unload	Décharger
+Generating…	Génération…
+Shell does not start: %s	Impossible de démarrer le shell : %s
+Switching model…	Changement de modèle…
+Loading the model…	Chargement du modèle…
+Unloading the model…	Déchargement du modèle…
+Enter a prompt	Saisissez une description
+Starting…	Démarrage…
+Saving…	Enregistrement…
+Decoding…	Décodage…
+Step %d/%d	Étape %d/%d
+Encoding the text…	Encodage du texte…
+Generation failed (log: files/anima/animad.log)	Échec de la génération (journal : files/anima/animad.log)
+Done in %.1f s	Terminé en %.1f s
+%s  ·  %.0f s	%s  ·  %.0f s
+Source	Source
+Catalog URL (…/resolve/main/)	URL du catalogue (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	Puce %s · compatible (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	Puce %s · testée uniquement sur Snapdragon 8 Gen 1 / 8+ Gen 1
+Free %.1f GB	Libre %.1f Go
+Loading catalog…	Chargement du catalogue…
+Catalog unavailable: %s	Catalogue indisponible : %s
+~%d s at 512×768	~%d s en 512×768
+%s GB	%s Go
+By %s	Par %s
+Delete	Supprimer
+Download  %s GB	Télécharger  %s Go
+The catalog is empty	Le catalogue est vide
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	Le premier modèle télécharge aussi les fichiers partagés (%s Go) : encodeur de texte et VAE, une seule fois.
+Not enough space: need %s GB	Espace insuffisant : %s Go nécessaires
+Connecting…	Connexion…
+%s / %s GB  ·  %s	%s / %s Go  ·  %s
+Cancelled: the files are kept, you can resume	Annulé : les fichiers sont conservés, vous pouvez reprendre
+Error: %s	Erreur : %s
+Model downloads	Téléchargements de modèles
+Downloading model files…	Téléchargement des fichiers du modèle…
+Why always 4 steps	Pourquoi toujours 4 étapes
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Les modèles sont distillés (turbo) pour exactement 4 étapes et le calendrier de bruit est intégré au moteur. Moins d’étapes donnent une image floue, davantage n’améliorent rien et ralentissent seulement, d’où l’absence de réglage des étapes.
+Which sizes work	Quelles tailles fonctionnent
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	La largeur et la hauteur sont des multiples de 16, le nombre de patchs (largeur/16 × hauteur/16) est divisible par 32 et au plus 6144. Exemples : 512×768, 640×640, 1024×1024, 960×1536. Le bouton ⇄ alterne portrait et paysage. Les grandes tailles sont plus longues et décodées par tuiles.
+Seed	Seed
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 est aléatoire à chaque fois. Un nombre reproduit la même image avec la même description, la même taille et le même modèle. La seed utilisée s’affiche sous l’image et dans l’historique.
+Why the first steps are faster	Pourquoi les premières étapes sont plus rapides
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	Les deux premières étapes tournent en résolution réduite (composition générale), les deux dernières en pleine résolution : les détails sont donc conservés. Sur certaines tailles inhabituelles, cela se désactive automatiquement.
+Loading and unloading	Chargement et déchargement
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	Un modèle chargé occupe plusieurs gigaoctets de RAM. Si le téléphone ralentit ou si vous avez terminé, touchez « Décharger ». Il se charge seul à la génération (~5 s).
+Where pictures are stored	Où sont stockées les images
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Uniquement dans l’application. Une image arrive dans la galerie du téléphone (Pictures/Anima) après « Télécharger ». Les images supprimées vont à la corbeille et y restent 30 jours.
+Supported phones	Téléphones compatibles
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Testé sur Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Pas besoin de root. Les autres puces ne sont pas prises en charge.
+Licenses	Licences
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	Les modèles MiaoMiao (de MIAOKA, Civitai) reposent sur Anima de CircleStone Labs et NVIDIA Cosmos. Usage non commercial uniquement. L’auteur d’un modèle peut demander son retrait du catalogue.
+Fast, 3D-render style	Rapide, style rendu 3D
+Fast, realistic skin	Rapide, peau réaliste
+Higher quality and detail	Qualité et détails supérieurs
+Higher quality, realistic skin	Qualité supérieure, peau réaliste
+Portrait	Portrait
+Landscape	Paysage
+Square	Carré
+Chip %s: supported (Hexagon V69)	Puce %s : compatible (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	Puce %s : non compatible, un Snapdragon 8 Gen 1 / 8+ Gen 1 est requis
+RAM %.1f GB: enough	RAM %.1f Go : suffisante
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f Go : faible, 8 Go ou plus nécessaires
+Free space %.1f GB: enough	Espace libre %.1f Go : suffisant
+Free space %.1f GB: low, a model needs up to 5.4 GB	Espace libre %.1f Go : faible, un modèle demande jusqu’à 5,4 Go
+Templates	Modèles
+Chip %s is not supported	La puce %s n’est pas prise en charge
+The phone is hot: speed is reduced	Le téléphone est chaud : vitesse réduite
+Battery saver slows the NPU	L’économiseur de batterie ralentit le NPU
+Low battery (%d%%)	Batterie faible (%d%%)
+This file has no generation settings	Ce fichier ne contient pas de réglages de génération
+Settings loaded from the file	Réglages chargés depuis le fichier
+Load settings from a PNG	Charger les réglages d’un PNG
+Settings	Réglages
+Save the current prompt	Enregistrer la description actuelle
+Saved	Enregistrées
+Recent	Récentes
+Generate ×%d  ·  ~%d s	Générer ×%d  ·  ~%d s
+Stopping…	Arrêt en cours…
+Stop	Arrêter
+The phone is very hot: generation will be slow	Le téléphone est très chaud : la génération sera lente
+Stopped	Arrêté
+Finished pictures	Images terminées
+Done: %d pictures	Terminé : %d images
+Picture is ready	L’image est prête
+Follow system	Suivre le système
+Light	Clair
+Dark	Sombre
+Theme	Thème
+Load the model at start	Charger le modèle au démarrage
+The first picture is faster, but the model holds RAM	La première image est plus rapide, mais le modèle occupe de la RAM
+Never	Jamais
+%d min	%d min
+Unload when idle	Décharger en cas d’inactivité
+Frees RAM when you have not generated anything for a while	Libère la RAM quand vous n’avez rien généré depuis un moment
+Keep the screen on while generating	Garder l’écran allumé pendant la génération
+Quality tags before the prompt	Tags de qualité avant la description
+Reset to default	Réinitialiser
+Welcome	Bienvenue
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	Générez des images directement sur votre téléphone, hors ligne et sans root : le réseau tourne sur le NPU du Snapdragon.
+Your phone	Votre téléphone
+Good to know	À savoir
+Later	Plus tard
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	Télécharger sur une puce non prise en charge se fait à vos risques : l’application ne fonctionnera très probablement pas.
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	La puce %s n’est pas prise en charge : les modèles sont conçus pour Snapdragon 8 Gen 1 / 8+ Gen 1. Télécharger quand même ?
+Generation	Génération
+Generating a picture…	Génération d’une image…
+Why there is no negative prompt	Pourquoi il n’y a pas de prompt négatif
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Les modèles turbo fonctionnent sans CFG (scale 1) : un prompt négatif ne changerait rien, d’où l’absence de champ. N’écrivez simplement pas dans la description ce que vous ne voulez pas.
+Quality tags and suggestions	Tags de qualité et suggestions
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	Les tags de qualité sont ajoutés automatiquement avant votre description (modifiables dans les Réglages). Pendant la saisie, des suggestions de tags Danbooru apparaissent, et le bouton Modèles garde les descriptions enregistrées et récentes.
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	Vitesse : environ 7 secondes par image 512×768 (modèle 2B) et 12 secondes (2.9B).
+Always 4 steps and no negative prompt: that is how turbo models work.	Toujours 4 étapes et pas de prompt négatif : c’est ainsi que fonctionnent les modèles turbo.
+Pictures stay inside the app and reach the gallery only after Download.	Les images restent dans l’application et n’arrivent dans la galerie qu’après « Télécharger ».
+About	À propos
+Chip %s · Android %s	Puce %s · Android %s
+Send the log	Envoyer le journal
+Authors and links	Auteurs et liens
+Component licenses	Licences des composants

@@ -1,0 +1,175 @@
+0	Chọn
+1	Lịch sử
+2	Chọn tất cả
+3	Xong
+4	Đã chọn: %d
+5	Khôi phục
+6	Xóa vĩnh viễn
+7	Xóa vĩnh viễn %d mục?
+8	Đã lưu vào thư viện: %d
+9	Chuyển %d mục vào thùng rác?
+10	Có
+11	Hủy
+12	Tất cả
+13	★ Yêu thích
+14	Thùng rác
+15	Lưu giữ 30 ngày
+16	Dọn sạch
+17	Dọn sạch thùng rác hoàn toàn?
+18	Chưa có gì.\nẢnh xuất hiện ở đây và chỉ vào thư viện điện thoại sau khi bấm «Tải xuống».
+19	Chưa có mục yêu thích.\nGắn sao cho ảnh để giữ ở đây.
+20	Thùng rác trống.
+21	  ·  %.1f giây
+22	Xóa vĩnh viễn?
+23	Tải xuống
+24	Đã lưu vào thư viện: Pictures/Anima
+25	Chia sẻ
+26	Yêu thích
+27	Dùng lại cài đặt này
+28	Chuyển vào thùng rác
+29	Tải
+30	Đang kiểm tra…
+31	Ảnh của bạn sẽ hiện ở đây
+32	MÔ TẢ
+33	Xóa
+34	KÍCH THƯỚC
+35	Tùy chỉnh
+36	rộng
+37	cao
+38	SEED  ·  -1 = ngẫu nhiên
+39	RAM  tổng %.1f  ·  đã dùng %.1f  ·  còn trống %.1f GB
+40	Mô hình
+41	Thông tin
+42	Ngôn ngữ: %s
+43	Hãy đợi quá trình tạo ảnh kết thúc
+44	Ngôn ngữ
+45	chưa có mô hình
+46	Danh mục mô hình…
+47	Mô hình
+48	Kích thước: tối thiểu 256 mỗi cạnh
+49	Chiều rộng và chiều cao phải là bội số của 16
+50	Số patch (%d) phải chia hết cho 32, ví dụ 640×640, 1024×1024, 704×832
+51	Quá lớn: tối đa 6144 patch (ví dụ 1536×960)
+52	Tải mô hình
+53	Tạo ảnh  ·  ~%d giây
+54	Mô hình đã được nạp vào NPU, bắt đầu tạo ảnh ngay
+55	Mô hình chưa nạp: sẽ tự nạp khi tạo ảnh (~5 giây)
+56	Gỡ nạp
+57	Đang tạo…
+58	Không khởi động được shell: %s
+59	Đang đổi mô hình…
+60	Đang nạp mô hình…
+61	Đang gỡ nạp mô hình…
+62	Hãy nhập mô tả
+63	Đang bắt đầu…
+64	Đang lưu…
+65	Đang giải mã…
+66	Bước %d/%d
+67	Đang mã hóa văn bản…
+68	Tạo ảnh thất bại (nhật ký: files/anima/animad.log)
+69	Xong sau %.1f giây
+70	%s  ·  %.0f giây
+71	Nguồn
+72	Địa chỉ danh mục (…/resolve/main/)
+73	Chip %s · được hỗ trợ (Hexagon V69)
+74	Chip %s · chỉ thử trên Snapdragon 8 Gen 1 / 8+ Gen 1
+75	Còn trống %.1f GB
+76	Đang tải danh mục…
+77	Danh mục không khả dụng: %s
+78	~%d giây ở 512×768
+79	%s GB
+80	Tác giả: %s
+81	Xóa
+82	Tải xuống  %s GB
+83	Danh mục trống
+84	Mô hình đầu tiên cũng tải các tệp dùng chung (%s GB): bộ mã hóa văn bản và VAE, chỉ một lần.
+85	Không đủ dung lượng: cần %s GB
+86	Đang kết nối…
+87	%s / %s GB  ·  %s
+88	Đã hủy: các tệp được giữ lại, bạn có thể tiếp tục
+89	Lỗi: %s
+90	Tải mô hình
+91	Đang tải tệp mô hình…
+92	Vì sao luôn là 4 bước
+93	Các mô hình được chưng cất (turbo) đúng cho 4 bước và lịch nhiễu được tích hợp trong công cụ. Ít bước hơn làm ảnh mờ, nhiều bước hơn không tốt hơn mà chỉ chậm hơn, nên không có tùy chọn số bước.
+94	Kích thước nào dùng được
+95	Chiều rộng và chiều cao là bội số của 16, số patch (rộng/16 × cao/16) chia hết cho 32 và tối đa 6144. Ví dụ: 512×768, 640×640, 1024×1024, 960×1536. Nút ⇄ đổi giữa dọc và ngang. Kích thước lớn mất nhiều thời gian hơn và được giải mã theo ô.
+96	Seed
+97	-1 là ngẫu nhiên mỗi lần. Một con số sẽ lặp lại cùng một ảnh với cùng mô tả, kích thước và mô hình. Seed đã dùng hiển thị dưới ảnh và trong lịch sử.
+98	Vì sao các bước đầu nhanh hơn
+99	Hai bước đầu chạy ở độ phân giải thấp (bố cục tổng thể), hai bước cuối chạy ở độ phân giải đầy đủ nên chi tiết vẫn được giữ. Với một số kích thước lạ, tính năng này tự tắt.
+100	Nạp và gỡ nạp
+101	Mô hình đã nạp chiếm vài gigabyte RAM. Nếu điện thoại chậm hoặc bạn đã dùng xong, hãy chạm «Gỡ nạp». Mô hình tự nạp khi tạo ảnh (~5 giây).
+102	Ảnh được lưu ở đâu
+103	Chỉ bên trong ứng dụng. Ảnh vào thư viện điện thoại (Pictures/Anima) sau khi bấm «Tải xuống». Ảnh đã xóa vào thùng rác và được giữ 30 ngày.
+104	Điện thoại được hỗ trợ
+105	Đã thử trên Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Không cần root. Các chip khác không được hỗ trợ.
+106	Giấy phép
+107	Các mô hình MiaoMiao (của MIAOKA, Civitai) được xây dựng trên Anima của CircleStone Labs và NVIDIA Cosmos. Chỉ dùng phi thương mại. Tác giả mô hình có thể yêu cầu gỡ khỏi danh mục.
+108	Nhanh, phong cách render 3D
+109	Nhanh, làn da chân thực
+110	Chất lượng và chi tiết cao hơn
+111	Chất lượng cao hơn, làn da chân thực
+112	Dọc
+113	Ngang
+114	Vuông
+115	Chip %s: được hỗ trợ (Hexagon V69)
+116	Chip %s: không được hỗ trợ, cần Snapdragon 8 Gen 1 / 8+ Gen 1
+117	RAM %.1f GB: đủ
+118	RAM %.1f GB: thấp, cần từ 8 GB trở lên
+119	Dung lượng trống %.1f GB: đủ
+120	Dung lượng trống %.1f GB: thấp, một mô hình cần tới 5,4 GB
+121	Mẫu
+122	Chip %s không được hỗ trợ
+123	Điện thoại nóng: tốc độ bị giảm
+124	Tiết kiệm pin làm NPU chậm đi
+125	Pin yếu (%d%%)
+126	Tệp này không có cài đặt tạo ảnh
+127	Đã nạp cài đặt từ tệp
+128	Nạp cài đặt từ PNG
+129	Cài đặt
+130	Lưu mô tả hiện tại
+131	Đã lưu
+132	Gần đây
+133	Tạo ×%d  ·  ~%d giây
+134	Đang dừng…
+135	Dừng
+136	Điện thoại rất nóng: việc tạo ảnh sẽ chậm
+137	Đã dừng
+138	Ảnh đã xong
+139	Xong: %d ảnh
+140	Ảnh đã sẵn sàng
+141	Theo hệ thống
+142	Sáng
+143	Tối
+144	Giao diện
+145	Nạp mô hình khi khởi động
+146	Ảnh đầu tiên nhanh hơn nhưng mô hình chiếm RAM
+147	Không bao giờ
+148	%d phút
+149	Gỡ nạp khi rảnh
+150	Giải phóng RAM khi bạn lâu không tạo ảnh
+151	Giữ màn hình sáng khi tạo ảnh
+152	Thẻ chất lượng trước mô tả
+153	Đặt lại mặc định
+154	Chào mừng
+155	Tạo ảnh ngay trên điện thoại, không cần internet và không cần root: mạng nơ-ron chạy trên NPU của Snapdragon.
+156	Điện thoại của bạn
+157	Nên biết
+158	Để sau
+159	Tải trên chip không được hỗ trợ là tự chịu rủi ro: nhiều khả năng ứng dụng sẽ không chạy.
+160	Chip %s không được hỗ trợ: các mô hình được làm cho Snapdragon 8 Gen 1 / 8+ Gen 1. Vẫn tải?
+161	Tạo ảnh
+162	Đang tạo ảnh…
+163	Vì sao không có prompt âm
+164	Mô hình turbo chạy không có CFG (scale 1), nên prompt âm không thay đổi gì và vì vậy không có ô nhập. Chỉ cần đừng viết điều không muốn vào mô tả.
+165	Thẻ chất lượng và gợi ý
+166	Thẻ chất lượng được tự động thêm trước mô tả của bạn (đổi trong Cài đặt). Khi gõ sẽ hiện gợi ý thẻ Danbooru, và nút Mẫu lưu các mô tả đã lưu và gần đây.
+167	Tốc độ: khoảng 7 giây cho ảnh 512×768 (mô hình 2B) và 12 giây (2.9B).
+168	Luôn 4 bước và không có prompt âm: các mô hình turbo hoạt động như vậy.
+169	Ảnh chỉ nằm trong ứng dụng và vào thư viện sau khi bấm «Tải xuống».
+170	Giới thiệu
+171	Chip %s · Android %s
+172	Gửi nhật ký
+173	Tác giả và liên kết
+174	Giấy phép thành phần

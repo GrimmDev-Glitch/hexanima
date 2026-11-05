@@ -1,0 +1,175 @@
+Select	選択
+History	履歴
+Select all	すべて選択
+Done	完了
+Selected: %d	選択中：%d
+Restore	復元
+Delete forever	完全に削除
+Delete %d forever?	%d 件を完全に削除しますか？
+Saved to gallery: %d	ギャラリーに保存しました：%d
+Move %d to trash?	%d 件をゴミ箱に移動しますか？
+Yes	はい
+Cancel	キャンセル
+All	すべて
+★ Favourites	★ お気に入り
+Trash	ゴミ箱
+Kept for 30 days	30日間保存されます
+Empty	空にする
+Empty the trash for good?	ゴミ箱を完全に空にしますか？
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	まだ何もありません。\n画像はここに表示されます。端末のギャラリーには「ダウンロード」した後にのみ保存されます。
+No favourites.\nStar a picture to keep it here.	お気に入りはありません。\n画像にスターを付けるとここに残ります。
+Trash is empty.	ゴミ箱は空です。
+  ·  %.1f s	  ·  %.1f 秒
+Delete forever?	完全に削除しますか？
+Download	ダウンロード
+Saved to gallery: Pictures/Anima	ギャラリーに保存しました：Pictures/Anima
+Share	共有
+Favourite	お気に入り
+Reuse settings	この設定を使う
+Move to trash	ゴミ箱へ移動
+Load	読み込み
+Checking…	確認中…
+Your picture will appear here	ここに画像が表示されます
+PROMPT	プロンプト
+Clear	クリア
+SIZE	サイズ
+Custom	カスタム
+width	幅
+height	高さ
+SEED  ·  -1 = random	SEED  ·  -1 = ランダム
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  合計 %.1f  ·  使用中 %.1f  ·  空き %.1f GB
+Models	モデル
+Info	情報
+Language: %s	言語：%s
+Wait for the generation to finish	生成が終わるまでお待ちください
+Language	言語
+no model	モデルなし
+Model catalog…	モデルカタログ…
+Model	モデル
+Size: at least 256 on each side	サイズ：各辺256以上
+Width and height must be multiples of 16	幅と高さは16の倍数にしてください
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	パッチ数（%d）は32で割り切れる必要があります（例：640×640、1024×1024、704×832）
+Too large: at most 6144 patches (e.g. 1536×960)	大きすぎます：最大6144パッチ（例：1536×960）
+Get a model	モデルを入手
+Generate  ·  ~%d s	生成  ·  約 %d 秒
+Model is loaded on the NPU, generation starts at once	モデルはNPUに読み込み済みです。すぐに生成を開始できます
+Model is unloaded: it loads itself when you generate (~5 s)	モデルは未読み込みです：生成時に自動で読み込まれます（約5秒）
+Unload	読み込み解除
+Generating…	生成中…
+Shell does not start: %s	シェルを起動できません：%s
+Switching model…	モデルを切り替えています…
+Loading the model…	モデルを読み込み中…
+Unloading the model…	モデルを解放中…
+Enter a prompt	プロンプトを入力してください
+Starting…	開始中…
+Saving…	保存中…
+Decoding…	デコード中…
+Step %d/%d	ステップ %d/%d
+Encoding the text…	テキストをエンコード中…
+Generation failed (log: files/anima/animad.log)	生成に失敗しました（ログ：files/anima/animad.log）
+Done in %.1f s	%.1f 秒で完了
+%s  ·  %.0f s	%s  ·  %.0f 秒
+Source	ソース
+Catalog URL (…/resolve/main/)	カタログURL（…/resolve/main/）
+Chip %s · supported (Hexagon V69)	チップ %s · 対応（Hexagon V69）
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	チップ %s · Snapdragon 8 Gen 1 / 8+ Gen 1 でのみ検証済み
+Free %.1f GB	空き容量 %.1f GB
+Loading catalog…	カタログを読み込み中…
+Catalog unavailable: %s	カタログに接続できません：%s
+~%d s at 512×768	512×768 で約 %d 秒
+%s GB	%s GB
+By %s	作者：%s
+Delete	削除
+Download  %s GB	ダウンロード  %s GB
+The catalog is empty	カタログは空です
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	最初のモデルでは共有ファイル（%s GB）も取得します：テキストエンコーダーとVAE。ダウンロードは一度だけです。
+Not enough space: need %s GB	空き容量が足りません：%s GB 必要です
+Connecting…	接続中…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	キャンセルしました：ファイルは保持されています。再開できます
+Error: %s	エラー：%s
+Model downloads	モデルのダウンロード
+Downloading model files…	モデルファイルをダウンロード中…
+Why always 4 steps	なぜ常に4ステップなのか
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	モデルはちょうど4ステップ向けに蒸留（turbo）されており、ノイズスケジュールはエンジンに組み込まれています。ステップが少ないとぼやけ、多くしても良くならず時間が掛かるだけなので、ステップ数の設定はありません。
+Which sizes work	使えるサイズ
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	幅と高さは16の倍数で、パッチ数（幅/16 × 高さ/16）は32で割り切れ、6144以下である必要があります。例：512×768、640×640、1024×1024、960×1536。⇄ ボタンで縦と横を入れ替えます。大きいサイズは時間がかかり、タイルに分けてデコードされます。
+Seed	シード
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 は毎回ランダムです。数値を指定すると、同じプロンプト・サイズ・モデルで同じ画像になります。使用したシードは画像の下と履歴に表示されます。
+Why the first steps are faster	最初のステップが速い理由
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	最初の2ステップは低解像度（全体の構図）、最後の2ステップはフル解像度で処理するため、ディテールは保たれます。特殊なサイズでは自動的にオフになります。
+Loading and unloading	読み込みと解放
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	読み込んだモデルは数GBのRAMを使います。端末が重くなったときや使い終わったときは「読み込み解除」をタップしてください。生成時には自動で読み込まれます（約5秒）。
+Where pictures are stored	画像の保存場所
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	アプリ内のみです。「ダウンロード」すると端末のギャラリー（Pictures/Anima）に保存されます。削除した画像はゴミ箱に30日間残ります。
+Supported phones	対応端末
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Snapdragon 8 Gen 1 / 8+ Gen 1（Hexagon V69）で動作確認済みです。root は不要です。その他のチップは非対応です。
+Licenses	ライセンス
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	MiaoMiao モデル（作者 MIAOKA、Civitai）は CircleStone Labs の Anima と NVIDIA Cosmos をベースにしています。非商業利用のみ。モデルの作者はカタログからの削除を求めることができます。
+Fast, 3D-render style	高速、3Dレンダー風
+Fast, realistic skin	高速、リアルな肌
+Higher quality and detail	高品質・高精細
+Higher quality, realistic skin	高品質、リアルな肌
+Portrait	縦
+Landscape	横
+Square	正方形
+Chip %s: supported (Hexagon V69)	チップ %s：対応（Hexagon V69）
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	チップ %s：非対応です。Snapdragon 8 Gen 1 / 8+ Gen 1 が必要です
+RAM %.1f GB: enough	RAM %.1f GB：十分
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB：不足気味です。8 GB 以上が必要です
+Free space %.1f GB: enough	空き容量 %.1f GB：十分
+Free space %.1f GB: low, a model needs up to 5.4 GB	空き容量 %.1f GB：不足気味です。モデルには最大 5.4 GB 必要です
+Templates	テンプレート
+Chip %s is not supported	チップ %s は非対応です
+The phone is hot: speed is reduced	端末が高温です：速度が低下しています
+Battery saver slows the NPU	バッテリーセーバーはNPUを遅くします
+Low battery (%d%%)	バッテリー残量が少ない（%d%%）
+This file has no generation settings	このファイルには生成設定がありません
+Settings loaded from the file	ファイルから設定を読み込みました
+Load settings from a PNG	PNGから設定を読み込む
+Settings	設定
+Save the current prompt	現在のプロンプトを保存
+Saved	保存済み
+Recent	最近
+Generate ×%d  ·  ~%d s	生成 ×%d  ·  約 %d 秒
+Stopping…	停止しています…
+Stop	停止
+The phone is very hot: generation will be slow	端末が非常に高温です：生成が遅くなります
+Stopped	停止しました
+Finished pictures	完成した画像
+Done: %d pictures	完了：%d 枚
+Picture is ready	画像ができました
+Follow system	システムに従う
+Light	ライト
+Dark	ダーク
+Theme	テーマ
+Load the model at start	起動時にモデルを読み込む
+The first picture is faster, but the model holds RAM	最初の1枚は速くなりますが、モデルがRAMを占有します
+Never	しない
+%d min	%d 分
+Unload when idle	アイドル時に解放
+Frees RAM when you have not generated anything for a while	しばらく生成しないときにRAMを解放します
+Keep the screen on while generating	生成中は画面を点灯したままにする
+Quality tags before the prompt	プロンプトの前に付ける品質タグ
+Reset to default	初期設定に戻す
+Welcome	ようこそ
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	インターネットもrootも不要で、スマートフォン上で画像を生成します。ネットワークはSnapdragonのNPUで動作します。
+Your phone	お使いの端末
+Good to know	ご注意
+Later	あとで
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	非対応のチップでのダウンロードは自己責任です。アプリはおそらく動作しません。
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	チップ %s は非対応です：モデルは Snapdragon 8 Gen 1 / 8+ Gen 1 向けです。それでもダウンロードしますか？
+Generation	生成
+Generating a picture…	画像を生成しています…
+Why there is no negative prompt	ネガティブプロンプトがない理由
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Turbo モデルは CFG（scale 1）なしで動作するため、ネガティブプロンプトは何も変えません。そのため入力欄はありません。不要なものはプロンプトに書かないでください。
+Quality tags and suggestions	品質タグと候補表示
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	品質タグはプロンプトの前に自動で追加されます（設定で変更できます）。入力中に Danbooru タグの候補が表示され、「テンプレート」ボタンで保存済みや最近のプロンプトを使えます。
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	速度：512×768 の画像で約7秒（2Bモデル）、約12秒（2.9B）。
+Always 4 steps and no negative prompt: that is how turbo models work.	常に4ステップで、ネガティブプロンプトはありません。turbo モデルはそういう仕組みです。
+Pictures stay inside the app and reach the gallery only after Download.	画像はアプリ内にのみ保存され、「ダウンロード」するとギャラリーに保存されます。
+About	このアプリについて
+Chip %s · Android %s	チップ %s · Android %s
+Send the log	ログを送信
+Authors and links	作者とリンク
+Component licenses	コンポーネントのライセンス

@@ -1,0 +1,91 @@
+--- anima.hpp.orig	2026-11-04 00:03:11.313400598 +0300
++++ ../../sd-src/src/model/diffusion/anima.hpp	2026-11-04 08:59:14.519002975 +0300
+@@ -4,6 +4,11 @@
+ #include <algorithm>
+ #include <cinttypes>
+ #include <cmath>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <string>
++#include <thread>
+ #include <memory>
+ #include <utility>
+ #include <vector>
+@@ -636,6 +641,37 @@
+         }
+     };
+ 
++
++    // ---- NPU experiment hook (env SD_NPU_DIR): write the DiT inputs of every step to files; SD_NPU_MODE=dump (default) also
++    // writes the velocity sd.cpp computed (to validate an external implementation), SD_NPU_MODE=extern waits for out_<n>.f32.
++    namespace npu_hook {
++        template <typename T>
++        inline void write_tensor(const std::string& dir, const char* name, int n, const sd::Tensor<T>& t) {
++            char path[1024];
++            snprintf(path, sizeof(path), "%s/%s_%d.bin", dir.c_str(), name, n);
++            FILE* f = fopen(path, "wb");
++            if (!f) return;
++            if (t.numel() > 0) fwrite(t.data(), sizeof(T), (size_t)t.numel(), f);
++            fclose(f);
++            snprintf(path, sizeof(path), "%s/%s_%d.shape", dir.c_str(), name, n);
++            f = fopen(path, "w");
++            if (!f) return;
++            for (auto d : t.shape()) fprintf(f, "%lld ", (long long)d);
++            fprintf(f, "\n");
++            fclose(f);
++        }
++        inline bool file_exists(const std::string& path) {
++            FILE* f = fopen(path.c_str(), "rb");
++            if (!f) return false;
++            fclose(f);
++            return true;
++        }
++        inline int& step_counter() {
++            static int n = 0;
++            return n;
++        }
++    }  // namespace npu_hook
++
+     struct AnimaRunner : public DiffusionModelRunner {
+     public:
+         std::vector<float> image_pe_vec;
+@@ -817,10 +853,37 @@
+                                   const sd::Tensor<float>& t5_weights               = {},
+                                   const std::vector<sd::Tensor<float>>& ref_latents = {},
+                                   const RefImageParams& ref_image_params            = REF_IMAGE_PRESETS.at("cosmos_reference")) {
++            const char* npu_dir = std::getenv("SD_NPU_DIR");
++            const bool npu_extern = npu_dir && std::getenv("SD_NPU_MODE") && std::string(std::getenv("SD_NPU_MODE")) == "extern";
++            int npu_n = 0;
++            if (npu_dir) {
++                npu_n = npu_hook::step_counter()++;
++                npu_hook::write_tensor(npu_dir, "x", npu_n, x);
++                npu_hook::write_tensor(npu_dir, "t", npu_n, timesteps);
++                npu_hook::write_tensor(npu_dir, "ctx", npu_n, context);
++                npu_hook::write_tensor(npu_dir, "ids", npu_n, t5_ids);
++                npu_hook::write_tensor(npu_dir, "w", npu_n, t5_weights);
++                { char rp[1024]; snprintf(rp, sizeof(rp), "%s/ready_%d", npu_dir, npu_n); FILE* rf = fopen(rp, "wb"); if (rf) fclose(rf); }
++            }
++            if (npu_extern) {  // an external process computes the velocity and writes out_<n>.bin (float32, same shape as x)
++                char path[1024];
++                snprintf(path, sizeof(path), "%s/out_%d.bin", npu_dir, npu_n);
++                while (!npu_hook::file_exists(std::string(path) + ".done")) std::this_thread::sleep_for(std::chrono::milliseconds(1));
++                sd::Tensor<float> res(x.shape());
++                FILE* f = fopen(path, "rb");
++                if (f) {
++                    size_t got = fread(res.data(), sizeof(float), (size_t)res.numel(), f);
++                    (void)got;
++                    fclose(f);
++                }
++                return res;
++            }
+             auto get_graph = [&]() -> ggml_cgraph* {
+                 return build_graph(x, timesteps, context, t5_ids, t5_weights, ref_latents);
+             };
+-            return restore_trailing_singleton_dims(GGMLRunner::compute(get_graph, n_threads, false), x.dim());
++            auto result = restore_trailing_singleton_dims(GGMLRunner::compute(get_graph, n_threads, false), x.dim());
++            if (npu_dir) npu_hook::write_tensor(npu_dir, "out", npu_n, result);
++            return result;
+         }
+ 
+         sd::Tensor<float> compute(int n_threads,

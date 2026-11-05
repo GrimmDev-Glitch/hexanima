@@ -1,0 +1,175 @@
+Select	Chọn
+History	Lịch sử
+Select all	Chọn tất cả
+Done	Xong
+Selected: %d	Đã chọn: %d
+Restore	Khôi phục
+Delete forever	Xóa vĩnh viễn
+Delete %d forever?	Xóa vĩnh viễn %d mục?
+Saved to gallery: %d	Đã lưu vào thư viện: %d
+Move %d to trash?	Chuyển %d mục vào thùng rác?
+Yes	Có
+Cancel	Hủy
+All	Tất cả
+★ Favourites	★ Yêu thích
+Trash	Thùng rác
+Kept for 30 days	Lưu giữ 30 ngày
+Empty	Dọn sạch
+Empty the trash for good?	Dọn sạch thùng rác hoàn toàn?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Chưa có gì.\nẢnh xuất hiện ở đây và chỉ vào thư viện điện thoại sau khi bấm «Tải xuống».
+No favourites.\nStar a picture to keep it here.	Chưa có mục yêu thích.\nGắn sao cho ảnh để giữ ở đây.
+Trash is empty.	Thùng rác trống.
+  ·  %.1f s	  ·  %.1f giây
+Delete forever?	Xóa vĩnh viễn?
+Download	Tải xuống
+Saved to gallery: Pictures/Anima	Đã lưu vào thư viện: Pictures/Anima
+Share	Chia sẻ
+Favourite	Yêu thích
+Reuse settings	Dùng lại cài đặt này
+Move to trash	Chuyển vào thùng rác
+Load	Tải
+Checking…	Đang kiểm tra…
+Your picture will appear here	Ảnh của bạn sẽ hiện ở đây
+PROMPT	MÔ TẢ
+Clear	Xóa
+SIZE	KÍCH THƯỚC
+Custom	Tùy chỉnh
+width	rộng
+height	cao
+SEED  ·  -1 = random	SEED  ·  -1 = ngẫu nhiên
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  tổng %.1f  ·  đã dùng %.1f  ·  còn trống %.1f GB
+Models	Mô hình
+Info	Thông tin
+Language: %s	Ngôn ngữ: %s
+Wait for the generation to finish	Hãy đợi quá trình tạo ảnh kết thúc
+Language	Ngôn ngữ
+no model	chưa có mô hình
+Model catalog…	Danh mục mô hình…
+Model	Mô hình
+Size: at least 256 on each side	Kích thước: tối thiểu 256 mỗi cạnh
+Width and height must be multiples of 16	Chiều rộng và chiều cao phải là bội số của 16
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	Số patch (%d) phải chia hết cho 32, ví dụ 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	Quá lớn: tối đa 6144 patch (ví dụ 1536×960)
+Get a model	Tải mô hình
+Generate  ·  ~%d s	Tạo ảnh  ·  ~%d giây
+Model is loaded on the NPU, generation starts at once	Mô hình đã được nạp vào NPU, bắt đầu tạo ảnh ngay
+Model is unloaded: it loads itself when you generate (~5 s)	Mô hình chưa nạp: sẽ tự nạp khi tạo ảnh (~5 giây)
+Unload	Gỡ nạp
+Generating…	Đang tạo…
+Shell does not start: %s	Không khởi động được shell: %s
+Switching model…	Đang đổi mô hình…
+Loading the model…	Đang nạp mô hình…
+Unloading the model…	Đang gỡ nạp mô hình…
+Enter a prompt	Hãy nhập mô tả
+Starting…	Đang bắt đầu…
+Saving…	Đang lưu…
+Decoding…	Đang giải mã…
+Step %d/%d	Bước %d/%d
+Encoding the text…	Đang mã hóa văn bản…
+Generation failed (log: files/anima/animad.log)	Tạo ảnh thất bại (nhật ký: files/anima/animad.log)
+Done in %.1f s	Xong sau %.1f giây
+%s  ·  %.0f s	%s  ·  %.0f giây
+Source	Nguồn
+Catalog URL (…/resolve/main/)	Địa chỉ danh mục (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	Chip %s · được hỗ trợ (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	Chip %s · chỉ thử trên Snapdragon 8 Gen 1 / 8+ Gen 1
+Free %.1f GB	Còn trống %.1f GB
+Loading catalog…	Đang tải danh mục…
+Catalog unavailable: %s	Danh mục không khả dụng: %s
+~%d s at 512×768	~%d giây ở 512×768
+%s GB	%s GB
+By %s	Tác giả: %s
+Delete	Xóa
+Download  %s GB	Tải xuống  %s GB
+The catalog is empty	Danh mục trống
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	Mô hình đầu tiên cũng tải các tệp dùng chung (%s GB): bộ mã hóa văn bản và VAE, chỉ một lần.
+Not enough space: need %s GB	Không đủ dung lượng: cần %s GB
+Connecting…	Đang kết nối…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	Đã hủy: các tệp được giữ lại, bạn có thể tiếp tục
+Error: %s	Lỗi: %s
+Model downloads	Tải mô hình
+Downloading model files…	Đang tải tệp mô hình…
+Why always 4 steps	Vì sao luôn là 4 bước
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Các mô hình được chưng cất (turbo) đúng cho 4 bước và lịch nhiễu được tích hợp trong công cụ. Ít bước hơn làm ảnh mờ, nhiều bước hơn không tốt hơn mà chỉ chậm hơn, nên không có tùy chọn số bước.
+Which sizes work	Kích thước nào dùng được
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	Chiều rộng và chiều cao là bội số của 16, số patch (rộng/16 × cao/16) chia hết cho 32 và tối đa 6144. Ví dụ: 512×768, 640×640, 1024×1024, 960×1536. Nút ⇄ đổi giữa dọc và ngang. Kích thước lớn mất nhiều thời gian hơn và được giải mã theo ô.
+Seed	Seed
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 là ngẫu nhiên mỗi lần. Một con số sẽ lặp lại cùng một ảnh với cùng mô tả, kích thước và mô hình. Seed đã dùng hiển thị dưới ảnh và trong lịch sử.
+Why the first steps are faster	Vì sao các bước đầu nhanh hơn
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	Hai bước đầu chạy ở độ phân giải thấp (bố cục tổng thể), hai bước cuối chạy ở độ phân giải đầy đủ nên chi tiết vẫn được giữ. Với một số kích thước lạ, tính năng này tự tắt.
+Loading and unloading	Nạp và gỡ nạp
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	Mô hình đã nạp chiếm vài gigabyte RAM. Nếu điện thoại chậm hoặc bạn đã dùng xong, hãy chạm «Gỡ nạp». Mô hình tự nạp khi tạo ảnh (~5 giây).
+Where pictures are stored	Ảnh được lưu ở đâu
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Chỉ bên trong ứng dụng. Ảnh vào thư viện điện thoại (Pictures/Anima) sau khi bấm «Tải xuống». Ảnh đã xóa vào thùng rác và được giữ 30 ngày.
+Supported phones	Điện thoại được hỗ trợ
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Đã thử trên Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Không cần root. Các chip khác không được hỗ trợ.
+Licenses	Giấy phép
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	Các mô hình MiaoMiao (của MIAOKA, Civitai) được xây dựng trên Anima của CircleStone Labs và NVIDIA Cosmos. Chỉ dùng phi thương mại. Tác giả mô hình có thể yêu cầu gỡ khỏi danh mục.
+Fast, 3D-render style	Nhanh, phong cách render 3D
+Fast, realistic skin	Nhanh, làn da chân thực
+Higher quality and detail	Chất lượng và chi tiết cao hơn
+Higher quality, realistic skin	Chất lượng cao hơn, làn da chân thực
+Portrait	Dọc
+Landscape	Ngang
+Square	Vuông
+Chip %s: supported (Hexagon V69)	Chip %s: được hỗ trợ (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	Chip %s: không được hỗ trợ, cần Snapdragon 8 Gen 1 / 8+ Gen 1
+RAM %.1f GB: enough	RAM %.1f GB: đủ
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB: thấp, cần từ 8 GB trở lên
+Free space %.1f GB: enough	Dung lượng trống %.1f GB: đủ
+Free space %.1f GB: low, a model needs up to 5.4 GB	Dung lượng trống %.1f GB: thấp, một mô hình cần tới 5,4 GB
+Templates	Mẫu
+Chip %s is not supported	Chip %s không được hỗ trợ
+The phone is hot: speed is reduced	Điện thoại nóng: tốc độ bị giảm
+Battery saver slows the NPU	Tiết kiệm pin làm NPU chậm đi
+Low battery (%d%%)	Pin yếu (%d%%)
+This file has no generation settings	Tệp này không có cài đặt tạo ảnh
+Settings loaded from the file	Đã nạp cài đặt từ tệp
+Load settings from a PNG	Nạp cài đặt từ PNG
+Settings	Cài đặt
+Save the current prompt	Lưu mô tả hiện tại
+Saved	Đã lưu
+Recent	Gần đây
+Generate ×%d  ·  ~%d s	Tạo ×%d  ·  ~%d giây
+Stopping…	Đang dừng…
+Stop	Dừng
+The phone is very hot: generation will be slow	Điện thoại rất nóng: việc tạo ảnh sẽ chậm
+Stopped	Đã dừng
+Finished pictures	Ảnh đã xong
+Done: %d pictures	Xong: %d ảnh
+Picture is ready	Ảnh đã sẵn sàng
+Follow system	Theo hệ thống
+Light	Sáng
+Dark	Tối
+Theme	Giao diện
+Load the model at start	Nạp mô hình khi khởi động
+The first picture is faster, but the model holds RAM	Ảnh đầu tiên nhanh hơn nhưng mô hình chiếm RAM
+Never	Không bao giờ
+%d min	%d phút
+Unload when idle	Gỡ nạp khi rảnh
+Frees RAM when you have not generated anything for a while	Giải phóng RAM khi bạn lâu không tạo ảnh
+Keep the screen on while generating	Giữ màn hình sáng khi tạo ảnh
+Quality tags before the prompt	Thẻ chất lượng trước mô tả
+Reset to default	Đặt lại mặc định
+Welcome	Chào mừng
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	Tạo ảnh ngay trên điện thoại, không cần internet và không cần root: mạng nơ-ron chạy trên NPU của Snapdragon.
+Your phone	Điện thoại của bạn
+Good to know	Nên biết
+Later	Để sau
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	Tải trên chip không được hỗ trợ là tự chịu rủi ro: nhiều khả năng ứng dụng sẽ không chạy.
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	Chip %s không được hỗ trợ: các mô hình được làm cho Snapdragon 8 Gen 1 / 8+ Gen 1. Vẫn tải?
+Generation	Tạo ảnh
+Generating a picture…	Đang tạo ảnh…
+Why there is no negative prompt	Vì sao không có prompt âm
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Mô hình turbo chạy không có CFG (scale 1), nên prompt âm không thay đổi gì và vì vậy không có ô nhập. Chỉ cần đừng viết điều không muốn vào mô tả.
+Quality tags and suggestions	Thẻ chất lượng và gợi ý
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	Thẻ chất lượng được tự động thêm trước mô tả của bạn (đổi trong Cài đặt). Khi gõ sẽ hiện gợi ý thẻ Danbooru, và nút Mẫu lưu các mô tả đã lưu và gần đây.
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	Tốc độ: khoảng 7 giây cho ảnh 512×768 (mô hình 2B) và 12 giây (2.9B).
+Always 4 steps and no negative prompt: that is how turbo models work.	Luôn 4 bước và không có prompt âm: các mô hình turbo hoạt động như vậy.
+Pictures stay inside the app and reach the gallery only after Download.	Ảnh chỉ nằm trong ứng dụng và vào thư viện sau khi bấm «Tải xuống».
+About	Giới thiệu
+Chip %s · Android %s	Chip %s · Android %s
+Send the log	Gửi nhật ký
+Authors and links	Tác giả và liên kết
+Component licenses	Giấy phép thành phần

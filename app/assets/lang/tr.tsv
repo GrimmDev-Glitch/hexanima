@@ -1,0 +1,175 @@
+Select	Seç
+History	Geçmiş
+Select all	Tümünü seç
+Done	Bitti
+Selected: %d	Seçilen: %d
+Restore	Geri yükle
+Delete forever	Kalıcı olarak sil
+Delete %d forever?	%d öğe kalıcı olarak silinsin mi?
+Saved to gallery: %d	Galeriye kaydedildi: %d
+Move %d to trash?	%d öğe çöp kutusuna taşınsın mı?
+Yes	Evet
+Cancel	İptal
+All	Tümü
+★ Favourites	★ Favoriler
+Trash	Çöp kutusu
+Kept for 30 days	30 gün saklanır
+Empty	Boşalt
+Empty the trash for good?	Çöp kutusu tamamen boşaltılsın mı?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Henüz bir şey yok.\nGörüntüler burada görünür; telefon galerisine yalnızca «İndir»e dokununca girer.
+No favourites.\nStar a picture to keep it here.	Favori yok.\nBir görüntüyü yıldızlayarak burada tutun.
+Trash is empty.	Çöp kutusu boş.
+  ·  %.1f s	  ·  %.1f sn
+Delete forever?	Kalıcı olarak silinsin mi?
+Download	İndir
+Saved to gallery: Pictures/Anima	Galeriye kaydedildi: Pictures/Anima
+Share	Paylaş
+Favourite	Favori
+Reuse settings	Bu ayarları kullan
+Move to trash	Çöp kutusuna taşı
+Load	Yükle
+Checking…	Kontrol ediliyor…
+Your picture will appear here	Görüntünüz burada görünecek
+PROMPT	AÇIKLAMA
+Clear	Temizle
+SIZE	BOYUT
+Custom	Özel
+width	genişlik
+height	yükseklik
+SEED  ·  -1 = random	SEED  ·  -1 = rastgele
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  toplam %.1f  ·  kullanılan %.1f  ·  boş %.1f GB
+Models	Modeller
+Info	Bilgi
+Language: %s	Dil: %s
+Wait for the generation to finish	Üretimin bitmesini bekleyin
+Language	Dil
+no model	model yok
+Model catalog…	Model kataloğu…
+Model	Model
+Size: at least 256 on each side	Boyut: her kenarda en az 256
+Width and height must be multiples of 16	Genişlik ve yükseklik 16'nın katı olmalı
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	Yama sayısı (%d) 32'ye tam bölünmeli, örn. 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	Çok büyük: en fazla 6144 yama (örn. 1536×960)
+Get a model	Model edin
+Generate  ·  ~%d s	Üret  ·  ~%d sn
+Model is loaded on the NPU, generation starts at once	Model NPU'ya yüklendi, üretim hemen başlar
+Model is unloaded: it loads itself when you generate (~5 s)	Model yüklü değil: üretirken kendiliğinden yüklenir (~5 sn)
+Unload	Boşalt
+Generating…	Üretiliyor…
+Shell does not start: %s	Kabuk başlatılamıyor: %s
+Switching model…	Model değiştiriliyor…
+Loading the model…	Model yükleniyor…
+Unloading the model…	Model boşaltılıyor…
+Enter a prompt	Bir açıklama girin
+Starting…	Başlatılıyor…
+Saving…	Kaydediliyor…
+Decoding…	Çözülüyor…
+Step %d/%d	Adım %d/%d
+Encoding the text…	Metin kodlanıyor…
+Generation failed (log: files/anima/animad.log)	Üretim başarısız (günlük: files/anima/animad.log)
+Done in %.1f s	%.1f sn'de bitti
+%s  ·  %.0f s	%s  ·  %.0f sn
+Source	Kaynak
+Catalog URL (…/resolve/main/)	Katalog adresi (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	Yonga %s · destekleniyor (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	Yonga %s · yalnızca Snapdragon 8 Gen 1 / 8+ Gen 1 üzerinde test edildi
+Free %.1f GB	Boş alan %.1f GB
+Loading catalog…	Katalog yükleniyor…
+Catalog unavailable: %s	Katalog kullanılamıyor: %s
+~%d s at 512×768	512×768'de ~%d sn
+%s GB	%s GB
+By %s	Yapan: %s
+Delete	Sil
+Download  %s GB	İndir  %s GB
+The catalog is empty	Katalog boş
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	İlk model ortak dosyaları da indirir (%s GB): metin kodlayıcı ve VAE, yalnızca bir kez.
+Not enough space: need %s GB	Yeterli alan yok: %s GB gerekli
+Connecting…	Bağlanılıyor…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	İptal edildi: dosyalar saklandı, devam edebilirsiniz
+Error: %s	Hata: %s
+Model downloads	Model indirmeleri
+Downloading model files…	Model dosyaları indiriliyor…
+Why always 4 steps	Neden hep 4 adım
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Modeller tam olarak 4 adım için damıtıldı (turbo) ve gürültü takvimi motora gömülü. Daha az adım bulanık sonuç verir, daha fazlası iyileştirmez, yalnızca yavaşlatır; bu yüzden adım ayarı yok.
+Which sizes work	Hangi boyutlar çalışır
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	Genişlik ve yükseklik 16'nın katı, yama sayısı (genişlik/16 × yükseklik/16) 32'ye tam bölünür ve en çok 6144'tür. Örnekler: 512×768, 640×640, 1024×1024, 960×1536. ⇄ düğmesi dikey ile yatayı değiştirir. Büyük boyutlar daha uzun sürer ve karolar halinde çözülür.
+Seed	Seed
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 her seferinde rastgeledir. Bir sayı, aynı açıklama, boyut ve modelle aynı görüntüyü tekrarlar. Kullanılan seed görüntünün altında ve geçmişte görünür.
+Why the first steps are faster	İlk adımlar neden daha hızlı
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	İlk iki adım düşük çözünürlükte (genel kompozisyon), son iki adım tam çözünürlükte çalışır; böylece ayrıntılar korunur. Bazı alışılmadık boyutlarda bu otomatik olarak kapanır.
+Loading and unloading	Yükleme ve boşaltma
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	Yüklü bir model birkaç gigabayt RAM tutar. Telefon yavaşlarsa veya işiniz bittiyse «Boşalt»a dokunun. Üretirken kendiliğinden yüklenir (~5 sn).
+Where pictures are stored	Görüntüler nerede saklanır
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Yalnızca uygulamanın içinde. Bir görüntü «İndir»den sonra telefon galerisine (Pictures/Anima) gider. Silinen görüntüler çöp kutusuna gider ve orada 30 gün kalır.
+Supported phones	Desteklenen telefonlar
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) üzerinde test edildi. Root gerekmez. Diğer yongalar desteklenmez.
+Licenses	Lisanslar
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	MiaoMiao modelleri (MIAOKA, Civitai) CircleStone Labs'ın Anima'sı ve NVIDIA Cosmos üzerine kuruludur. Yalnızca ticari olmayan kullanım. Model yazarı kataloktan kaldırılmasını isteyebilir.
+Fast, 3D-render style	Hızlı, 3D render tarzı
+Fast, realistic skin	Hızlı, gerçekçi cilt
+Higher quality and detail	Daha yüksek kalite ve ayrıntı
+Higher quality, realistic skin	Daha yüksek kalite, gerçekçi cilt
+Portrait	Dikey
+Landscape	Yatay
+Square	Kare
+Chip %s: supported (Hexagon V69)	Yonga %s: destekleniyor (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	Yonga %s: desteklenmiyor, Snapdragon 8 Gen 1 / 8+ Gen 1 gerekli
+RAM %.1f GB: enough	RAM %.1f GB: yeterli
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB: az, 8 GB veya daha fazlası gerekir
+Free space %.1f GB: enough	Boş alan %.1f GB: yeterli
+Free space %.1f GB: low, a model needs up to 5.4 GB	Boş alan %.1f GB: az, bir model en çok 5,4 GB gerektirir
+Templates	Şablonlar
+Chip %s is not supported	Yonga %s desteklenmiyor
+The phone is hot: speed is reduced	Telefon sıcak: hız düşürüldü
+Battery saver slows the NPU	Pil tasarrufu NPU'yu yavaşlatır
+Low battery (%d%%)	Pil düşük (%d%%)
+This file has no generation settings	Bu dosyada üretim ayarı yok
+Settings loaded from the file	Ayarlar dosyadan yüklendi
+Load settings from a PNG	PNG'den ayarları yükle
+Settings	Ayarlar
+Save the current prompt	Geçerli açıklamayı kaydet
+Saved	Kayıtlı
+Recent	Son kullanılan
+Generate ×%d  ·  ~%d s	Üret ×%d  ·  ~%d sn
+Stopping…	Durduruluyor…
+Stop	Durdur
+The phone is very hot: generation will be slow	Telefon çok sıcak: üretim yavaş olacak
+Stopped	Durduruldu
+Finished pictures	Biten görüntüler
+Done: %d pictures	Bitti: %d görüntü
+Picture is ready	Görüntü hazır
+Follow system	Sistemi izle
+Light	Açık
+Dark	Koyu
+Theme	Tema
+Load the model at start	Başlangıçta modeli yükle
+The first picture is faster, but the model holds RAM	İlk görüntü daha hızlı olur ama model RAM tutar
+Never	Hiçbir zaman
+%d min	%d dk
+Unload when idle	Boştayken boşalt
+Frees RAM when you have not generated anything for a while	Bir süredir bir şey üretmediyseniz RAM'i serbest bırakır
+Keep the screen on while generating	Üretirken ekranı açık tut
+Quality tags before the prompt	Açıklamadan önce kalite etiketleri
+Reset to default	Varsayılana sıfırla
+Welcome	Hoş geldiniz
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	Görüntüleri doğrudan telefonunuzda, internetsiz ve root'suz üretin: ağ Snapdragon NPU üzerinde çalışır.
+Your phone	Telefonunuz
+Good to know	Bilmekte fayda var
+Later	Sonra
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	Desteklenmeyen bir yongada indirmek kendi sorumluluğunuzdadır: uygulama büyük olasılıkla çalışmaz.
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	Yonga %s desteklenmiyor: modeller Snapdragon 8 Gen 1 / 8+ Gen 1 için yapıldı. Yine de indirilsin mi?
+Generation	Üretim
+Generating a picture…	Görüntü üretiliyor…
+Why there is no negative prompt	Neden negatif prompt yok
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Turbo modeller CFG olmadan (scale 1) çalışır, bu yüzden negatif prompt hiçbir şeyi değiştirmez ve alanı yoktur. İstemediklerinizi açıklamaya yazmayın.
+Quality tags and suggestions	Kalite etiketleri ve öneriler
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	Kalite etiketleri açıklamanızdan önce otomatik eklenir (Ayarlar'dan değiştirilebilir). Yazarken Danbooru etiket önerileri çıkar, Şablonlar düğmesi kayıtlı ve son açıklamaları tutar.
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	Hız: 512×768 görüntü başına yaklaşık 7 saniye (2B model) ve 12 saniye (2.9B).
+Always 4 steps and no negative prompt: that is how turbo models work.	Her zaman 4 adım ve negatif prompt yok: turbo modeller böyle çalışır.
+Pictures stay inside the app and reach the gallery only after Download.	Görüntüler yalnızca uygulamanın içinde kalır, «İndir»den sonra galeriye geçer.
+About	Hakkında
+Chip %s · Android %s	Yonga %s · Android %s
+Send the log	Günlüğü gönder
+Authors and links	Yapımcılar ve bağlantılar
+Component licenses	Bileşen lisansları

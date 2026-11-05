@@ -1,0 +1,22 @@
+# build outputs
+app/out/
+app/jnilibs/
+app/*.apk
+app/*.idsig
+phone/animad
+chainrun/chainrun
+chainrun/terun
+chainrun/vaerun
+hexagon/mega/out/
+hexagon/mega/out_arm/
+# Qualcomm proprietary files, never commit
+hexagon/mega/qhl_hmx/
+hexagon/mega/syslib/
+**/libQnn*.so
+# model packs and local data
+pack/
+work/
+*.bin
+*.safetensors
+__pycache__/
+app/assets/anima.sh

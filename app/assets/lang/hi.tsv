@@ -1,0 +1,175 @@
+Select	चुनें
+History	इतिहास
+Select all	सभी चुनें
+Done	हो गया
+Selected: %d	चयनित: %d
+Restore	पुनर्स्थापित करें
+Delete forever	हमेशा के लिए हटाएँ
+Delete %d forever?	%d को हमेशा के लिए हटाएँ?
+Saved to gallery: %d	गैलरी में सहेजा गया: %d
+Move %d to trash?	%d को ट्रैश में ले जाएँ?
+Yes	हाँ
+Cancel	रद्द करें
+All	सभी
+★ Favourites	★ पसंदीदा
+Trash	ट्रैश
+Kept for 30 days	30 दिन तक रखा जाता है
+Empty	खाली करें
+Empty the trash for good?	ट्रैश हमेशा के लिए खाली करें?
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	अभी यहाँ कुछ नहीं है।\nचित्र यहाँ दिखते हैं और फ़ोन की गैलरी में केवल «डाउनलोड» दबाने के बाद जाते हैं।
+No favourites.\nStar a picture to keep it here.	कोई पसंदीदा नहीं।\nचित्र पर तारा लगाएँ, वह यहाँ रहेगा।
+Trash is empty.	ट्रैश खाली है।
+  ·  %.1f s	  ·  %.1f सेकंड
+Delete forever?	हमेशा के लिए हटाएँ?
+Download	डाउनलोड
+Saved to gallery: Pictures/Anima	गैलरी में सहेजा गया: Pictures/Anima
+Share	साझा करें
+Favourite	पसंदीदा
+Reuse settings	ये सेटिंग्स दोबारा उपयोग करें
+Move to trash	ट्रैश में ले जाएँ
+Load	लोड करें
+Checking…	जाँच हो रही है…
+Your picture will appear here	आपका चित्र यहाँ दिखेगा
+PROMPT	विवरण
+Clear	साफ़ करें
+SIZE	आकार
+Custom	कस्टम
+width	चौड़ाई
+height	ऊँचाई
+SEED  ·  -1 = random	SEED  ·  -1 = रैंडम
+RAM  total %.1f  ·  used %.1f  ·  free %.1f GB	RAM  कुल %.1f  ·  उपयोग में %.1f  ·  खाली %.1f GB
+Models	मॉडल
+Info	जानकारी
+Language: %s	भाषा: %s
+Wait for the generation to finish	जनरेशन पूरा होने तक प्रतीक्षा करें
+Language	भाषा
+no model	कोई मॉडल नहीं
+Model catalog…	मॉडल सूची…
+Model	मॉडल
+Size: at least 256 on each side	आकार: प्रत्येक ओर कम से कम 256
+Width and height must be multiples of 16	चौड़ाई और ऊँचाई 16 के गुणज होने चाहिए
+Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832	पैच संख्या (%d) 32 से विभाज्य होनी चाहिए, जैसे 640×640, 1024×1024, 704×832
+Too large: at most 6144 patches (e.g. 1536×960)	बहुत बड़ा: अधिकतम 6144 पैच (जैसे 1536×960)
+Get a model	मॉडल लें
+Generate  ·  ~%d s	बनाएँ  ·  ~%d सेकंड
+Model is loaded on the NPU, generation starts at once	मॉडल NPU में लोड है, जनरेशन तुरंत शुरू होता है
+Model is unloaded: it loads itself when you generate (~5 s)	मॉडल अनलोड है: जनरेट करते समय अपने आप लोड हो जाएगा (~5 सेकंड)
+Unload	अनलोड करें
+Generating…	बन रहा है…
+Shell does not start: %s	शेल शुरू नहीं हो पा रहा: %s
+Switching model…	मॉडल बदला जा रहा है…
+Loading the model…	मॉडल लोड हो रहा है…
+Unloading the model…	मॉडल अनलोड हो रहा है…
+Enter a prompt	विवरण लिखें
+Starting…	शुरू हो रहा है…
+Saving…	सहेजा जा रहा है…
+Decoding…	डिकोड हो रहा है…
+Step %d/%d	चरण %d/%d
+Encoding the text…	टेक्स्ट एन्कोड हो रहा है…
+Generation failed (log: files/anima/animad.log)	जनरेशन विफल (लॉग: files/anima/animad.log)
+Done in %.1f s	%.1f सेकंड में पूरा
+%s  ·  %.0f s	%s  ·  %.0f सेकंड
+Source	स्रोत
+Catalog URL (…/resolve/main/)	कैटलॉग का पता (…/resolve/main/)
+Chip %s · supported (Hexagon V69)	चिप %s · समर्थित (Hexagon V69)
+Chip %s · tested only on Snapdragon 8 Gen 1 / 8+ Gen 1	चिप %s · केवल Snapdragon 8 Gen 1 / 8+ Gen 1 पर परखा गया
+Free %.1f GB	खाली जगह %.1f GB
+Loading catalog…	कैटलॉग लोड हो रहा है…
+Catalog unavailable: %s	कैटलॉग उपलब्ध नहीं: %s
+~%d s at 512×768	512×768 पर ~%d सेकंड
+%s GB	%s GB
+By %s	रचयिता: %s
+Delete	हटाएँ
+Download  %s GB	डाउनलोड  %s GB
+The catalog is empty	कैटलॉग खाली है
+The first model also fetches the shared files (%s GB): text encoder and VAE, once.	पहला मॉडल साझा फ़ाइलें (%s GB) भी डाउनलोड करता है: टेक्स्ट एन्कोडर और VAE, केवल एक बार।
+Not enough space: need %s GB	जगह पर्याप्त नहीं: %s GB चाहिए
+Connecting…	कनेक्ट हो रहा है…
+%s / %s GB  ·  %s	%s / %s GB  ·  %s
+Cancelled: the files are kept, you can resume	रद्द किया गया: फ़ाइलें सुरक्षित हैं, आप दोबारा जारी रख सकते हैं
+Error: %s	त्रुटि: %s
+Model downloads	मॉडल डाउनलोड
+Downloading model files…	मॉडल फ़ाइलें डाउनलोड हो रही हैं…
+Why always 4 steps	हमेशा 4 चरण क्यों
+The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	मॉडल ठीक 4 चरणों के लिए डिस्टिल (turbo) किए गए हैं और नॉइज़ शेड्यूल इंजन में बना हुआ है। कम चरणों में चित्र धुँधला आता है, ज़्यादा चरण बेहतर नहीं करते बल्कि केवल समय बढ़ाते हैं, इसलिए चरणों की सेटिंग नहीं है।
+Which sizes work	कौन-से आकार चलते हैं
+Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	चौड़ाई और ऊँचाई 16 के गुणज हैं, पैच संख्या (चौड़ाई/16 × ऊँचाई/16) 32 से विभाज्य और अधिकतम 6144 है। उदाहरण: 512×768, 640×640, 1024×1024, 960×1536। ⇄ बटन पोर्ट्रेट और लैंडस्केप बदलता है। बड़े आकार में ज़्यादा समय लगता है और उन्हें टाइलों में डिकोड किया जाता है।
+Seed	सीड
+-1 is random every time. A number repeats the same picture with the same prompt, size and model. The seed used is shown under the picture and in the history.	-1 का अर्थ हर बार रैंडम। कोई संख्या देने पर वही विवरण, आकार और मॉडल वही चित्र दोहराते हैं। उपयोग किया गया सीड चित्र के नीचे और इतिहास में दिखता है।
+Why the first steps are faster	शुरुआती चरण तेज़ क्यों हैं
+The first two steps run at reduced resolution (overall composition), the last two at full resolution, so details are kept. On some unusual sizes this switches off automatically.	पहले दो चरण कम रिज़ॉल्यूशन (समग्र संरचना) पर और आख़िरी दो पूरे रिज़ॉल्यूशन पर चलते हैं, इसलिए बारीकियाँ बनी रहती हैं। कुछ असामान्य आकारों पर यह अपने आप बंद हो जाता है।
+Loading and unloading	लोड और अनलोड
+A loaded model holds several gigabytes of RAM. If the phone slows down or you are done, tap Unload. It loads itself when you generate (~5 s).	लोड किया हुआ मॉडल कई गीगाबाइट RAM घेरता है। फ़ोन धीमा हो या काम पूरा हो जाए तो «अनलोड करें» दबाएँ। जनरेट करते समय यह अपने आप लोड हो जाता है (~5 सेकंड)।
+Where pictures are stored	चित्र कहाँ सहेजे जाते हैं
+Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	केवल ऐप के अंदर। «डाउनलोड» के बाद चित्र फ़ोन की गैलरी (Pictures/Anima) में जाता है। हटाए गए चित्र ट्रैश में 30 दिन रहते हैं।
+Supported phones	समर्थित फ़ोन
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) पर परखा गया है। रूट की ज़रूरत नहीं। अन्य चिप समर्थित नहीं हैं।
+Licenses	लाइसेंस
+MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	MiaoMiao मॉडल (रचयिता MIAOKA, Civitai) CircleStone Labs के Anima और NVIDIA Cosmos पर आधारित हैं। केवल गैर-व्यावसायिक उपयोग। मॉडल का रचयिता उसे कैटलॉग से हटवाने के लिए कह सकता है।
+Fast, 3D-render style	तेज़, 3D रेंडर शैली
+Fast, realistic skin	तेज़, यथार्थवादी त्वचा
+Higher quality and detail	बेहतर गुणवत्ता और बारीकियाँ
+Higher quality, realistic skin	बेहतर गुणवत्ता, यथार्थवादी त्वचा
+Portrait	पोर्ट्रेट
+Landscape	लैंडस्केप
+Square	वर्ग
+Chip %s: supported (Hexagon V69)	चिप %s: समर्थित (Hexagon V69)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required	चिप %s: असमर्थित, Snapdragon 8 Gen 1 / 8+ Gen 1 चाहिए
+RAM %.1f GB: enough	RAM %.1f GB: पर्याप्त
+RAM %.1f GB: low, 8 GB or more is needed	RAM %.1f GB: कम, 8 GB या अधिक चाहिए
+Free space %.1f GB: enough	खाली जगह %.1f GB: पर्याप्त
+Free space %.1f GB: low, a model needs up to 5.4 GB	खाली जगह %.1f GB: कम, एक मॉडल को 5.4 GB तक चाहिए
+Templates	टेम्पलेट
+Chip %s is not supported	चिप %s समर्थित नहीं है
+The phone is hot: speed is reduced	फ़ोन गर्म है: गति घटा दी गई है
+Battery saver slows the NPU	बैटरी सेवर NPU को धीमा करता है
+Low battery (%d%%)	बैटरी कम है (%d%%)
+This file has no generation settings	इस फ़ाइल में जनरेशन सेटिंग्स नहीं हैं
+Settings loaded from the file	फ़ाइल से सेटिंग्स लोड हुईं
+Load settings from a PNG	PNG से सेटिंग्स लोड करें
+Settings	सेटिंग्स
+Save the current prompt	मौजूदा विवरण सहेजें
+Saved	सहेजे गए
+Recent	हाल के
+Generate ×%d  ·  ~%d s	बनाएँ ×%d  ·  ~%d सेकंड
+Stopping…	रोका जा रहा है…
+Stop	रोकें
+The phone is very hot: generation will be slow	फ़ोन बहुत गर्म है: जनरेशन धीमा होगा
+Stopped	रोका गया
+Finished pictures	तैयार चित्र
+Done: %d pictures	पूरा: %d चित्र
+Picture is ready	चित्र तैयार है
+Follow system	सिस्टम के अनुसार
+Light	लाइट
+Dark	डार्क
+Theme	थीम
+Load the model at start	शुरू होने पर मॉडल लोड करें
+The first picture is faster, but the model holds RAM	पहला चित्र तेज़ बनता है, पर मॉडल RAM घेरता है
+Never	कभी नहीं
+%d min	%d मिनट
+Unload when idle	निष्क्रिय होने पर अनलोड करें
+Frees RAM when you have not generated anything for a while	काफ़ी देर कुछ न बनाने पर RAM खाली करता है
+Keep the screen on while generating	जनरेट करते समय स्क्रीन चालू रखें
+Quality tags before the prompt	विवरण से पहले गुणवत्ता टैग
+Reset to default	डिफ़ॉल्ट पर लौटाएँ
+Welcome	स्वागत है
+Image generation right on your phone, offline and without root: the network runs on the Snapdragon NPU.	इंटरनेट और रूट के बिना सीधे फ़ोन पर चित्र बनाएँ: नेटवर्क Snapdragon NPU पर चलता है।
+Your phone	आपका फ़ोन
+Good to know	जानने लायक़
+Later	बाद में
+Downloading on an unsupported chip is at your own risk: the app will most likely not work.	असमर्थित चिप पर डाउनलोड अपने जोखिम पर है: ऐप के चलने की संभावना कम है।
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?	चिप %s समर्थित नहीं है: मॉडल Snapdragon 8 Gen 1 / 8+ Gen 1 के लिए बने हैं। फिर भी डाउनलोड करें?
+Generation	जनरेशन
+Generating a picture…	चित्र बन रहा है…
+Why there is no negative prompt	नेगेटिव प्रॉम्प्ट क्यों नहीं है
+Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt.	Turbo मॉडल CFG (scale 1) के बिना चलते हैं, इसलिए नेगेटिव प्रॉम्प्ट कुछ नहीं बदलता और उसका कोई फ़ील्ड नहीं है। जो नहीं चाहिए उसे विवरण में बस न लिखें।
+Quality tags and suggestions	गुणवत्ता टैग और सुझाव
+Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts.	गुणवत्ता टैग आपके विवरण से पहले अपने आप जुड़ते हैं (सेटिंग्स में बदलें)। टाइप करते समय Danbooru टैग के सुझाव दिखते हैं, और टेम्पलेट बटन सहेजे और हाल के विवरण रखता है।
+Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B).	गति: 512×768 चित्र के लिए लगभग 7 सेकंड (2B मॉडल) और 12 सेकंड (2.9B)।
+Always 4 steps and no negative prompt: that is how turbo models work.	हमेशा 4 चरण और कोई नेगेटिव प्रॉम्प्ट नहीं: turbo मॉडल ऐसे ही काम करते हैं।
+Pictures stay inside the app and reach the gallery only after Download.	चित्र केवल ऐप के अंदर रहते हैं और «डाउनलोड» के बाद गैलरी में जाते हैं।
+About	ऐप के बारे में
+Chip %s · Android %s	चिप %s · Android %s
+Send the log	लॉग भेजें
+Authors and links	रचयिता और लिंक
+Component licenses	घटकों के लाइसेंस

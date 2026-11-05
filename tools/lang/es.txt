@@ -1,0 +1,175 @@
+0	Seleccionar
+1	Historial
+2	Seleccionar todo
+3	Hecho
+4	Seleccionadas: %d
+5	Restaurar
+6	Eliminar para siempre
+7	¿Eliminar %d para siempre?
+8	Guardadas en la galería: %d
+9	¿Mover %d a la papelera?
+10	Sí
+11	Cancelar
+12	Todas
+13	★ Favoritas
+14	Papelera
+15	Se conservan 30 días
+16	Vaciar
+17	¿Vaciar la papelera definitivamente?
+18	Aún no hay nada.\nLas imágenes aparecen aquí y solo llegan a la galería del teléfono tras pulsar «Descargar».
+19	No hay favoritas.\nMarca una imagen con una estrella para guardarla aquí.
+20	La papelera está vacía.
+21	  ·  %.1f s
+22	¿Eliminar para siempre?
+23	Descargar
+24	Guardada en la galería: Pictures/Anima
+25	Compartir
+26	Favorita
+27	Usar estos ajustes
+28	Mover a la papelera
+29	Cargar
+30	Comprobando…
+31	Tu imagen aparecerá aquí
+32	DESCRIPCIÓN
+33	Borrar
+34	TAMAÑO
+35	Personalizado
+36	ancho
+37	alto
+38	SEED  ·  -1 = aleatoria
+39	RAM  total %.1f  ·  usada %.1f  ·  libre %.1f GB
+40	Modelos
+41	Info
+42	Idioma: %s
+43	Espera a que termine la generación
+44	Idioma
+45	sin modelo
+46	Catálogo de modelos…
+47	Modelo
+48	Tamaño: mínimo 256 por lado
+49	El ancho y el alto deben ser múltiplos de 16
+50	El número de parches (%d) debe ser divisible por 32, p. ej. 640×640, 1024×1024, 704×832
+51	Demasiado grande: máximo 6144 parches (p. ej. 1536×960)
+52	Obtener un modelo
+53	Generar  ·  ~%d s
+54	El modelo está cargado en la NPU; la generación empieza al instante
+55	El modelo está descargado: se cargará solo al generar (~5 s)
+56	Descargar de memoria
+57	Generando…
+58	No se puede iniciar el shell: %s
+59	Cambiando de modelo…
+60	Cargando el modelo…
+61	Descargando el modelo de la memoria…
+62	Escribe una descripción
+63	Iniciando…
+64	Guardando…
+65	Decodificando…
+66	Paso %d/%d
+67	Codificando el texto…
+68	Error de generación (registro: files/anima/animad.log)
+69	Listo en %.1f s
+70	%s  ·  %.0f s
+71	Origen
+72	URL del catálogo (…/resolve/main/)
+73	Chip %s · compatible (Hexagon V69)
+74	Chip %s · probado solo en Snapdragon 8 Gen 1 / 8+ Gen 1
+75	Libre %.1f GB
+76	Cargando catálogo…
+77	Catálogo no disponible: %s
+78	~%d s a 512×768
+79	%s GB
+80	Por %s
+81	Eliminar
+82	Descargar  %s GB
+83	El catálogo está vacío
+84	El primer modelo también descarga los archivos compartidos (%s GB): codificador de texto y VAE, una sola vez.
+85	No hay espacio suficiente: se necesitan %s GB
+86	Conectando…
+87	%s / %s GB  ·  %s
+88	Cancelado: los archivos se conservan, puedes reanudar
+89	Error: %s
+90	Descargas de modelos
+91	Descargando archivos del modelo…
+92	Por qué siempre 4 pasos
+93	Los modelos están destilados (turbo) para exactamente 4 pasos y el calendario de ruido está integrado en el motor. Con menos pasos la imagen sale borrosa y con más no mejora, solo tarda más, por eso no hay ajuste de pasos.
+94	Qué tamaños funcionan
+95	El ancho y el alto son múltiplos de 16, el número de parches (ancho/16 × alto/16) es divisible por 32 y como máximo 6144. Ejemplos: 512×768, 640×640, 1024×1024, 960×1536. El botón ⇄ cambia entre vertical y horizontal. Los tamaños grandes tardan más y se decodifican por teselas.
+96	Seed
+97	-1 es aleatoria cada vez. Un número repite la misma imagen con la misma descripción, tamaño y modelo. La seed usada aparece bajo la imagen y en el historial.
+98	Por qué los primeros pasos son más rápidos
+99	Los dos primeros pasos se ejecutan a resolución reducida (composición general) y los dos últimos a resolución completa, así se conservan los detalles. En algunos tamaños poco habituales se desactiva automáticamente.
+100	Cargar y descargar de memoria
+101	Un modelo cargado ocupa varios gigabytes de RAM. Si el teléfono va lento o has terminado, pulsa «Descargar de memoria». Se carga solo al generar (~5 s).
+102	Dónde se guardan las imágenes
+103	Solo dentro de la app. Una imagen llega a la galería del teléfono (Pictures/Anima) tras pulsar «Descargar». Las imágenes eliminadas van a la papelera y permanecen 30 días.
+104	Teléfonos compatibles
+105	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No requiere root. Los demás chips no son compatibles.
+106	Licencias
+107	Los modelos MiaoMiao (de MIAOKA, Civitai) están basados en Anima de CircleStone Labs y NVIDIA Cosmos. Solo uso no comercial. El autor de un modelo puede pedir que se retire del catálogo.
+108	Rápido, estilo render 3D
+109	Rápido, piel realista
+110	Mayor calidad y detalle
+111	Mayor calidad, piel realista
+112	Vertical
+113	Horizontal
+114	Cuadrado
+115	Chip %s: compatible (Hexagon V69)
+116	Chip %s: no compatible, se necesita un Snapdragon 8 Gen 1 / 8+ Gen 1
+117	RAM %.1f GB: suficiente
+118	RAM %.1f GB: poca, se necesitan 8 GB o más
+119	Espacio libre %.1f GB: suficiente
+120	Espacio libre %.1f GB: poco, un modelo necesita hasta 5,4 GB
+121	Plantillas
+122	El chip %s no es compatible
+123	El teléfono está caliente: velocidad reducida
+124	El ahorro de batería ralentiza la NPU
+125	Batería baja (%d%%)
+126	Este archivo no tiene ajustes de generación
+127	Ajustes cargados desde el archivo
+128	Cargar ajustes desde un PNG
+129	Ajustes
+130	Guardar la descripción actual
+131	Guardadas
+132	Recientes
+133	Generar ×%d  ·  ~%d s
+134	Deteniendo…
+135	Detener
+136	El teléfono está muy caliente: la generación será lenta
+137	Detenido
+138	Imágenes terminadas
+139	Listo: %d imágenes
+140	La imagen está lista
+141	Seguir el sistema
+142	Claro
+143	Oscuro
+144	Tema
+145	Cargar el modelo al iniciar
+146	La primera imagen es más rápida, pero el modelo ocupa RAM
+147	Nunca
+148	%d min
+149	Descargar de memoria al estar inactivo
+150	Libera RAM cuando llevas un rato sin generar nada
+151	Mantener la pantalla encendida al generar
+152	Etiquetas de calidad antes de la descripción
+153	Restablecer valores
+154	Bienvenido
+155	Genera imágenes en tu teléfono, sin internet y sin root: la red neuronal funciona en la NPU del Snapdragon.
+156	Tu teléfono
+157	Conviene saber
+158	Más tarde
+159	Descargar en un chip no compatible es bajo tu propio riesgo: lo más probable es que la app no funcione.
+160	El chip %s no es compatible: los modelos están hechos para Snapdragon 8 Gen 1 / 8+ Gen 1. ¿Descargar de todos modos?
+161	Generación
+162	Generando una imagen…
+163	Por qué no hay prompt negativo
+164	Los modelos turbo funcionan sin CFG (scale 1), así que un prompt negativo no cambiaría nada y por eso no hay campo. Simplemente no escribas en la descripción lo que no quieras.
+165	Etiquetas de calidad y sugerencias
+166	Las etiquetas de calidad se añaden antes de tu descripción automáticamente (cámbialas en Ajustes). Mientras escribes aparecen sugerencias de etiquetas de Danbooru, y el botón Plantillas guarda descripciones guardadas y recientes.
+167	Velocidad: unos 7 segundos por imagen de 512×768 (modelo 2B) y 12 segundos (2.9B).
+168	Siempre 4 pasos y sin prompt negativo: así funcionan los modelos turbo.
+169	Las imágenes se quedan dentro de la app y llegan a la galería solo tras «Descargar».
+170	Acerca de
+171	Chip %s · Android %s
+172	Enviar el registro
+173	Autores y enlaces
+174	Licencias de los componentes

@@ -1,0 +1,46 @@
+--- tae.hpp.orig	2026-11-04 01:37:27.179593115 +0300
++++ ../../sd-src/src/model/vae/tae.hpp	2026-11-04 08:59:14.519255808 +0300
+@@ -1,6 +1,11 @@
+ #ifndef __SD_MODEL_VAE_TAE_HPP__
+ #define __SD_MODEL_VAE_TAE_HPP__
+ 
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <fstream>
++#include <thread>
+ #include "core/ggml_extend.h"
+ #include "core/ggml_runner.h"
+ #include "core/rng.hpp"
+@@ -914,7 +919,30 @@
+             return build_graph(z_tensor, decode_graph);
+         };
+ 
+-        return restore_trailing_singleton_dims(GGMLRunner::compute(get_graph, n_threads, false), z_tensor.dim());
++        // NPU experiment hook (env SD_VAE_DIR): write the latent to z.bin, SD_VAE_MODE=extern waits for vae_out.bin(.done) from an external decoder
++        const char* vae_dir = std::getenv("SD_VAE_DIR");
++        if (vae_dir && decode_graph) {
++            std::string d = vae_dir;
++            FILE* f = fopen((d + "/z.bin").c_str(), "wb");
++            if (f) { fwrite(z_tensor.data(), sizeof(float), (size_t)z_tensor.numel(), f); fclose(f); }
++            f = fopen((d + "/z.shape").c_str(), "w");
++            if (f) { for (auto v : z_tensor.shape()) fprintf(f, "%lld ", (long long)v); fprintf(f, "\n"); fclose(f); }
++            if (std::getenv("SD_VAE_MODE") && std::string(std::getenv("SD_VAE_MODE")) == "extern") {
++                while (!std::ifstream(d + "/vae_out.bin.done").good()) std::this_thread::sleep_for(std::chrono::milliseconds(2));
++                auto shp = z_tensor.shape();
++                shp[0] *= 8; shp[1] *= 8; shp[2] = 3;
++                sd::Tensor<float> res(shp);
++                f = fopen((d + "/vae_out.bin").c_str(), "rb");
++                if (f) { size_t got = fread(res.data(), sizeof(float), (size_t)res.numel(), f); (void)got; fclose(f); }
++                return res;
++            }
++        }
++        auto vae_result = restore_trailing_singleton_dims(GGMLRunner::compute(get_graph, n_threads, false), z_tensor.dim());
++        if (vae_dir && decode_graph) {
++            FILE* f = fopen((std::string(vae_dir) + "/vae_ref.bin").c_str(), "wb");
++            if (f) { fwrite(vae_result.data(), sizeof(float), (size_t)vae_result.numel(), f); fclose(f); }
++        }
++        return vae_result;
+     }
+ };
+ 

@@ -1,0 +1,175 @@
+0	Seç
+1	Geçmiş
+2	Tümünü seç
+3	Bitti
+4	Seçilen: %d
+5	Geri yükle
+6	Kalıcı olarak sil
+7	%d öğe kalıcı olarak silinsin mi?
+8	Galeriye kaydedildi: %d
+9	%d öğe çöp kutusuna taşınsın mı?
+10	Evet
+11	İptal
+12	Tümü
+13	★ Favoriler
+14	Çöp kutusu
+15	30 gün saklanır
+16	Boşalt
+17	Çöp kutusu tamamen boşaltılsın mı?
+18	Henüz bir şey yok.\nGörüntüler burada görünür; telefon galerisine yalnızca «İndir»e dokununca girer.
+19	Favori yok.\nBir görüntüyü yıldızlayarak burada tutun.
+20	Çöp kutusu boş.
+21	  ·  %.1f sn
+22	Kalıcı olarak silinsin mi?
+23	İndir
+24	Galeriye kaydedildi: Pictures/Anima
+25	Paylaş
+26	Favori
+27	Bu ayarları kullan
+28	Çöp kutusuna taşı
+29	Yükle
+30	Kontrol ediliyor…
+31	Görüntünüz burada görünecek
+32	AÇIKLAMA
+33	Temizle
+34	BOYUT
+35	Özel
+36	genişlik
+37	yükseklik
+38	SEED  ·  -1 = rastgele
+39	RAM  toplam %.1f  ·  kullanılan %.1f  ·  boş %.1f GB
+40	Modeller
+41	Bilgi
+42	Dil: %s
+43	Üretimin bitmesini bekleyin
+44	Dil
+45	model yok
+46	Model kataloğu…
+47	Model
+48	Boyut: her kenarda en az 256
+49	Genişlik ve yükseklik 16'nın katı olmalı
+50	Yama sayısı (%d) 32'ye tam bölünmeli, örn. 640×640, 1024×1024, 704×832
+51	Çok büyük: en fazla 6144 yama (örn. 1536×960)
+52	Model edin
+53	Üret  ·  ~%d sn
+54	Model NPU'ya yüklendi, üretim hemen başlar
+55	Model yüklü değil: üretirken kendiliğinden yüklenir (~5 sn)
+56	Boşalt
+57	Üretiliyor…
+58	Kabuk başlatılamıyor: %s
+59	Model değiştiriliyor…
+60	Model yükleniyor…
+61	Model boşaltılıyor…
+62	Bir açıklama girin
+63	Başlatılıyor…
+64	Kaydediliyor…
+65	Çözülüyor…
+66	Adım %d/%d
+67	Metin kodlanıyor…
+68	Üretim başarısız (günlük: files/anima/animad.log)
+69	%.1f sn'de bitti
+70	%s  ·  %.0f sn
+71	Kaynak
+72	Katalog adresi (…/resolve/main/)
+73	Yonga %s · destekleniyor (Hexagon V69)
+74	Yonga %s · yalnızca Snapdragon 8 Gen 1 / 8+ Gen 1 üzerinde test edildi
+75	Boş alan %.1f GB
+76	Katalog yükleniyor…
+77	Katalog kullanılamıyor: %s
+78	512×768'de ~%d sn
+79	%s GB
+80	Yapan: %s
+81	Sil
+82	İndir  %s GB
+83	Katalog boş
+84	İlk model ortak dosyaları da indirir (%s GB): metin kodlayıcı ve VAE, yalnızca bir kez.
+85	Yeterli alan yok: %s GB gerekli
+86	Bağlanılıyor…
+87	%s / %s GB  ·  %s
+88	İptal edildi: dosyalar saklandı, devam edebilirsiniz
+89	Hata: %s
+90	Model indirmeleri
+91	Model dosyaları indiriliyor…
+92	Neden hep 4 adım
+93	Modeller tam olarak 4 adım için damıtıldı (turbo) ve gürültü takvimi motora gömülü. Daha az adım bulanık sonuç verir, daha fazlası iyileştirmez, yalnızca yavaşlatır; bu yüzden adım ayarı yok.
+94	Hangi boyutlar çalışır
+95	Genişlik ve yükseklik 16'nın katı, yama sayısı (genişlik/16 × yükseklik/16) 32'ye tam bölünür ve en çok 6144'tür. Örnekler: 512×768, 640×640, 1024×1024, 960×1536. ⇄ düğmesi dikey ile yatayı değiştirir. Büyük boyutlar daha uzun sürer ve karolar halinde çözülür.
+96	Seed
+97	-1 her seferinde rastgeledir. Bir sayı, aynı açıklama, boyut ve modelle aynı görüntüyü tekrarlar. Kullanılan seed görüntünün altında ve geçmişte görünür.
+98	İlk adımlar neden daha hızlı
+99	İlk iki adım düşük çözünürlükte (genel kompozisyon), son iki adım tam çözünürlükte çalışır; böylece ayrıntılar korunur. Bazı alışılmadık boyutlarda bu otomatik olarak kapanır.
+100	Yükleme ve boşaltma
+101	Yüklü bir model birkaç gigabayt RAM tutar. Telefon yavaşlarsa veya işiniz bittiyse «Boşalt»a dokunun. Üretirken kendiliğinden yüklenir (~5 sn).
+102	Görüntüler nerede saklanır
+103	Yalnızca uygulamanın içinde. Bir görüntü «İndir»den sonra telefon galerisine (Pictures/Anima) gider. Silinen görüntüler çöp kutusuna gider ve orada 30 gün kalır.
+104	Desteklenen telefonlar
+105	Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) üzerinde test edildi. Root gerekmez. Diğer yongalar desteklenmez.
+106	Lisanslar
+107	MiaoMiao modelleri (MIAOKA, Civitai) CircleStone Labs'ın Anima'sı ve NVIDIA Cosmos üzerine kuruludur. Yalnızca ticari olmayan kullanım. Model yazarı kataloktan kaldırılmasını isteyebilir.
+108	Hızlı, 3D render tarzı
+109	Hızlı, gerçekçi cilt
+110	Daha yüksek kalite ve ayrıntı
+111	Daha yüksek kalite, gerçekçi cilt
+112	Dikey
+113	Yatay
+114	Kare
+115	Yonga %s: destekleniyor (Hexagon V69)
+116	Yonga %s: desteklenmiyor, Snapdragon 8 Gen 1 / 8+ Gen 1 gerekli
+117	RAM %.1f GB: yeterli
+118	RAM %.1f GB: az, 8 GB veya daha fazlası gerekir
+119	Boş alan %.1f GB: yeterli
+120	Boş alan %.1f GB: az, bir model en çok 5,4 GB gerektirir
+121	Şablonlar
+122	Yonga %s desteklenmiyor
+123	Telefon sıcak: hız düşürüldü
+124	Pil tasarrufu NPU'yu yavaşlatır
+125	Pil düşük (%d%%)
+126	Bu dosyada üretim ayarı yok
+127	Ayarlar dosyadan yüklendi
+128	PNG'den ayarları yükle
+129	Ayarlar
+130	Geçerli açıklamayı kaydet
+131	Kayıtlı
+132	Son kullanılan
+133	Üret ×%d  ·  ~%d sn
+134	Durduruluyor…
+135	Durdur
+136	Telefon çok sıcak: üretim yavaş olacak
+137	Durduruldu
+138	Biten görüntüler
+139	Bitti: %d görüntü
+140	Görüntü hazır
+141	Sistemi izle
+142	Açık
+143	Koyu
+144	Tema
+145	Başlangıçta modeli yükle
+146	İlk görüntü daha hızlı olur ama model RAM tutar
+147	Hiçbir zaman
+148	%d dk
+149	Boştayken boşalt
+150	Bir süredir bir şey üretmediyseniz RAM'i serbest bırakır
+151	Üretirken ekranı açık tut
+152	Açıklamadan önce kalite etiketleri
+153	Varsayılana sıfırla
+154	Hoş geldiniz
+155	Görüntüleri doğrudan telefonunuzda, internetsiz ve root'suz üretin: ağ Snapdragon NPU üzerinde çalışır.
+156	Telefonunuz
+157	Bilmekte fayda var
+158	Sonra
+159	Desteklenmeyen bir yongada indirmek kendi sorumluluğunuzdadır: uygulama büyük olasılıkla çalışmaz.
+160	Yonga %s desteklenmiyor: modeller Snapdragon 8 Gen 1 / 8+ Gen 1 için yapıldı. Yine de indirilsin mi?
+161	Üretim
+162	Görüntü üretiliyor…
+163	Neden negatif prompt yok
+164	Turbo modeller CFG olmadan (scale 1) çalışır, bu yüzden negatif prompt hiçbir şeyi değiştirmez ve alanı yoktur. İstemediklerinizi açıklamaya yazmayın.
+165	Kalite etiketleri ve öneriler
+166	Kalite etiketleri açıklamanızdan önce otomatik eklenir (Ayarlar'dan değiştirilebilir). Yazarken Danbooru etiket önerileri çıkar, Şablonlar düğmesi kayıtlı ve son açıklamaları tutar.
+167	Hız: 512×768 görüntü başına yaklaşık 7 saniye (2B model) ve 12 saniye (2.9B).
+168	Her zaman 4 adım ve negatif prompt yok: turbo modeller böyle çalışır.
+169	Görüntüler yalnızca uygulamanın içinde kalır, «İndir»den sonra galeriye geçer.
+170	Hakkında
+171	Yonga %s · Android %s
+172	Günlüğü gönder
+173	Yapımcılar ve bağlantılar
+174	Bileşen lisansları

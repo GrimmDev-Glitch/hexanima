@@ -1,0 +1,776 @@
+package com.hexanima.npu;
+
+import android.app.AlertDialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Outline;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.WindowManager;
+import android.widget.*;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/** Anima on the NPU: load/unload the model (animad server via anima.sh) and generate. No root: the bundled native binaries run from the app's own uid. */
+public class Main extends Base {
+    static final String DEFAULT_BASE = "https://huggingface.co/ayanoby/anima-npu-packs/resolve/main/";
+    static final int STEPS = 4;   // the models are distilled for 4 steps (see Info)
+    /** popular sizes, all valid for the NPU pipeline (multiples of 16, patch count divisible by 32, at most 6144); grouped by aspect ratio, a portrait and its landscape twin next to each other */
+    static final int[][] SIZES = {{512, 512}, {640, 640}, {768, 768}, {1024, 1024}, {512, 768}, {768, 512}, {768, 1152}, {1152, 768}, {1024, 1536}, {1536, 1024}, {768, 1024}, {1024, 768}, {960, 1280}, {1280, 960},
+        {576, 1024}, {1024, 576}, {640, 1152}, {1152, 640}, {960, 1536}, {1536, 960}};
+    static volatile boolean visible;   // the main screen is in front (otherwise a finished picture is announced by a notification)
+
+    String D, BIN;   // work dir (files/anima) and the native lib dir with the bundled executables
+    Models store;
+    java.util.List<String> ids = new java.util.ArrayList<>();   // installed model ids
+    volatile int resW = 512, resH = 768;
+    final Handler ui = new Handler(Looper.getMainLooper());
+    final ExecutorService ex = Executors.newSingleThreadExecutor();
+    final ExecutorService ex2 = Executors.newSingleThreadExecutor();   // the Stop button
+    volatile boolean loaded, busy, cancelled;
+    String model = "";   // id of the selected installed model; anima.sh gets MID/MDIR
+    int count = 1;       // pictures per press of Generate
+    volatile int curIdx, curN = 1;
+    boolean statusSeen;
+    int tick;
+
+    TextView chipName, chipDot, state, status, saved, placeholder, ramTxt, warnTxt, sizeText;
+    LinearLayout customRow, imgBox;
+    Button loadBtn, genBtn, countBtn;
+    ImageButton dlBtn, shareBtn, favBtn, againBtn;
+    MultiAutoCompleteTextView prompt;
+    EditText seed, wEdit, hEdit;
+    ProgressBar bar, ramBar;
+    ImageView img;
+    File lastFile;
+    boolean customOpen;
+
+    String mp() { return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " "; }
+
+    GradientDrawable gradient(boolean enabled) {
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{enabled ? ACC : 0xFF3A4158, enabled ? ACC2 : 0xFF3A4158});
+        g.setCornerRadius(dp(18)); return g;
+    }
+    SharedPreferences prefs() { return getSharedPreferences("anima", 0); }
+    void setFavIcon(boolean on) { favBtn.setImageResource(getResources().getIdentifier(on ? "ic_star" : "ic_star_off", "drawable", getPackageName())); favBtn.setImageTintList(on ? null : ColorStateList.valueOf(TXT)); }
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        D = new File(getFilesDir(), "anima").getPath(); BIN = getApplicationInfo().nativeLibraryDir;
+        store = new Models(getFilesDir());
+        main.env = pollSh.env = ctlSh.env = new String[]{D, new File(getFilesDir(), "sd").getPath(), BIN};
+        installScript();
+        getWindow().setNavigationBarColor(CARD);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        LinearLayout frame = new LinearLayout(this);
+        frame.setOrientation(LinearLayout.VERTICAL);
+        frame.setBackgroundColor(BG);
+        frame.setFitsSystemWindows(true);
+        ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(12), dp(16), dp(20));
+        sv.addView(root, new ViewGroup.LayoutParams(-1, -2));
+        frame.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        // header: title, history, menu
+        LinearLayout tr = new LinearLayout(this);
+        tr.setGravity(Gravity.CENTER_VERTICAL);
+        tr.addView(text("HexAnima", 28, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
+        Button hist = button(L.s("История", "History"), CARD, TXT);
+        hist.setTextSize(13);
+        hist.setOnClickListener(v -> startActivityForResult(new Intent(this, History.class), 7));
+        tr.addView(hist, new LinearLayout.LayoutParams(-2, dp(40)));
+        Button more = button("⋯", CARD, TXT);
+        more.setTextSize(20);
+        more.setOnClickListener(v -> menu(v));
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(48), dp(40)); ml.leftMargin = dp(6);
+        tr.addView(more, ml);
+        root.addView(tr);
+        ramTxt = text("", 12, DIM, false);
+        ramTxt.setPadding(dp(2), dp(10), 0, dp(4));
+        root.addView(ramTxt);
+        ramBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        ramBar.setMax(1000);
+        ramBar.setProgressBackgroundTintList(ColorStateList.valueOf(CARD));
+        root.addView(ramBar, new LinearLayout.LayoutParams(-1, dp(5)));
+        warnTxt = text("", 12, WARN, false);   // thermal / battery / unsupported chip
+        warnTxt.setPadding(dp(2), dp(6), 0, 0);
+        warnTxt.setVisibility(View.GONE);
+        root.addView(warnTxt);
+
+        // model chip + load/unload, then the state line
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setPadding(0, dp(12), 0, 0);
+        LinearLayout mc = new LinearLayout(this);
+        mc.setGravity(Gravity.CENTER_VERTICAL);
+        mc.setBackground(bg(CARD, 20));
+        mc.setPadding(dp(14), dp(10), dp(14), dp(10));
+        chipDot = text("●", 12, DIM, false);
+        chipName = text("…", 14, TXT, true);
+        chipName.setPadding(dp(8), 0, dp(6), 0); chipName.setMaxLines(2); chipName.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        mc.addView(chipDot); mc.addView(chipName, new LinearLayout.LayoutParams(0, -2, 1)); mc.addView(text("▾", 12, DIM, false));
+        mc.setOnClickListener(v -> pickModel());
+        head.addView(mc, new LinearLayout.LayoutParams(0, -2, 1));
+        loadBtn = button(L.s("Загрузить", "Load"), CARD, TXT);
+        loadBtn.setTextSize(13);
+        loadBtn.setOnClickListener(v -> toggleModel());
+        LinearLayout.LayoutParams lb = new LinearLayout.LayoutParams(-2, dp(42)); lb.leftMargin = dp(8);
+        head.addView(loadBtn, lb);
+        root.addView(head);
+        state = text(L.s("Проверяю…", "Checking…"), 12, DIM, false);
+        state.setPadding(dp(4), dp(6), 0, dp(12));
+        root.addView(state);
+
+        // result card
+        imgBox = new LinearLayout(this);
+        imgBox.setOrientation(LinearLayout.VERTICAL);
+        imgBox.setGravity(Gravity.CENTER);
+        imgBox.setBackground(bg(CARD, 24));
+        imgBox.setClipToOutline(true);
+        imgBox.setOutlineProvider(new ViewOutlineProvider() {
+            @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(24)); }
+        });
+        placeholder = text(L.s("Здесь появится картинка", "Your picture will appear here"), 14, DIM, false);
+        placeholder.setGravity(Gravity.CENTER);
+        placeholder.setPadding(dp(24), dp(64), dp(24), dp(64));
+        imgBox.addView(placeholder, new LinearLayout.LayoutParams(-1, -2));
+        img = new ImageView(this);
+        img.setAdjustViewBounds(true);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        img.setVisibility(View.GONE);
+        img.setOnClickListener(v -> { if (lastFile != null) Gallery.view(this, lastFile); });
+        imgBox.addView(img, new LinearLayout.LayoutParams(-1, -2));
+        root.addView(imgBox, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout resRow = new LinearLayout(this);
+        resRow.setGravity(Gravity.CENTER_VERTICAL);
+        saved = text("", 12, DIM, false);
+        saved.setPadding(dp(4), dp(8), dp(8), 0);
+        resRow.addView(saved, new LinearLayout.LayoutParams(0, -2, 1));
+        againBtn = icon("ic_refresh", CARD);
+        againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
+        favBtn = icon("ic_star_off", CARD);
+        favBtn.setOnClickListener(v -> { if (lastFile == null) return; boolean nv = !Gallery.fav(lastFile); Gallery.setFav(lastFile, nv); setFavIcon(nv); });
+        dlBtn = icon("ic_download", CARD);
+        dlBtn.setOnClickListener(v -> { if (lastFile == null) return; try { Gallery.export(this, lastFile); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
+        shareBtn = icon("ic_share", CARD);
+        shareBtn.setOnClickListener(v -> { if (lastFile != null) Gallery.share(this, lastFile); });
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) {
+            x.setVisibility(View.GONE);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
+            resRow.addView(x, lp);
+        }
+        root.addView(resRow);
+
+        // prompt
+        LinearLayout pl = new LinearLayout(this);
+        pl.setGravity(Gravity.CENTER_VERTICAL);
+        pl.addView(label(L.s("ОПИСАНИЕ", "PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
+        TextView tpl = text(L.s("Шаблоны", "Templates"), 12, ACC, true);
+        tpl.setPadding(dp(8), dp(14), dp(8), dp(6));
+        tpl.setOnClickListener(v -> templates());
+        pl.addView(tpl);
+        TextView clr = text(L.s("Очистить", "Clear"), 12, ACC, true);
+        clr.setPadding(dp(8), dp(14), dp(2), dp(6));
+        clr.setOnClickListener(v -> prompt.setText(""));
+        pl.addView(clr);
+        root.addView(pl);
+        prompt = new MultiAutoCompleteTextView(this);   // Danbooru tag suggestions while typing, comma separated
+        prompt.setHint("1girl, smile, outdoors, cherry blossoms…");
+        prompt.setHintTextColor(DIM); prompt.setTextColor(TXT); prompt.setTextSize(16);
+        prompt.setMinLines(3);
+        prompt.setGravity(Gravity.TOP);
+        prompt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        prompt.setBackground(bg(CARD, 18));
+        prompt.setPadding(dp(16), dp(14), dp(16), dp(14));
+        prompt.setThreshold(2);
+        prompt.setTokenizer(new MultiAutoCompleteTextView.CommaTokenizer());
+        prompt.setDropDownBackgroundDrawable(bg(CARD, 12));
+        prompt.setDropDownHeight(dp(240));
+        root.addView(prompt, new LinearLayout.LayoutParams(-1, -2));
+        loadTags();
+
+        // size: a drop-down button that opens a two-column picker, and the portrait <-> landscape swap
+        root.addView(label(L.s("РАЗМЕР", "SIZE")));
+        LinearLayout sizeRow = new LinearLayout(this);
+        sizeRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout sizeBtn = new LinearLayout(this);
+        sizeBtn.setGravity(Gravity.CENTER_VERTICAL); sizeBtn.setBackground(bg(CARD, 16)); sizeBtn.setPadding(dp(16), 0, dp(16), 0);
+        sizeText = text("", 15, TXT, true);
+        sizeBtn.addView(sizeText, new LinearLayout.LayoutParams(0, -2, 1)); sizeBtn.addView(text("▾", 14, DIM, false));
+        sizeBtn.setOnClickListener(v -> pickSize());
+        sizeRow.addView(sizeBtn, new LinearLayout.LayoutParams(0, dp(48), 1));
+        Button swap = button("⇄", CARD, TXT);
+        swap.setTextSize(18);
+        swap.setOnClickListener(v -> {
+            int w = resW, h = resH;
+            if (customRow.getVisibility() == View.VISIBLE) try { w = Integer.parseInt(wEdit.getText().toString().trim()); h = Integer.parseInt(hEdit.getText().toString().trim()); } catch (NumberFormatException e) { }
+            setRes(h, w);
+        });
+        LinearLayout.LayoutParams sw = new LinearLayout.LayoutParams(dp(56), dp(48)); sw.leftMargin = dp(8);
+        sizeRow.addView(swap, sw);
+        root.addView(sizeRow);
+        customRow = new LinearLayout(this);
+        customRow.setGravity(Gravity.CENTER_VERTICAL);
+        customRow.setPadding(0, dp(10), 0, 0);
+        wEdit = field(L.s("ширина", "width")); hEdit = field(L.s("высота", "height"));
+        wEdit.setInputType(InputType.TYPE_CLASS_NUMBER); hEdit.setInputType(InputType.TYPE_CLASS_NUMBER);
+        wEdit.setBackground(bg(CARD, 14)); hEdit.setBackground(bg(CARD, 14));
+        customRow.addView(wEdit, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView times = text("×", 18, DIM, false); times.setGravity(Gravity.CENTER);
+        customRow.addView(times, new LinearLayout.LayoutParams(dp(36), -2));
+        customRow.addView(hEdit, new LinearLayout.LayoutParams(0, -2, 1));
+        customRow.setVisibility(View.GONE);
+        root.addView(customRow);
+
+        // seed
+        root.addView(label(L.s("SEED  ·  -1 = случайный", "SEED  ·  -1 = random")));
+        LinearLayout sr = new LinearLayout(this);
+        sr.setGravity(Gravity.CENTER_VERTICAL);
+        seed = field("-1");
+        seed.setText("-1");
+        seed.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        seed.setBackground(bg(CARD, 14));
+        sr.addView(seed, new LinearLayout.LayoutParams(0, -2, 1));
+        Button dice = button("🎲", CARD, TXT);
+        dice.setOnClickListener(v -> seed.setText(String.valueOf(new Random().nextInt(1 << 30))));
+        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(52), dp(44)); dl.leftMargin = dp(8);
+        sr.addView(dice, dl);
+        root.addView(sr);
+
+        // sticky bottom bar: progress + status + [pictures count] [Generate / Stop]
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.VERTICAL);
+        bottom.setBackgroundColor(CARD);
+        bottom.setPadding(dp(16), dp(10), dp(16), dp(10));
+        bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(100);
+        bar.setProgressTintList(ColorStateList.valueOf(ACC));
+        bar.setProgressBackgroundTintList(ColorStateList.valueOf(FIELD));
+        bar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, dp(5)); bl.bottomMargin = dp(6);
+        bottom.addView(bar, bl);
+        status = text("", 13, DIM, false);
+        status.setVisibility(View.GONE);
+        status.setPadding(dp(2), 0, 0, dp(6));
+        bottom.addView(status);
+        LinearLayout brow = new LinearLayout(this);
+        count = Math.max(1, Math.min(4, prefs().getInt("count", 1)));
+        countBtn = button("×" + count, FIELD, TXT);
+        countBtn.setTextSize(16);
+        countBtn.setOnClickListener(v -> { count = count % 4 + 1; prefs().edit().putInt("count", count).apply(); countBtn.setText("×" + count); genBtn.setText(genLabel()); });
+        LinearLayout.LayoutParams cb = new LinearLayout.LayoutParams(dp(64), dp(54)); cb.rightMargin = dp(8);
+        brow.addView(countBtn, cb);
+        genBtn = button("", ACC, ON_ACC);
+        genBtn.setTextSize(17);
+        genBtn.setOnClickListener(v -> { if (busy) cancel(); else generate(false); });
+        brow.addView(genBtn, new LinearLayout.LayoutParams(0, dp(54), 1));
+        bottom.addView(brow);
+        frame.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
+
+        setContentView(frame);
+        SharedPreferences p = prefs();   // restore the last session's inputs
+        prompt.setText(p.getString("prompt", "")); seed.setText(p.getString("seed", "-1")); model = p.getString("model", "");
+        refreshModels();
+        setRes(p.getInt("w", 512), p.getInt("h", 768));
+        refreshState();
+        if (!p.getBoolean("welcomed", false)) startActivity(new Intent(this, Welcome.class));
+    }
+
+    /** the tag list for the suggestions is read in the background (8000 lines in assets/tags.txt) */
+    void loadTags() {
+        new Thread(() -> {
+            final ArrayList<String> tags = new ArrayList<>();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(getAssets().open("tags.txt"), "UTF-8"))) { for (String l; (l = r.readLine()) != null; ) if (!l.isEmpty()) tags.add(l); } catch (IOException ignored) { }
+            ui.post(() -> prompt.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, tags) {
+                @Override public View getView(int i, View v, ViewGroup p) { View r = super.getView(i, v, p); ((TextView) r).setTextColor(TXT); ((TextView) r).setTextSize(15); r.setBackgroundColor(CARD); return r; }
+            }));
+        }).start();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        visible = false;
+        ui.removeCallbacks(ramTick);
+        prefs().edit().putString("prompt", prompt.getText().toString()).putString("seed", seed.getText().toString()).putString("model", model).putInt("w", resW).putInt("h", resH).apply();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        visible = true;
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(2);
+        String del = ModelsActivity.deleted; ModelsActivity.deleted = "";
+        if (!del.isEmpty() && del.equals(model) && loaded && !busy) { loaded = false; ex.submit(() -> su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false)); }
+        if (genBtn != null) { refreshModels(); ui.post(ramTick); }
+        if (android.os.Build.VERSION.SDK_INT >= 33 && prefs().getBoolean("welcomed", false) && !prefs().getBoolean("asked_notif", false)) {   // once, after the welcome screen
+            prefs().edit().putBoolean("asked_notif", true).apply();
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5);
+        }
+    }
+
+    /** every 2 s: RAM strip, thermal / battery / chip warnings; every 10 s the model state (the idle watchdog may have unloaded it) */
+    final Runnable ramTick = new Runnable() {
+        @Override public void run() {
+            android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo();
+            ((android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi);
+            double g = 1024.0 * 1024 * 1024, tot = mi.totalMem / g, free = mi.availMem / g, used = tot - free;
+            ramTxt.setText(L.f("ОЗУ  всего %.1f  ·  занято %.1f  ·  свободно %.1f ГБ", "RAM  total %.1f  ·  used %.1f  ·  free %.1f GB", tot, used, free));
+            ramBar.setProgress((int) (1000 * used / tot));
+            ramBar.setProgressTintList(ColorStateList.valueOf(free < 0.8 ? BAD : free < 1.5 ? WARN : ACC));
+            List<String> w = new ArrayList<>();
+            if (!Compat.chipAllowed(Main.this)) w.add(L.f("Чип %s не поддерживается", "Chip %s is not supported", Compat.soc()));
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm.getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_MODERATE) w.add(L.s("Телефон горячий: скорость снижена", "The phone is hot: speed is reduced"));
+            if (pm.isPowerSaveMode()) w.add(L.s("Экономия заряда замедляет NPU", "Battery saver slows the NPU"));
+            Intent bat = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (bat != null) { int lvl = bat.getIntExtra("level", -1) * 100 / Math.max(1, bat.getIntExtra("scale", 100)), st = bat.getIntExtra("status", 0); if (lvl >= 0 && lvl < 15 && st != 2 && st != 5) w.add(L.f("Низкий заряд батареи (%d%%)", "Low battery (%d%%)", lvl)); }
+            warnTxt.setVisibility(w.isEmpty() ? View.GONE : View.VISIBLE);
+            warnTxt.setText("⚠  " + android.text.TextUtils.join("  ·  ", w));
+            if (++tick % 5 == 0 && !busy) refreshState();
+            ui.postDelayed(this, 2000);
+        }
+    };
+
+    @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == 7 && res == RESULT_OK && d != null) {
+            prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
+            customOpen = false;
+            setRes(d.getIntExtra("w", 512), d.getIntExtra("h", 768));
+        } else if (req == 8 && res == RESULT_OK && d != null && d.getData() != null) {
+            try (InputStream in = getContentResolver().openInputStream(d.getData()); ByteArrayOutputStream bo = new ByteArrayOutputStream()) {
+                byte[] b = new byte[1 << 16]; int total = 0;
+                for (int n; (n = in.read(b)) > 0 && total < (40 << 20); ) { bo.write(b, 0, n); total += n; }
+                JSONObject m = PngMeta.settings(bo.toByteArray());
+                if (m == null || m.optString("prompt").isEmpty()) { Toast.makeText(this, L.s("В этом файле нет настроек генерации", "This file has no generation settings"), Toast.LENGTH_LONG).show(); return; }
+                prompt.setText(m.optString("prompt")); seed.setText(m.optString("seed", "-1"));
+                customOpen = false; if (m.optInt("w") > 0) setRes(m.optInt("w"), m.optInt("h"));
+                Toast.makeText(this, L.s("Настройки загружены из файла", "Settings loaded from the file"), Toast.LENGTH_SHORT).show();
+            } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
+        }
+    }
+
+    // ---- menu, dialogs ------------------------------------------------------------------------
+    void menu(View anchor) {
+        PopupMenu pm = new PopupMenu(this, anchor);
+        pm.getMenu().add(0, 1, 0, L.s("Модели", "Models"));
+        pm.getMenu().add(0, 2, 1, L.s("Открыть настройки из PNG", "Load settings from a PNG"));
+        pm.getMenu().add(0, 3, 2, L.s("Настройки", "Settings"));
+        pm.getMenu().add(0, 4, 3, L.s("Инфо", "Info"));
+        pm.setOnMenuItemClickListener(i -> {
+            if (i.getItemId() == 1) openModels();
+            else if (i.getItemId() == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
+            else if (i.getItemId() == 3) startActivity(new Intent(this, Settings.class));
+            else startActivity(new Intent(this, Info.class));
+            return true;
+        });
+        pm.show();
+    }
+
+    void openModels() { if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; } startActivity(new Intent(this, ModelsActivity.class)); }
+
+    /** saved and recent prompts: tap to use; saved ones can be removed with ✕ */
+    void templates() {
+        final LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14), dp(14), dp(14), dp(10));
+        final AlertDialog[] dlg = new AlertDialog[1];
+        final Runnable[] fill = new Runnable[1];
+        fill[0] = () -> {
+            box.removeAllViews();
+            Button save = button(L.s("Сохранить текущее описание", "Save the current prompt"), ACC, ON_ACC); save.setTextSize(14);
+            save.setOnClickListener(v -> {
+                String t = prompt.getText().toString().trim();
+                if (t.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
+                List<String> l = savedPrompts(); l.remove(t); l.add(0, t); while (l.size() > 30) l.remove(l.size() - 1);
+                prefs().edit().putString("saved", new JSONArray(l).toString()).apply(); fill[0].run();
+            });
+            box.addView(save, new LinearLayout.LayoutParams(-1, dp(44)));
+            List<String> sv = savedPrompts();
+            if (!sv.isEmpty()) { box.addView(sect(L.s("Сохранённые", "Saved"))); for (String t : sv) box.addView(promptRow(t, true, dlg, fill)); }
+            List<String> rc = recentPrompts();
+            if (!rc.isEmpty()) { box.addView(sect(L.s("Недавние", "Recent"))); for (String t : rc) box.addView(promptRow(t, false, dlg, fill)); }
+        };
+        fill[0].run();
+        ScrollView s = new ScrollView(this); s.addView(box);
+        dlg[0] = dialog(s);
+    }
+
+    TextView sect(String s) { TextView t = text(s, 12, DIM, true); t.setPadding(dp(4), dp(14), 0, dp(6)); return t; }
+
+    View promptRow(String t, boolean removable, AlertDialog[] dlg, Runnable[] fill) {
+        LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setBackground(bg(FIELD, 12)); r.setPadding(dp(12), dp(10), dp(8), dp(10));
+        TextView tv = text(t, 13, TXT, false); tv.setMaxLines(2); tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        r.addView(tv, new LinearLayout.LayoutParams(0, -2, 1));
+        if (removable) {
+            TextView x = text("✕", 16, DIM, false); x.setPadding(dp(12), dp(4), dp(8), dp(4));
+            x.setOnClickListener(v -> { List<String> l = savedPrompts(); l.remove(t); prefs().edit().putString("saved", new JSONArray(l).toString()).apply(); fill[0].run(); });
+            r.addView(x);
+        }
+        r.setOnClickListener(v -> { prompt.setText(t); prompt.setSelection(t.length()); dlg[0].dismiss(); });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.topMargin = dp(4);
+        r.setLayoutParams(lp);
+        return r;
+    }
+
+    List<String> savedPrompts() {
+        List<String> l = new ArrayList<>();
+        try { JSONArray a = new JSONArray(prefs().getString("saved", "[]")); for (int i = 0; i < a.length(); i++) l.add(a.getString(i)); } catch (Exception ignored) { }
+        return l;
+    }
+
+    List<String> recentPrompts() {
+        List<String> l = new ArrayList<>();
+        File[] fs = Gallery.list(this, Gallery.ALL);
+        for (int i = 0; i < fs.length && l.size() < 10 && i < 60; i++) { String p = Gallery.meta(fs[i]).optString("prompt").trim(); if (!p.isEmpty() && !l.contains(p)) l.add(p); }
+        return l;
+    }
+
+    static int gcd(int a, int b) { return b == 0 ? a : gcd(b, a % b); }
+    static String sizeLabel(int w, int h) { int g = gcd(w, h); return w + "×" + h + "  ·  " + w / g + ":" + h / g; }
+
+    /** Size picker: the portrait sizes in the left column, their landscape twins in the right one, squares below, then "Custom". */
+    void pickSize() {
+        final AlertDialog[] dlg = new AlertDialog[1];
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14), dp(14), dp(14), dp(10));
+        java.util.List<int[]> por = new java.util.ArrayList<>(), lan = new java.util.ArrayList<>(), sq = new java.util.ArrayList<>();
+        for (int[] z : SIZES) (z[1] > z[0] ? por : z[0] > z[1] ? lan : sq).add(z);
+        box.addView(cols(text(L.s("Портрет", "Portrait"), 12, DIM, true), text(L.s("Альбом", "Landscape"), 12, DIM, true), true));
+        for (int i = 0; i < por.size(); i++) box.addView(cols(cell(por.get(i), dlg), cell(lan.get(i), dlg), false));
+        TextView sqh = text(L.s("Квадрат", "Square"), 12, DIM, true); sqh.setPadding(dp(4), dp(14), 0, dp(6)); box.addView(sqh);
+        for (int i = 0; i < sq.size(); i += 2) box.addView(cols(cell(sq.get(i), dlg), i + 1 < sq.size() ? cell(sq.get(i + 1), dlg) : new View(this), false));
+        Button custom = button(L.s("Свой", "Custom"), FIELD, customOpen ? ACC : TXT);
+        custom.setOnClickListener(v -> { customOpen = true; setRes(resW, resH); dlg[0].dismiss(); });
+        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, dp(44)); cl.topMargin = dp(12);
+        box.addView(custom, cl);
+        ScrollView sv = new ScrollView(this); sv.addView(box);
+        dlg[0] = dialog(sv);
+    }
+
+    LinearLayout cols(View l, View r, boolean header) {
+        LinearLayout row = new LinearLayout(this); row.setPadding(0, dp(3), 0, dp(3));
+        LinearLayout.LayoutParams a = new LinearLayout.LayoutParams(0, -2, 1); a.rightMargin = dp(4);
+        LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(0, -2, 1); b.leftMargin = dp(4);
+        if (header) { l.setPadding(dp(4), 0, 0, dp(2)); r.setPadding(dp(4), 0, 0, dp(2)); }
+        row.addView(l, a); row.addView(r, b);
+        return row;
+    }
+
+    TextView cell(int[] z, AlertDialog[] dlg) {
+        boolean on = !customOpen && z[0] == resW && z[1] == resH;
+        TextView t = text(sizeLabel(z[0], z[1]), 14, on ? ON_ACC : TXT, on);
+        t.setGravity(Gravity.CENTER); t.setPadding(dp(6), dp(12), dp(6), dp(12)); t.setBackground(bg(on ? ACC : FIELD, 14));
+        t.setOnClickListener(v -> { customOpen = false; setRes(z[0], z[1]); dlg[0].dismiss(); });
+        return t;
+    }
+
+    // ---- model state --------------------------------------------------------------------------
+    String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }
+
+    void pickModel() {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        if (ids.isEmpty()) { openModels(); return; }
+        String[] names = new String[ids.size() + 1];
+        for (int i = 0; i < ids.size(); i++) names[i] = (ids.get(i).equals(model) ? "✓  " : "      ") + store.name(ids.get(i));
+        names[ids.size()] = "＋  " + L.s("Каталог моделей…", "Model catalog…");
+        builder().setTitle(L.s("Модель", "Model")).setItems(names, (d, i) -> { if (i < ids.size()) setModel(ids.get(i)); else openModels(); }).show();
+    }
+
+    /** The NPU pipeline needs width/height multiples of 16, patch count divisible by 32 and at most 6144 patches (megarun TMAX). */
+    static String sizeError(int w, int h) {
+        if (w < 256 || h < 256) return L.s("Размер: минимум 256 по каждой стороне", "Size: at least 256 on each side");
+        if (w % 16 != 0 || h % 16 != 0) return L.s("Ширина и высота должны быть кратны 16", "Width and height must be multiples of 16");
+        int t = (w / 16) * (h / 16);
+        if (t % 32 != 0) return L.f("Число патчей (%d) должно делиться на 32, например 640×640, 1024×1024, 704×832", "Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832", t);
+        if (t > 6144) return L.s("Слишком большой размер: максимум 6144 патча (например 1536×960)", "Too large: at most 6144 patches (e.g. 1536×960)");
+        return null;
+    }
+
+    void setRes(int w, int h) {
+        resW = w; resH = h;
+        boolean preset = false;
+        for (int[] z : SIZES) if (z[0] == w && z[1] == h) preset = true;
+        if (sizeText != null) sizeText.setText(sizeLabel(w, h) + (preset && !customOpen ? "" : "  ·  " + L.s("Свой", "Custom")));
+        if (customRow != null) { customRow.setVisibility(customOpen || !preset ? View.VISIBLE : View.GONE); if (!wEdit.getText().toString().equals(String.valueOf(w)) || !hEdit.getText().toString().equals(String.valueOf(h))) { wEdit.setText(String.valueOf(w)); hEdit.setText(String.valueOf(h)); } }
+        if (chipName != null) chipName.setText(modelName());
+        if (genBtn != null && !busy) genBtn.setText(genLabel());
+    }
+
+    /** rough time to a picture: the catalog speed at 512x768 scaled by the patch count, times the number of pictures */
+    String genLabel() {
+        if (model.isEmpty()) return L.s("Скачать модель", "Get a model");
+        long est = Math.max(3, Math.round(store.speed(model) * ((resW / 16) * (resH / 16)) / 1536.0)) * count;
+        return count > 1 ? L.f("Генерировать ×%d  ·  ~%d с", "Generate ×%d  ·  ~%d s", count, est) : L.f("Генерировать  ·  ~%d с", "Generate  ·  ~%d s", est);
+    }
+
+    /** Share of the DiT time spent after `st` steps: the first two of the 4 steps use a half-size latent and cost ~0.3 (512x768) / ~0.22 (960x1536) of a full step. */
+    double stepShare(int st) {
+        double lo = resW * resH < 500000 ? 0.3 : 0.22;
+        double done = 0, total = 0;
+        for (int i = 0; i < STEPS; i++) { double c = i < 2 ? lo : 1.0; total += c; if (i < st) done += c; }
+        return done / total;
+    }
+
+    void setModelUi(boolean isLoaded, boolean working, String msg) {
+        ui.post(() -> {
+            int c = working ? WARN : isLoaded ? OK : DIM;
+            chipDot.setTextColor(c);
+            state.setText(working ? msg : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
+                : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
+            loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
+            loadBtn.setEnabled(!working && !busy && !model.isEmpty());
+            loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);
+            countBtn.setEnabled(!busy); countBtn.setAlpha(busy ? .5f : 1f);
+            boolean can = busy ? !cancelled : !working;   // while a picture is made the main button is "Stop"
+            genBtn.setEnabled(can);
+            genBtn.setBackground(busy ? bg(BAD, 18) : gradient(can));
+            genBtn.setTextColor(busy ? 0xFFFFFFFF : can ? ON_ACC : DIM);
+            genBtn.setText(busy ? (cancelled ? L.s("Останавливаю…", "Stopping…") : L.s("Остановить", "Stop")) : genLabel());
+        });
+    }
+
+    void refreshState() {
+        ex.submit(() -> {
+            String s = su("sh " + D + "/anima.sh status", true);
+            if (s.startsWith("ERR") || s.isEmpty()) {
+                ui.post(() -> { state.setText(L.f("Не запускается оболочка: %s", "Shell does not start: %s", s)); chipDot.setTextColor(BAD); });
+                return;
+            }
+            if (busy) return;
+            loaded = s.contains("unloaded") ? false : s.contains("loaded");
+            setModelUi(loaded, false, "");
+            if (!statusSeen) { statusSeen = true; if (!loaded && Settings.autoload(this) && !model.isEmpty() && Compat.chipAllowed(this)) ui.post(this::toggleModel); }   // "load at start"
+        });
+    }
+
+    void setModel(String m) {
+        if (m.equals(model) || busy) return;   // no model switch mid-generation
+        model = m;
+        setRes(resW, resH);
+        if (loaded) {   // the loaded server holds the other model's weights
+            setModelUi(true, true, L.s("Меняю модель…", "Switching model…"));
+            ex.submit(() -> { su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); });
+        } else setModelUi(false, false, "");
+    }
+
+    void toggleModel() {
+        final boolean want = !loaded;
+        setModelUi(loaded, true, want ? L.s("Загружаю модель…", "Loading the model…") : L.s("Выгружаю модель…", "Unloading the model…"));
+        ex.submit(() -> {
+            su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh " + (want ? "load" : "stop") + " < /dev/null >/dev/null 2>&1", false);
+            loaded = want;
+            setModelUi(loaded, false, "");
+        });
+    }
+
+    /** anima.sh ships in assets and is rewritten at every start (it is a script, so it may live in the app's data dir) */
+    void installScript() {
+        try (InputStream in = getAssets().open("anima.sh"); FileOutputStream o = new FileOutputStream(new File(D, "anima.sh"))) {
+            byte[] b = new byte[8192]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
+        } catch (IOException e) { Toast.makeText(this, "anima.sh: " + e, Toast.LENGTH_LONG).show(); }
+    }
+
+    void refreshModels() {
+        ids = store.installed();
+        model = ids.isEmpty() ? "" : ids.contains(model) ? model : ids.get(0);
+        setRes(resW, resH);
+        setModelUi(loaded, false, "");
+    }
+
+    // ---- shell --------------------------------------------------------------------------------
+    /** One long-lived /system/bin/sh with A, S, BIN in its environment: the helper binaries are started from it with the app's own uid. */
+    static class Sh {
+        String[] env; Process p; BufferedWriter w; BufferedReader r;
+        synchronized String run(String cmd) {
+            try {
+                if (p == null) {
+                    ProcessBuilder pb = new ProcessBuilder("/system/bin/sh").redirectErrorStream(true);
+                    pb.environment().put("A", env[0]); pb.environment().put("S", env[1]); pb.environment().put("BIN", env[2]); pb.directory(new File(env[0]));
+                    p = pb.start();
+                    w = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
+                    r = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                }
+                w.write(cmd + "\necho __END__\n");
+                w.flush();
+                StringBuilder sb = new StringBuilder();
+                for (String l; (l = r.readLine()) != null && !l.equals("__END__"); ) sb.append(l).append('\n');
+                return sb.toString().trim();
+            } catch (Exception e) {
+                p = null;
+                return "ERR " + e;
+            }
+        }
+    }
+
+    /** main: model load / generation; pollSh: progress and status polling; ctlSh: the Stop button (it must not wait for a running generation) */
+    final Sh main = new Sh(), pollSh = new Sh(), ctlSh = new Sh();
+
+    /** Runs a command in the main shell (blocking) and returns its stdout; `poll` uses the second shell so progress polling never waits for a running generation. */
+    String su(String cmd, boolean poll) { return (poll ? pollSh : main).run(cmd); }
+
+    static String q(String s) { return "'" + s.replace("'", "'\\''") + "'"; }
+
+    // ---- generation ---------------------------------------------------------------------------
+    /** Stop: the server is stopped (the model unloads; the next picture reloads it in ~5 s), anima.sh sees the cancel marker and leaves its waiting loops */
+    void cancel() {
+        if (!busy || cancelled) return;
+        cancelled = true;
+        setModelUi(loaded, false, "");
+        ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
+    }
+
+    void generate(boolean newSeed) {
+        if (model.isEmpty()) { openModels(); return; }
+        int cw = 0, ch = 0;
+        try { cw = Integer.parseInt(wEdit.getText().toString().trim()); ch = Integer.parseInt(hEdit.getText().toString().trim()); } catch (NumberFormatException e) { }
+        String bad = sizeError(cw, ch);
+        if (bad != null) { Toast.makeText(this, bad, Toast.LENGTH_LONG).show(); return; }
+        if (cw != resW || ch != resH) setRes(cw, ch);
+        final String pr = prompt.getText().toString().trim();
+        if (pr.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
+        String sd = seed.getText().toString().trim();
+        final boolean randomSeed = newSeed || sd.isEmpty() || sd.equals("-1");   // -1 = random; the seed used is shown under the picture
+        long base0 = 0; try { base0 = Long.parseLong(sd); } catch (NumberFormatException ignored) { }
+        final long baseSeed = base0;
+        final int n = count, w = resW, h = resH;
+        busy = true; cancelled = false; curIdx = 0; curN = n;
+        setModelUi(loaded, false, "");
+        View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
+        bar.setProgress(0);
+        bar.setVisibility(View.VISIBLE);
+        status.setVisibility(View.VISIBLE);
+        status.setText(L.s("Запуск…", "Starting…"));
+        if (Settings.keepOn(this)) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE) Toast.makeText(this, L.s("Телефон сильно нагрелся: генерация будет медленной", "The phone is very hot: generation will be slow"), Toast.LENGTH_LONG).show();
+        final android.content.Context app = getApplicationContext();
+        app.startForegroundService(new Intent(app, DownloadService.class).putExtra("mode", "gen"));   // keeps the process alive when the app goes to the background
+        final long t0 = System.currentTimeMillis();
+        ex.submit(() -> {
+            int made = 0; Bitmap lastBm = null;
+            for (int i = 0; i < n && !cancelled; i++) {
+                curIdx = i;
+                final String seedS = String.valueOf(randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
+                final File f = runOne(pr, seedS, w, h, t0);
+                if (f == null) break;
+                made++;
+                final Bitmap bm = BitmapFactory.decodeFile(f.getPath());
+                lastBm = bm;
+                ui.post(() -> {
+                    lastFile = f; img.setImageBitmap(bm); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+                    setFavIcon(false);
+                    for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+                    final ScrollView svv = (ScrollView) imgBox.getParent().getParent(); svv.post(() -> svv.smoothScrollTo(0, 0));   // after the image has been laid out
+                    saved.setText("seed " + seedS);
+                });
+            }
+            final double sec = (System.currentTimeMillis() - t0) / 1000.0;
+            final boolean wasCancelled = cancelled, okAny = made > 0;
+            final int total = made;
+            if (wasCancelled) loaded = false;   // Stop shut the server down
+            busy = false; cancelled = false;
+            app.stopService(new Intent(app, DownloadService.class));
+            final Bitmap nb = lastBm;
+            ui.post(() -> {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                bar.setVisibility(View.GONE);
+                if (wasCancelled) status.setText(L.s("Остановлено", "Stopped"));
+                else if (!okAny) status.setText(L.s("Ошибка генерации (лог: files/anima/animad.log)", "Generation failed (log: files/anima/animad.log)"));
+                else status.setText(L.f("Готово за %.1f с", "Done in %.1f s", sec));
+                setModelUi(loaded, false, "");
+                if (okAny && !visible) notifyDone(app, nb, pr, total);
+            });
+        });
+    }
+
+    /** one picture: loads the model if needed, runs anima.sh, stores the PNG (with the settings inside) in the history; null on failure or Stop */
+    File runOne(String pr, String seedS, int w, int h, long t0) {
+        if (!loaded) {
+            setProgressUi(0, L.s("Загружаю модель…", "Loading the model…"), t0);
+            su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh load < /dev/null >/dev/null 2>&1", false);
+            if (cancelled) return null;
+            loaded = true;
+        }
+        final String f = D + "/last.png";
+        final boolean[] done = {false};
+        final int[] base = count();
+        Thread poll = new Thread(() -> {
+            while (!done[0]) {
+                try { Thread.sleep(700); } catch (InterruptedException e) { return; }
+                int[] c = count();
+                int st = c[0] - base[0];
+                if (c[1] > base[1]) setProgressUi(97, L.s("Сохраняю…", "Saving…"), t0);
+                else if (st >= STEPS) setProgressUi(92, L.s("Декодирование…", "Decoding…"), t0);
+                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", st + 1, STEPS), t0);  // adapter line = step 1 started
+                else setProgressUi(8, L.s("Кодирование текста…", "Encoding the text…"), t0);
+            }
+        });
+        poll.start();
+        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + STEPS + " W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
+        done[0] = true;
+        try { poll.join(); } catch (InterruptedException ignored) { }
+        if (cancelled) return null;
+        byte[] png = new byte[0];
+        try { png = Models.readBytes(new File(f)); } catch (Exception ignored) { }
+        if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
+        try {
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+        } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
+    }
+
+    /** "Done" notification when the app is not on screen; tapping it opens the app */
+    void notifyDone(android.content.Context app, Bitmap bm, String pr, int made) {
+        try {
+            NotificationManager nm = (NotificationManager) app.getSystemService(NOTIFICATION_SERVICE);
+            nm.createNotificationChannel(new NotificationChannel("done", L.s("Готовые картинки", "Finished pictures"), NotificationManager.IMPORTANCE_DEFAULT));
+            Notification.Builder nb = new Notification.Builder(app, "done").setSmallIcon(android.R.drawable.ic_menu_gallery).setAutoCancel(true)
+                .setContentTitle(made > 1 ? L.f("Готово: %d картинки", "Done: %d pictures", made) : L.s("Картинка готова", "Picture is ready")).setContentText(pr)
+                .setContentIntent(PendingIntent.getActivity(app, 0, new Intent(app, Main.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+            if (bm != null) nb.setLargeIcon(bm).setStyle(new Notification.BigPictureStyle().bigPicture(bm));
+            nm.notify(2, nb.build());
+        } catch (Exception ignored) { }
+    }
+
+    /** [steps done, vae runs, adapter runs (text encoder finished)] from the animad log. */
+    int[] count() {
+        String s = su("echo $(grep -c 'animad: step' " + D + "/animad.log) $(grep -c 'animad: vae' " + D + "/animad.log) $(grep -c 'animad: adapter' " + D + "/animad.log)", true);
+        try {
+            String[] a = s.split("\\s+");
+            return new int[]{Integer.parseInt(a[0]), Integer.parseInt(a[1]), Integer.parseInt(a[2])};
+        } catch (Exception e) {
+            return new int[]{0, 0, 0};
+        }
+    }
+
+    /** pct is the progress of the current picture; with several pictures the bar and the text cover the whole batch */
+    void setProgressUi(int pct, String msg, long t0) {
+        final int all = (curIdx * 100 + pct) / curN;
+        final String pre = curN > 1 ? "(" + (curIdx + 1) + "/" + curN + ")  " : "";
+        final String t = L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (System.currentTimeMillis() - t0) / 1000.0);
+        ui.post(() -> { bar.setProgress(all); status.setText(t); });
+    }
+}

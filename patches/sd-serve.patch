@@ -1,0 +1,81 @@
+--- a/examples/cli/main.cpp
++++ b/examples/cli/main.cpp
+@@ -1,3 +1,8 @@
++#include <sys/stat.h>
++#include <map>
++#include <thread>
++#include <chrono>
++#include <fstream>
+ #include <stdio.h>
+ #include <string.h>
+ #include <time.h>
+@@ -914,6 +919,59 @@
+             img_gen_params = gen_params.to_sd_img_gen_params_t();
+         }
+ 
++        // Persistent mode (env SD_SERVE=<dir>): keep the context loaded and serve jobs. A client writes <dir>/job.tmp then renames it to <dir>/job
++        // with lines "p=<prompt>", "s=<seed>", "n=<steps>", "o=<output>", "d=<npu request dir>", "w=<width>", "h=<height>" (or "quit"); we answer with <d>/sd_done.
++        if (const char* serve_dir_c = std::getenv("SD_SERVE"); serve_dir_c && cli_params.mode == IMG_GEN) {
++            const std::string sdir = serve_dir_c;
++            { FILE* rf = fopen((sdir + "/ready").c_str(), "wb"); if (rf) fclose(rf); }
++            LOG_INFO("serve mode: waiting for jobs in %s", sdir.c_str());
++            for (;;) {
++                struct stat st_;
++                while (stat((sdir + "/job").c_str(), &st_) != 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
++                std::map<std::string, std::string> job;
++                {
++                    std::ifstream jf(sdir + "/job");
++                    std::string line;
++                    while (std::getline(jf, line)) {
++                        if (line == "quit") job["quit"] = "1";
++                        size_t eq = line.find('=');
++                        if (eq != std::string::npos) job[line.substr(0, eq)] = line.substr(eq + 1);
++                    }
++                }
++                std::remove((sdir + "/job").c_str());
++                if (job.count("quit")) break;
++                const std::string d = job["d"];
++                setenv("SD_NPU_DIR", d.c_str(), 1);
++                setenv("SD_NPU_MODE", "extern", 1);
++                if (job.count("v") && job["v"] == "0") { unsetenv("SD_VAE_DIR"); unsetenv("SD_VAE_MODE"); }   // sizes other than 512x768: decode on the CPU
++                else { setenv("SD_VAE_DIR", (d + "/vae").c_str(), 1); setenv("SD_VAE_MODE", "extern", 1); }
++                setenv("SD_TE_DIR", d.c_str(), 1);
++                setenv("SD_TE_MODE", "extern", 1);
++                gen_params.prompt = job["p"];
++                if (job.count("s")) gen_params.seed = atoll(job["s"].c_str());
++                if (job.count("n")) gen_params.sample_params.sample_steps = atoi(job["n"].c_str());
++                if (job.count("w")) gen_params.width = atoi(job["w"].c_str());
++                if (job.count("h")) gen_params.height = atoi(job["h"].c_str());
++                cli_params.output_path = job["o"];
++                bool ok = gen_params.resolve_and_validate(cli_params.mode, ctx_params.lora_model_dir, ctx_params.hires_upscalers_dir);
++                if (ok) {
++                    img_gen_params = gen_params.to_sd_img_gen_params_t();
++                    sd_image_t* generated_images = nullptr;
++                    int n_res                    = 0;
++                    if (!generate_image(sd_ctx.get(), &img_gen_params, &generated_images, &n_res)) {
++                        generated_images = nullptr;
++                        n_res            = 0;
++                    }
++                    SDImageVec jres;
++                    jres.adopt(generated_images, n_res);
++                    ok = jres && save_results(cli_params, ctx_params, gen_params, jres.data(), n_res, nullptr);
++                }
++                FILE* df = fopen((d + (ok ? "/sd_done" : "/sd_failed")).c_str(), "wb");
++                if (df) fclose(df);
++            }
++            return 0;
++        }
++
+         if (cli_params.mode == IMG_GEN) {
+             sd_image_t* generated_images = nullptr;
+             if (!generate_image(sd_ctx.get(), &img_gen_params, &generated_images, &num_results)) {
+--- a/src/model/diffusion/anima.hpp
++++ b/src/model/diffusion/anima.hpp
+@@ -857,6 +857,7 @@
+             const bool npu_extern = npu_dir && std::getenv("SD_NPU_MODE") && std::string(std::getenv("SD_NPU_MODE")) == "extern";
+             int npu_n = 0;
+             if (npu_dir) {
++                { static std::string last_dir; if (last_dir != npu_dir) { last_dir = npu_dir; npu_hook::step_counter() = 0; } }   // new request dir (serve mode): restart step numbering
+                 npu_n = npu_hook::step_counter()++;
+                 npu_hook::write_tensor(npu_dir, "x", npu_n, x);
+                 npu_hook::write_tensor(npu_dir, "t", npu_n, timesteps);

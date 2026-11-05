@@ -1,0 +1,175 @@
+0	Pilih
+1	Riwayat
+2	Pilih semua
+3	Selesai
+4	Dipilih: %d
+5	Pulihkan
+6	Hapus permanen
+7	Hapus %d secara permanen?
+8	Disimpan ke galeri: %d
+9	Pindahkan %d ke sampah?
+10	Ya
+11	Batal
+12	Semua
+13	★ Favorit
+14	Sampah
+15	Disimpan selama 30 hari
+16	Kosongkan
+17	Kosongkan sampah secara permanen?
+18	Belum ada apa-apa.\nGambar muncul di sini dan baru masuk ke galeri ponsel setelah menekan «Unduh».
+19	Belum ada favorit.\nBeri bintang pada gambar agar tersimpan di sini.
+20	Sampah kosong.
+21	  ·  %.1f dtk
+22	Hapus permanen?
+23	Unduh
+24	Disimpan ke galeri: Pictures/Anima
+25	Bagikan
+26	Favorit
+27	Pakai pengaturan ini
+28	Pindahkan ke sampah
+29	Muat
+30	Memeriksa…
+31	Gambar Anda akan muncul di sini
+32	DESKRIPSI
+33	Hapus
+34	UKURAN
+35	Kustom
+36	lebar
+37	tinggi
+38	SEED  ·  -1 = acak
+39	RAM  total %.1f  ·  terpakai %.1f  ·  tersedia %.1f GB
+40	Model
+41	Info
+42	Bahasa: %s
+43	Tunggu sampai pembuatan selesai
+44	Bahasa
+45	tanpa model
+46	Katalog model…
+47	Model
+48	Ukuran: minimal 256 di setiap sisi
+49	Lebar dan tinggi harus kelipatan 16
+50	Jumlah patch (%d) harus habis dibagi 32, mis. 640×640, 1024×1024, 704×832
+51	Terlalu besar: maksimal 6144 patch (mis. 1536×960)
+52	Dapatkan model
+53	Buat  ·  ~%d dtk
+54	Model sudah dimuat di NPU, pembuatan langsung dimulai
+55	Model belum dimuat: akan dimuat otomatis saat membuat gambar (~5 dtk)
+56	Bongkar
+57	Membuat…
+58	Shell tidak dapat dimulai: %s
+59	Mengganti model…
+60	Memuat model…
+61	Membongkar model…
+62	Masukkan deskripsi
+63	Memulai…
+64	Menyimpan…
+65	Mendekode…
+66	Langkah %d/%d
+67	Mengodekan teks…
+68	Pembuatan gagal (log: files/anima/animad.log)
+69	Selesai dalam %.1f dtk
+70	%s  ·  %.0f dtk
+71	Sumber
+72	URL katalog (…/resolve/main/)
+73	Chip %s · didukung (Hexagon V69)
+74	Chip %s · hanya diuji di Snapdragon 8 Gen 1 / 8+ Gen 1
+75	Tersedia %.1f GB
+76	Memuat katalog…
+77	Katalog tidak tersedia: %s
+78	~%d dtk pada 512×768
+79	%s GB
+80	Oleh %s
+81	Hapus
+82	Unduh  %s GB
+83	Katalog kosong
+84	Model pertama juga mengunduh berkas bersama (%s GB): pengode teks dan VAE, hanya sekali.
+85	Ruang tidak cukup: butuh %s GB
+86	Menghubungkan…
+87	%s / %s GB  ·  %s
+88	Dibatalkan: berkas tetap tersimpan, Anda bisa melanjutkan
+89	Kesalahan: %s
+90	Unduhan model
+91	Mengunduh berkas model…
+92	Mengapa selalu 4 langkah
+93	Model didistilasi (turbo) tepat untuk 4 langkah dan jadwal noise sudah tertanam di mesin. Langkah lebih sedikit membuat gambar buram, langkah lebih banyak tidak membantu dan hanya memperlambat, jadi tidak ada pengaturan langkah.
+94	Ukuran yang bisa dipakai
+95	Lebar dan tinggi kelipatan 16, jumlah patch (lebar/16 × tinggi/16) habis dibagi 32 dan paling banyak 6144. Contoh: 512×768, 640×640, 1024×1024, 960×1536. Tombol ⇄ menukar potret dan lanskap. Ukuran besar butuh waktu lebih lama dan didekode per petak.
+96	Seed
+97	-1 berarti acak setiap kali. Angka tertentu mengulang gambar yang sama dengan deskripsi, ukuran, dan model yang sama. Seed yang dipakai tampil di bawah gambar dan di riwayat.
+98	Mengapa langkah awal lebih cepat
+99	Dua langkah pertama berjalan dengan resolusi lebih rendah (komposisi keseluruhan), dua langkah terakhir dengan resolusi penuh, sehingga detail tetap terjaga. Pada ukuran tidak lazim hal ini mati otomatis.
+100	Memuat dan membongkar
+101	Model yang dimuat memakai beberapa gigabyte RAM. Jika ponsel melambat atau Anda sudah selesai, ketuk «Bongkar». Model dimuat otomatis saat membuat gambar (~5 dtk).
+102	Tempat gambar disimpan
+103	Hanya di dalam aplikasi. Gambar masuk ke galeri ponsel (Pictures/Anima) setelah «Unduh». Gambar yang dihapus masuk ke sampah dan disimpan 30 hari.
+104	Ponsel yang didukung
+105	Diuji di Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). Tidak perlu root. Chip lain tidak didukung.
+106	Lisensi
+107	Model MiaoMiao (oleh MIAOKA, Civitai) dibangun di atas Anima dari CircleStone Labs dan NVIDIA Cosmos. Hanya untuk penggunaan non-komersial. Pembuat model dapat meminta penghapusan dari katalog.
+108	Cepat, gaya render 3D
+109	Cepat, kulit realistis
+110	Kualitas dan detail lebih tinggi
+111	Kualitas lebih tinggi, kulit realistis
+112	Potret
+113	Lanskap
+114	Persegi
+115	Chip %s: didukung (Hexagon V69)
+116	Chip %s: tidak didukung, diperlukan Snapdragon 8 Gen 1 / 8+ Gen 1
+117	RAM %.1f GB: cukup
+118	RAM %.1f GB: kurang, perlu 8 GB atau lebih
+119	Ruang kosong %.1f GB: cukup
+120	Ruang kosong %.1f GB: kurang, satu model butuh hingga 5,4 GB
+121	Templat
+122	Chip %s tidak didukung
+123	Ponsel panas: kecepatan dikurangi
+124	Penghemat baterai memperlambat NPU
+125	Baterai lemah (%d%%)
+126	Berkas ini tidak memiliki pengaturan pembuatan
+127	Pengaturan dimuat dari berkas
+128	Muat pengaturan dari PNG
+129	Pengaturan
+130	Simpan deskripsi saat ini
+131	Tersimpan
+132	Terbaru
+133	Buat ×%d  ·  ~%d dtk
+134	Menghentikan…
+135	Berhenti
+136	Ponsel sangat panas: pembuatan akan lambat
+137	Dihentikan
+138	Gambar selesai
+139	Selesai: %d gambar
+140	Gambar sudah siap
+141	Ikuti sistem
+142	Terang
+143	Gelap
+144	Tema
+145	Muat model saat dibuka
+146	Gambar pertama lebih cepat, tetapi model memakai RAM
+147	Tidak pernah
+148	%d mnt
+149	Bongkar saat menganggur
+150	Membebaskan RAM jika Anda lama tidak membuat gambar
+151	Biarkan layar menyala saat membuat gambar
+152	Tag kualitas sebelum deskripsi
+153	Kembalikan ke bawaan
+154	Selamat datang
+155	Buat gambar langsung di ponsel, tanpa internet dan tanpa root: jaringan berjalan di NPU Snapdragon.
+156	Ponsel Anda
+157	Perlu diketahui
+158	Nanti
+159	Mengunduh di chip yang tidak didukung adalah risiko Anda sendiri: aplikasi kemungkinan besar tidak akan berjalan.
+160	Chip %s tidak didukung: model dibuat untuk Snapdragon 8 Gen 1 / 8+ Gen 1. Tetap unduh?
+161	Pembuatan
+162	Membuat gambar…
+163	Mengapa tidak ada prompt negatif
+164	Model turbo berjalan tanpa CFG (scale 1), jadi prompt negatif tidak mengubah apa pun dan karena itu tidak ada kolomnya. Cukup jangan tulis hal yang tidak diinginkan di deskripsi.
+165	Tag kualitas dan saran
+166	Tag kualitas ditambahkan otomatis sebelum deskripsi Anda (ubah di Pengaturan). Saat mengetik muncul saran tag Danbooru, dan tombol Templat menyimpan deskripsi tersimpan dan terbaru.
+167	Kecepatan: sekitar 7 detik per gambar 512×768 (model 2B) dan 12 detik (2.9B).
+168	Selalu 4 langkah dan tanpa prompt negatif: begitulah cara kerja model turbo.
+169	Gambar hanya tersimpan di dalam aplikasi dan masuk ke galeri setelah «Unduh».
+170	Tentang
+171	Chip %s · Android %s
+172	Kirim log
+173	Pembuat dan tautan
+174	Lisensi komponen

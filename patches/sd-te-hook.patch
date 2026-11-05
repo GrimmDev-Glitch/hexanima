@@ -1,0 +1,66 @@
+--- conditioner.hpp.orig	2026-11-04 08:14:55.081568702 +0300
++++ ../../sd-src/src/conditioning/conditioner.hpp	2026-11-04 08:26:24.834740209 +0300
+@@ -1,6 +1,11 @@
+ #ifndef __SD_CONDITIONING_CONDITIONER_HPP__
+ #define __SD_CONDITIONING_CONDITIONER_HPP__
+ 
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <fstream>
++#include <thread>
+ #include <cinttypes>
+ #include <cmath>
+ #include <iomanip>
+@@ -1951,14 +1956,43 @@
+         }
+ 
+         sd::Tensor<int32_t> input_ids({static_cast<int64_t>(qwen_tokens.size()), 1}, qwen_tokens);
+-        auto hidden_states = llm->compute(n_threads,
+-                                          input_ids,
+-                                          sd::Tensor<float>(),
+-                                          {},
+-                                          {},
+-                                          false,
+-                                          false);
+-        GGML_ASSERT(!hidden_states.empty());
++        // NPU experiment hook (env SD_TE_DIR): write the Qwen token ids to qids.bin; SD_TE_MODE=extern waits for qh.bin(.done)
++        // ([S,1024] float32) from an external text encoder, otherwise the ggml result is dumped to qh_ref.bin.
++        const char* te_dir = std::getenv("SD_TE_DIR");
++        const bool te_extern = te_dir && std::getenv("SD_TE_MODE") && std::string(std::getenv("SD_TE_MODE")) == "extern";
++        sd::Tensor<float> hidden_states;
++        if (te_dir) {
++            std::string d = te_dir;
++            FILE* f = fopen((d + "/qids.bin").c_str(), "wb");
++            if (f) { fwrite(qwen_tokens.data(), sizeof(int), qwen_tokens.size(), f); fclose(f); }
++            f = fopen((d + "/qids.shape").c_str(), "w");
++            if (f) { fprintf(f, "%zu\n", qwen_tokens.size()); fclose(f); }
++        }
++        bool te_cpu = !te_extern;
++        if (te_extern) {
++            std::string d = te_dir;
++            while (!std::ifstream(d + "/qh.bin.done").good() && !std::ifstream(d + "/qh.cpu").good()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
++            te_cpu = !std::ifstream(d + "/qh.bin.done").good();
++            if (!te_cpu) {
++                hidden_states = sd::Tensor<float>({1024, static_cast<int64_t>(qwen_tokens.size()), 1});
++                FILE* f = fopen((d + "/qh.bin").c_str(), "rb");
++                if (f) { size_t got = fread(hidden_states.data(), sizeof(float), (size_t)hidden_states.numel(), f); (void)got; fclose(f); }
++            }
++        }
++        if (te_cpu) {
++            hidden_states = llm->compute(n_threads,
++                                         input_ids,
++                                         sd::Tensor<float>(),
++                                         {},
++                                         {},
++                                         false,
++                                         false);
++            GGML_ASSERT(!hidden_states.empty());
++            if (te_dir && !te_extern) {
++                FILE* f = fopen((std::string(te_dir) + "/qh_ref.bin").c_str(), "wb");
++                if (f) { fwrite(hidden_states.data(), sizeof(float), (size_t)hidden_states.numel(), f); fclose(f); }
++            }
++        }
+         hidden_states         = apply_token_weights(std::move(hidden_states), qwen_weights);
+         auto t5_ids_tensor    = sd::Tensor<int32_t>::from_vector(t5_tokens);
+         auto t5_weight_tensor = sd::Tensor<float>::from_vector(t5_weights);
