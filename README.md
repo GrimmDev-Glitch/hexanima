@@ -83,6 +83,7 @@ Tips: the models are distilled for 4 steps and use no negative prompt; see **Inf
 "Anima" and "Cosmos" refer to third-party models, "NVIDIA" and "Qualcomm", "Snapdragon", "Hexagon" are trademarks of their respective owners.
 They are used only to describe what the software works with.
 The models (MiaoMiao Harem / 3D Harem / RealSkin by MIAOKA, based on Anima by CircleStone Labs and NVIDIA Cosmos) stay under their authors' licenses: non-commercial use only.
+The models are made with a turbo (distillation) LoRA merged in (Anima Turbo v1.1 by CircleStone Labs for the 2B models, a community Turbo-ANIMA v4 LoRA for the 2.9B models). See `THIRD_PARTY.md`.
 A model author can ask for removal of their model from the download catalog: open a discussion in the Community tab of the model packs repository.
 
 ## Third-party components

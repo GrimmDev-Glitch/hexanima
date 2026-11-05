@@ -5,6 +5,7 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 | Component | Used for | License |
 |---|---|---|
 | Anima (CircleStone Labs), built on NVIDIA Cosmos | base model | CircleStone Labs Non-Commercial License; NVIDIA Open Model License |
+| Anima Turbo v1.1 LoRA (CircleStone Labs, Civitai) and community Turbo-ANIMA v4 LoRA (Hugging Face) | distillation LoRAs merged into the downloadable models (4-step generation) | CircleStone Labs Non-Commercial License v1.2 |
 | MiaoMiao Harem / 3D Harem / RealSkin (MIAOKA) | downloadable models | author's terms: non-commercial, no selling of images |
 | Qwen3 0.6B text encoder, Qwen-Image VAE | text encoder, VAE | Apache 2.0 |
 | stable-diffusion.cpp | sampler and CPU parts (`patches/` are applied to it) | MIT |
@@ -12,6 +13,12 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 | Danbooru tag list (DominikDoom/a1111-sd-webui-tagcomplete) | prompt suggestions | see that repository |
 | Qualcomm AI Engine Direct (QNN) runtime libraries | bundled in the APK | Qualcomm AI Stack License |
 | Qualcomm Hexagon SDK / QHL (HMX matrix library) | building the DSP kernels | Qualcomm license, not redistributed here |
+
+## CircleStone Model notice
+
+The downloadable model files are modified versions of the CircleStone Model (Anima): MIAOKA's fine-tunes with a turbo LoRA merged in, converted to HexAnima's block layout.
+They are not an official product of CircleStone Labs and have not been endorsed by it. The Attribution Notice, the modification statement and the license text are published with the model packs
+at https://huggingface.co/ayanoby/anima-npu-packs (`NOTICE.txt`, `LICENSE.md`).
 
 ## Qualcomm components
 
