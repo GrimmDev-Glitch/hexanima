@@ -5,7 +5,7 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 | Component | Used for | License |
 |---|---|---|
 | Anima (CircleStone Labs), built on NVIDIA Cosmos | base model | CircleStone Labs Non-Commercial License; NVIDIA Open Model License |
-| Anima Turbo v1.1 LoRA (CircleStone Labs, Civitai) and community Turbo-ANIMA v4 LoRA (Hugging Face) | distillation LoRAs merged into the downloadable models (4-step generation) | CircleStone Labs Non-Commercial License v1.2 |
+| Anima Turbo v1.1 Lora (somedoby) and TURBO for ANIMA V4-29B (n_Arno), both on Civitai | distillation LoRAs merged into the downloadable models (4-step generation); the LoRA files are not redistributed | Civitai terms of each model page (credit required for n_Arno's), plus the CircleStone Labs Non-Commercial License v1.2 for the Anima Turbo derivative |
 | MiaoMiao Harem / 3D Harem / RealSkin (MIAOKA) | downloadable models | author's terms: non-commercial, no selling of images |
 | Qwen3 0.6B text encoder, Qwen-Image VAE | text encoder, VAE | Apache 2.0 |
 | stable-diffusion.cpp | sampler and CPU parts (`patches/` are applied to it) | MIT |

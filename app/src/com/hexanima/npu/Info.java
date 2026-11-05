@@ -77,7 +77,7 @@ public class Info extends Base {
         String[][] lic = {
             {"Anima — CircleStone Labs Non-Commercial License; NVIDIA Open Model License (Cosmos)", ""},
             {"MiaoMiao models — by MIAOKA, non-commercial use, see the model pages", ""},
-            {"Turbo distillation LoRAs merged into the models — Anima Turbo v1.1 (CircleStone Labs) and a community Turbo-ANIMA v4; CircleStone Labs Non-Commercial License. The models are modified versions, not an official CircleStone Labs product", ""},
+            {"Turbo distillation LoRAs merged into the models — Anima Turbo v1.1 Lora by somedoby (2B) and TURBO for ANIMA V4-29B by n_Arno (2.9B), both on Civitai. The models are modified versions of Anima (CircleStone Labs Non-Commercial License), not an official CircleStone Labs product", ""},
             {"Qwen3 0.6B text encoder, Qwen-Image VAE — Apache 2.0", ""},
             {"stable-diffusion.cpp — MIT", ""},
             {"TAEHV preview decoder — see github.com/madebyollin/taehv", ""},
