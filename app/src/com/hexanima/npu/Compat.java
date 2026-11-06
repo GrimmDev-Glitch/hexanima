@@ -6,10 +6,18 @@ import android.os.Build;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Can this phone run the models? Only Hexagon V69 (Snapdragon 8 Gen 1 / 8+ Gen 1) is supported: the NPU kernels are built for it. */
+/** Can this phone run the models? Hexagon V69 (Snapdragon 8 Gen 1 / 8+ Gen 1) is the tested target; V79 (Snapdragon 8 Elite) runs the same kernels, with its own QNN contexts, and is experimental. */
 final class Compat {
     static String soc() { return Build.VERSION.SDK_INT >= 31 ? Build.SOC_MODEL : Build.HARDWARE; }
-    static boolean chipOk() { String s = soc(); return s.equals("SM8475") || s.equals("SM8450"); }
+    /** Hexagon generation of the NPU by SoC model ("" = unknown): the QNN contexts (text encoder, VAE) are compiled per generation */
+    static String dspArch() {
+        String s = soc();
+        if (s.equals("SM8475") || s.equals("SM8450")) return "v69";
+        if (s.equals("SM8750")) return "v79";
+        return "";
+    }
+    static boolean chipOk() { return !dspArch().isEmpty(); }
+    static String archLabel() { return "Hexagon " + dspArch().toUpperCase() + (dspArch().equals("v79") ? L.s(", экспериментально", ", experimental") : ""); }
     static boolean chipAllowed(Context c) { return chipOk() || c.getSharedPreferences("anima", 0).getBoolean("chip_override", false); }
     static void allowChip(Context c) { c.getSharedPreferences("anima", 0).edit().putBoolean("chip_override", true).apply(); }
 
@@ -19,7 +27,7 @@ final class Compat {
     /** [chip, ram, storage] each as {ok?"1":"0", text} */
     static List<String[]> report(Context c) {
         List<String[]> r = new ArrayList<>();
-        r.add(new String[]{chipOk() ? "1" : "0", chipOk() ? L.f("Чип %s: подходит (Hexagon V69)", "Chip %s: supported (Hexagon V69)", soc()) : L.f("Чип %s: не поддерживается, нужен Snapdragon 8 Gen 1 / 8+ Gen 1", "Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required", soc())});
+        r.add(new String[]{chipOk() ? "1" : "0", chipOk() ? L.f("Чип %s: подходит (%s)", "Chip %s: supported (%s)", soc(), archLabel()) : L.f("Чип %s: не поддерживается, нужен Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Elite", "Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 is required", soc())});
         double ram = ramGb(c);
         r.add(new String[]{ram >= 7.5 ? "1" : "0", ram >= 7.5 ? L.f("ОЗУ %.1f ГБ: достаточно", "RAM %.1f GB: enough", ram) : L.f("ОЗУ %.1f ГБ: мало, нужно от 8 ГБ", "RAM %.1f GB: low, 8 GB or more is needed", ram)});
         double fr = freeGb(c);

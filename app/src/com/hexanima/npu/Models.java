@@ -56,8 +56,10 @@ final class Models {
     // ---- state ----------------------------------------------------------------------------------
     File modelDir(String id) { return new File(anima, "m_" + id); }
     File doneMark(File dir) { return new File(dir, ".installed"); }
-    boolean modelInstalled(String id) { return doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
-    boolean commonInstalled() { return doneMark(new File(anima, "common")).exists(); }
+    boolean modelInstalled(String id) { return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
+    /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */
+    static String commonDir() { String a = Compat.dspArch(); return a.isEmpty() || a.equals("v69") ? "common" : "common_" + a; }
+    boolean commonInstalled() { return doneMark(new File(anima, commonDir())).exists(); }
     /** ids of installed models, in catalog order of installation directory names */
     List<String> installed() {
         List<String> out = new ArrayList<>();
@@ -81,15 +83,15 @@ final class Models {
     // ---- install --------------------------------------------------------------------------------
     void installCommon(String base, Progress pg, AtomicBoolean cancel) throws Exception {
         if (commonInstalled()) return;
-        JSONObject m = new JSONObject(get(base + "common/manifest.json"));
-        File marker = new File(anima, "common"); marker.mkdirs();
+        JSONObject m = new JSONObject(get(base + commonDir() + "/manifest.json"));
+        File marker = new File(anima, commonDir()); marker.mkdirs();
         long total = total(m.getJSONArray("files")) + total(m.getJSONArray("sd"));
         long[] done = {0};
-        fetchAll(base + "common/", m.getJSONArray("files"), anima, total, done, pg, cancel);
-        fetchAll(base + "common/", m.getJSONArray("sd"), sd, total, done, pg, cancel);
+        fetchAll(base + commonDir() + "/", m.getJSONArray("files"), anima, total, done, pg, cancel);
+        fetchAll(base + commonDir() + "/", m.getJSONArray("sd"), sd, total, done, pg, cancel);
         JSONObject llm = m.getJSONObject("llm_stub");
         File hdr = new File(marker, "llm_hdr.bin");
-        fetch(base + "common/" + llm.getString("hdr"), hdr, llm.optLong("hdr_size", -1), llm.optString("hdr_sha256", null), null, cancel);
+        fetch(base + commonDir() + "/" + llm.getString("hdr"), hdr, llm.optLong("hdr_size", -1), llm.optString("hdr_sha256", null), null, cancel);
         stub(hdr, new File(sd, llm.getString("name")), llm.getLong("size"));
         doneMark(marker).createNewFile();
     }

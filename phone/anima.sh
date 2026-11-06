@@ -8,7 +8,7 @@
 # env: STEPS (default 4), PREFIX (quality tags), W/H (default 512x768; the NPU blocks are compiled for this size only)
 # env A (work dir), S (model dir), BIN (dir with libanimad.so/libsdcli.so... = the app's native lib dir; unset = ./animad and ./sd-cli as root setup)
 A=${A:-/data/local/tmp/anima}; S=${S:-/data/local/tmp/sd}; ROOT=$A/req; SQ=$A/sdq
-if [ -n "$BIN" ]; then NA=libanimad.so NS=libsdcli.so; NH="libmegarun.so libvaerun.so libterun.so"; ANIMAD=$BIN/libanimad.so; SDCLI=$BIN/libsdcli.so; export ANIMAD_HOME=$A ANIMAD_BIN=$BIN LIBS=$BIN:/vendor/lib64 ANIMAD_NOMLOCK=1; else NA=animad NS=sd-cli; NH="megarun vaerun terun"; ANIMAD=./animad; SDCLI=./sd-cli; LIBS=$A; fi
+if [ -n "$BIN" ]; then NA=libanimad.so NS=libsdcli.so; NH="libmegarun.so libvaerun.so libterun.so"; ANIMAD=$BIN/libanimad.so; SDCLI=$BIN/libsdcli.so; export ANIMAD_HOME=$A ANIMAD_BIN=$BIN LIBS=$BIN:/system/lib64:/vendor/lib64 ANIMAD_NOMLOCK=1; else NA=animad NS=sd-cli; NH="megarun vaerun terun"; ANIMAD=./animad; SDCLI=./sd-cli; LIBS=$A; fi
 if [ -n "$MDIR" ]; then   # app mode: MID/MDIR come from the model manager (files/anima/MDIR/{small.bin,blkNN.bin}, stub files/sd/MID.safetensors)
   MODEL=$MID; DM=$MID.safetensors; SM=$MDIR/small.bin; export ANIMAD_HMXDIR=$MDIR
 else
@@ -19,7 +19,7 @@ case "$MODEL" in   # 2.9B models only as q8 (29q, r29q): int8 block weights, 3.3
   *) DM=miaomiao3DHarem_LH3D11_turbo11_f16.safetensors; SM=small.bin;;
 esac
 fi
-# not exported: system tools (setsid, grep...) must not see /vendor/lib64 (its old libc++ breaks them on newer Android); only our binaries get it
+# not exported: system tools (setsid, grep...) must not see /vendor/lib64 (its old libc++ breaks them on newer Android); only our binaries get it, with /system/lib64 listed first so the system libc++ wins over the older vendor copy
 RUNX='export LD_LIBRARY_PATH="$LIBS" ADSP_LIBRARY_PATH="$ADSPP"; exec "$@"'   # "env VAR=.. cmd" is not used: an app path contains "=" and env would take it for an assignment
 ADSPP=${BIN:-$A}
 if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf quit > $SQ/job.tmp; mv $SQ/job.tmp $SQ/job; fi; pidof $NS >/dev/null && kill $(pidof $NS); n=0; while pidof $NA >/dev/null && [ $n -lt 20 ]; do sleep 0.25; n=$((n+1)); done
