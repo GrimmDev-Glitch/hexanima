@@ -19,7 +19,9 @@ case "$MODEL" in   # 2.9B models only as q8 (29q, r29q): int8 block weights, 3.3
   *) DM=miaomiao3DHarem_LH3D11_turbo11_f16.safetensors; SM=small.bin;;
 esac
 fi
-export LD_LIBRARY_PATH=$LIBS ADSP_LIBRARY_PATH=${BIN:-$A}
+# not exported: system tools (setsid, grep...) must not see /vendor/lib64 (its old libc++ breaks them on newer Android); only our binaries get it
+RUNX='export LD_LIBRARY_PATH="$LIBS" ADSP_LIBRARY_PATH="$ADSPP"; exec "$@"'   # "env VAR=.. cmd" is not used: an app path contains "=" and env would take it for an assignment
+ADSPP=${BIN:-$A}
 if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf quit > $SQ/job.tmp; mv $SQ/job.tmp $SQ/job; fi; pidof $NS >/dev/null && kill $(pidof $NS); n=0; while pidof $NA >/dev/null && [ $n -lt 20 ]; do sleep 0.25; n=$((n+1)); done
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
@@ -30,13 +32,13 @@ fi
 if ! pidof $NA >/dev/null; then
   echo ${MODEL:-2} > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
-  cd $A && setsid nohup $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
+  cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
   while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done
 fi
 # persistent sd-cli (text tokenizer/sampler/PNG writer stay loaded: saves ~0.7 s per image); ANIMA_NOSERVE=1 starts one per image as before
 if [ -z "$ANIMA_NOSERVE" ] && ! pidof $NS >/dev/null; then
   rm -rf $SQ; mkdir -p $SQ; chmod 777 $SQ
-  cd $S && SD_SERVE=$SQ setsid nohup $SDCLI --diffusion-model $DM --llm miaomiao3DHarem_animaLH3D10_txt.safetensors \
+  cd $S && SD_SERVE=$SQ LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $SDCLI --diffusion-model $DM --llm miaomiao3DHarem_animaLH3D10_txt.safetensors \
     -p x --sampling-method euler --cfg-scale 1 --steps 4 -W 512 -H 768 ${VAEARG:---taesd taew2_1.safetensors} --mmap -t ${T:-4} -o /sdcard/Download/anima_srv.png < /dev/null > $A/sdcli.log 2>&1 &
   while [ ! -f $SQ/ready ] && [ ! -f $A/cancel ]; do sleep 0.1; done
 fi
@@ -57,7 +59,7 @@ if [ -z "$ANIMA_NOSERVE" ]; then
   while [ ! -f $ROOT/$ID/sd_done ] && [ ! -f $ROOT/$ID/sd_failed ] && [ ! -f $A/cancel ]; do sleep 0.05; done
 else
 cd $S
-SD_NPU_DIR=$ROOT/$ID SD_NPU_MODE=extern SD_VAE_DIR=$ROOT/$ID/vae SD_VAE_MODE=extern SD_TE_DIR=$ROOT/$ID SD_TE_MODE=extern $SDCLI \
+LD_LIBRARY_PATH=$LIBS ADSP_LIBRARY_PATH=${BIN:-$A} SD_NPU_DIR=$ROOT/$ID SD_NPU_MODE=extern SD_VAE_DIR=$ROOT/$ID/vae SD_VAE_MODE=extern SD_TE_DIR=$ROOT/$ID SD_TE_MODE=extern $SDCLI \
   --diffusion-model $DM --llm miaomiao3DHarem_animaLH3D10_txt.safetensors \
   -p "${PREFIX:-best quality, score_7, score_9, very aesthetic, ultra detailed, fair skin, high contrast, anime coloring, }$1" \
   --sampling-method euler --cfg-scale 1 --steps ${STEPS:-4} -W ${W:-512} -H ${H:-768} ${VAEARG:---taesd taew2_1.safetensors} --mmap -t ${T:-4} -s ${2:--1} -o $OUT 2>&1 | grep -E "${LOGRE:-completed in|rror}"
