@@ -9,7 +9,7 @@
 static void vcopy_range(uint8_t *dst, const uint8_t *src, size_t bytes) {  /* 128B aligned, bytes multiple of 128 */
   HVX_Vector *d = (HVX_Vector *)dst; const HVX_Vector *s = (const HVX_Vector *)src; size_t n = bytes / 128;
   for (size_t i = 0; i < n; i++) {
-    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)(128 * 32) | (1ull << 16) | (128ull << 32));
+    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)128 | (32ull << 16) | (128ull << 32));
     d[i] = s[i];
   }
 }
@@ -29,7 +29,7 @@ static void dq_tile(uint8_t *dst, const uint8_t *src) {
 }
 static void dq_range(uint8_t *dst, const uint8_t *src, size_t ntiles) {
   for (size_t t = 0; t < ntiles; t++) {
-    if ((t & 7) == 0 && t + 16 < ntiles) Q6_l2fetch_AP((void *)(src + (t + 16) * 1152), (uint64_t)1152 | (8ull << 16) | (1152ull << 32));
+    if ((t & 7) == 0 && t + 16 < ntiles) Q6_l2fetch_AP((void *)(src + (t + 16) * 1152), (uint64_t)128 | (72ull << 16) | (128ull << 32));
     dq_tile(dst + t * 2048, src + t * 1152);
   }
 }

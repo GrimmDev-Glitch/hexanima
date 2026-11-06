@@ -11,7 +11,7 @@ typedef struct { uint8_t *dst; const uint8_t *src; size_t bytes; } cj;
 static void *cw(void *p) {
   cj *j = (cj *)p; HVX_Vector *d = (HVX_Vector *)j->dst; const HVX_Vector *s = (const HVX_Vector *)j->src; size_t n = j->bytes / 128;
   for (size_t i = 0; i < n; i++) {
-    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)(128 * 32) | (1ull << 16) | (128ull << 32));
+    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)128 | (32ull << 16) | (128ull << 32));
     d[i] = s[i];
   }
   return 0;

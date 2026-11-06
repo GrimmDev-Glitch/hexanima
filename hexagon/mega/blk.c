@@ -23,7 +23,7 @@ static u16 *g_et, *g_t2; static HVX_Vector *g_scr;   /* tables + per-worker gath
 
 static void vcp(void *d, const void *s, size_t bytes) {
   HVX_Vector *dv = (HVX_Vector *)d; const HVX_Vector *sv = (const HVX_Vector *)s; size_t n = bytes / 128;
-  for (size_t i = 0; i < n; i++) { if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(sv + i + 64), (uint64_t)(128 * 32) | (1ull << 16) | (128ull << 32)); dv[i] = sv[i]; }
+  for (size_t i = 0; i < n; i++) { if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(sv + i + 64), (uint64_t)128 | (32ull << 16) | (128ull << 32)); dv[i] = sv[i]; }
 }
 
 /* ---------------- simple parallel kernels ---------------- */

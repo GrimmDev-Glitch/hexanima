@@ -17,7 +17,7 @@ void hmx_store(uint8_t *, uint32_t);
 static void vcopy(void *dst, const void *src, size_t bytes) {
   HVX_Vector *d = (HVX_Vector *)dst; const HVX_Vector *s = (const HVX_Vector *)src; size_t n = bytes / 128;
   for (size_t i = 0; i < n; i++) {
-    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)(128 * 32) | (1ull << 16) | (128ull << 32));
+    if ((i & 31) == 0 && i + 64 < n) Q6_l2fetch_AP((void *)(s + i + 64), (uint64_t)128 | (32ull << 16) | (128ull << 32));
     d[i] = s[i];
   }
 }

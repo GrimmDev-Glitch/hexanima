@@ -66,7 +66,7 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
 ## Requirements
 
 - A phone with **Snapdragon 8 Gen 1 or 8+ Gen 1** (SM8450 / SM8475, Hexagon V69): the tested target.
-- **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): works since 1.2.0 but is experimental and slower for now (about 23 s for a 2.9B picture, 27 s with the first model load; reported by a tester on a Galaxy S25). Needs the Hexagon V79 files, which the app downloads by itself (1.2 GB).
+- **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): works since 1.2.0 and is experimental: tested on one Galaxy S25, about 6 s for a 2.9B picture at 512x768 (1.2.1 and later). Needs the Hexagon V79 files, which the app downloads by itself (1.2 GB).
 - Other chips (Snapdragon 8 Gen 2 / 8 Gen 3, SM8550 / SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
 - RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per model.
