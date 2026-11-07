@@ -8,7 +8,7 @@ No root, no cloud, no account, no ads. Free and non-commercial.</p>
   <img src="docs/screens/08-history.jpg" width="240" alt="History">
 </p>
 
-HexAnima runs the [Anima](https://huggingface.co/circlestone-labs/Anima) diffusion model and fine-tunes of it on the Hexagon NPU of Snapdragon 8 Gen 1 / 8+ Gen 1 phones (and, experimentally, Snapdragon 8 Elite).
+HexAnima runs the [Anima](https://huggingface.co/circlestone-labs/Anima) diffusion model and fine-tunes of it on the Hexagon NPU of Snapdragon 8 Gen 1 / 8+ Gen 1 phones.
 The diffusion transformer is executed by custom HMX kernels; the text encoder and the sampler run on the CPU.
 A 512x768 picture takes about **7 s** with the 2B models and **12 s** with the 2.9B models (4 steps, Xiaomi 12T Pro).
 
@@ -66,7 +66,7 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
 ## Requirements
 
 - A phone with **Snapdragon 8 Gen 1 or 8+ Gen 1** (SM8450 / SM8475, Hexagon V69): the tested target.
-- **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): works since 1.2.0 and is experimental: tested on one Galaxy S25, about 6 s for a 2.9B picture at 512x768 (1.2.1 and later). Needs the Hexagon V79 files, which the app downloads by itself (1.2 GB).
+- **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): not supported. Versions 1.2.0 and 1.2.1 had experimental support, withdrawn in 1.2.2: on a tester's Galaxy S25 the NPU matrix unit is sometimes silently unavailable after an interrupted run (garbage pictures) and large sizes come out as noise. A proper port is not planned in the short term.
 - Other chips (Snapdragon 8 Gen 2 / 8 Gen 3, SM8550 / SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
 - RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per model.
