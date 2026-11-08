@@ -1,12 +1,46 @@
-<h1 align="center">HexAnima</h1>
-<p align="center"><b>Anime image generation that runs entirely on your phone's NPU.</b><br>
+<h1 align="center">HexAnima · Snapdragon 8 Gen 2 fork</h1>
+<p align="center"><b>Anime image generation that runs entirely on your phone's NPU, now also on the Snapdragon 8 Gen 2 (Hexagon V73).</b><br>
 No root, no cloud, no account, no ads. Free and non-commercial.</p>
 
 <p align="center">
-  <img src="docs/screens/01-generate.jpg" width="240" alt="Generating a picture">
-  <img src="docs/screens/02-progress.jpg" width="240" alt="Progress and stop button">
-  <img src="docs/screens/08-history.jpg" width="240" alt="History">
+  <img src="docs/screens/v73/01-generate.jpg" width="200" alt="A picture made on a Poco F6 Pro">
+  <img src="docs/screens/v73/02-models.jpg" width="200" alt="Model picker">
+  <img src="docs/screens/v73/03-loras.jpg" width="200" alt="LoRA picker with checkboxes">
+  <img src="docs/screens/v73/05-light.jpg" width="200" alt="Light theme">
 </p>
+
+This is a fork of [ayanoby/hexanima](https://github.com/ayanoby/hexanima). It ports the NPU kernels to the **Snapdragon 8 Gen 2** (SM8550, Hexagon V73) and adds LoRAs from Civitai, an on-phone checkpoint converter, img2img, hires fix, ADetailer, AI upscaling, presets, a generation queue, a RAM widget and a new look.
+It was built and tested on a **Poco F6 Pro (12 GB)**. A 512x768 picture takes about **7 s** with the 2B models and **10-12 s** with the 2.9B models (4 steps).
+The Snapdragon 8 Gen 1 / 8+ Gen 1 (V69) path of the original app is unchanged.
+
+**Download:** the APK is on the [Releases](../../releases) page. The V73 text-encoder and VAE files download from [GrimmDev-Glitch/hexanima-packs](https://huggingface.co/GrimmDev-Glitch/hexanima-packs) the first time; the models come from the original packs repository.
+
+> *En español:* fork de HexAnima para el **Snapdragon 8 Gen 2** (probado en un Poco F6 Pro). Añade LoRAs de Civitai, conversor de checkpoints Anima en el teléfono, img2img, hires fix, ADetailer, reescalado con IA, presets, cola, widget de RAM y un tema nuevo claro/oscuro. La app está en español e inglés. Descarga el APK en [Releases](../../releases).
+
+## What this fork adds
+
+| | |
+|---|---|
+| **Snapdragon 8 Gen 2 (V73)** | HMX kernels rebuilt for V73 (results go through the convert unit with a scale/bias block in VTCM, see `hexagon/mega/hmxacc.S`), V73 QNN contexts for the text encoder (512 tokens) and the VAE. |
+| **LoRAs** | `<lora:name:weight>` in the prompt, several at once. A LoRA picker with checkboxes, a filter and a weight per LoRA: ticking adds the tag and its trigger words, unticking removes them. 2B LoRAs work on the 2.9B models (blocks remapped) and the other way round. |
+| **Civitai browser** | Search Anima LoRAs and checkpoints, filter by type and sort, optional API key for 18+ content (sent only to civitai.com). LoRAs go straight into the library; checkpoints are converted on the phone. |
+| **Checkpoint converter** | Any Anima `.safetensors` checkpoint (BF16 / F16 / F32) becomes an NPU model on the phone: fp16 for 2B, q8 for 2.9B. Byte-identical to the desktop export. |
+| **Sampling** | Steps, CFG, negative prompt (with *Clear* / *Default*), 21 samplers, 9 schedulers. Values are saved per model; turbo models default to 4 steps / CFG 1, other models to 20 steps / DPM++ 2M / CFG 4. |
+| **Extras** | img2img with a strength slider, hires fix (second pass on the NPU), AI upscale ×2 (RealESRGAN anime, ~80 s), ADetailer (face detector downloads on first use), presets, a generation queue. |
+| **Memory and heat guards** | Checks free RAM before loading, skips heavy extras when memory is low, pauses between pictures when the phone is hot. |
+| **RAM widget** | Home-screen widget: free RAM, model state, *Unload* and *Free RAM*. |
+| **New look** | Lavender light and dark palettes, violet-to-pink accents, folding sections with one-line summaries, model cards with 2B / 2.9B / Turbo / speed badges, Barlow Semi Condensed font (SIL OFL). |
+| **Languages** | Spanish and English. |
+
+<p align="center">
+  <img src="docs/screens/v73/04-extras.jpg" width="220" alt="Extras: hires fix, upscale, ADetailer, img2img, presets, queue">
+</p>
+
+---
+
+*The rest of this page is the original README, with the requirements updated for the 8 Gen 2.*
+
+## About HexAnima
 
 HexAnima runs the [Anima](https://huggingface.co/circlestone-labs/Anima) diffusion model and fine-tunes of it on the Hexagon NPU of Snapdragon 8 Gen 1 / 8+ Gen 1 phones.
 The diffusion transformer is executed by custom HMX kernels; the text encoder and the sampler run on the CPU.
@@ -99,14 +133,14 @@ Limits worth knowing: MOSS-Image only does text-to-image (no editing or image in
 
 - A phone with **Snapdragon 8 Gen 1 or 8+ Gen 1** (SM8450 / SM8475, Hexagon V69): the tested target.
 - **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): not supported. Versions 1.2.0 and 1.2.1 had experimental support, withdrawn in 1.2.2: on a tester's Galaxy S25 the NPU matrix unit is sometimes silently unavailable after an interrupted run (garbage pictures) and large sizes come out as noise. A proper port is not planned in the short term.
-- **Snapdragon 8 Gen 2** (SM8550, Hexagon V73): experimental, tested on a Poco F6 Pro (12 GB): 512x768 in about 7 s with the 2B models, 1024x1024 in about 17 s. The DiT kernels have their own V73 build (V73 stores HMX results through the convert unit, see `hexagon/mega/hmxacc.S`); the text-encoder and VAE contexts for V73 are not on the download server yet and are installed with `tools/push_common.sh v73`. MOSS-Image does not run on it yet.
+- **Snapdragon 8 Gen 2** (SM8550, Hexagon V73): supported by this fork, tested on a Poco F6 Pro (12 GB): 512x768 in about 7 s with the 2B models and 10-12 s with the 2.9B models, 1024x1024 in about 17 s. The DiT kernels have their own V73 build (V73 stores HMX results through the convert unit, see `hexagon/mega/hmxacc.S`); the V73 text-encoder and VAE contexts download from `GrimmDev-Glitch/hexanima-packs`. MOSS-Image does not run on it.
 - Other chips (Snapdragon 8 Gen 3, SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
 - RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per Anima model; MOSS-Image needs about 14 GB (and ~300 MB more while a user LoRA is in use). MOSS-Image was tested on a 12 GB phone only.
 
 ## Install
 
-1. Download `HexAnima-<version>.apk` from the [Releases](../../releases) page and install it (allow installs from your browser or file manager).
+1. Download `HexAnima-<version>.apk` from the [Releases](../../releases) page of this fork and install it (allow installs from your browser or file manager).
 2. Open the app and pick a model in **Models**. The files are downloaded from Hugging Face (`ayanoby/anima-npu-packs`) the first time.
 3. Type a prompt (Danbooru-style tags work best), press **Generate**.
 
