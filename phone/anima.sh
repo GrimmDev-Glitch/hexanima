@@ -6,6 +6,7 @@
 # Stop button: the app touches $A/cancel and runs "stop"; the waiting loops below see the marker and exit 1.
 # IDLE=<s>: unload the model after that many idle seconds.
 # env: STEPS (default 4), PREFIX (quality tags), W/H (default 512x768; the NPU blocks are compiled for this size only)
+# env: CFG (default 1 = off; > 1 runs the DiT twice per step), NEG (negative prompt, used with CFG > 1), SAMPLER / SCHED (sd.cpp names, default euler / discrete)
 # env A (work dir), S (model dir), BIN (dir with libanimad.so/libsdcli.so... = the app's native lib dir; unset = ./animad and ./sd-cli as root setup)
 A=${A:-/data/local/tmp/anima}; S=${S:-/data/local/tmp/sd}; ROOT=$A/req; SQ=$A/sdq
 if [ -n "$BIN" ]; then NA=libanimad.so NS=libsdcli.so; NH="libmegarun.so libvaerun.so libterun.so"; ANIMAD=$BIN/libanimad.so; SDCLI=$BIN/libsdcli.so; export ANIMAD_HOME=$A ANIMAD_BIN=$BIN LIBS=$BIN:/system/lib64:/vendor/lib64 ANIMAD_NOMLOCK=1; else NA=animad NS=sd-cli; NH="megarun vaerun terun"; ANIMAD=./animad; SDCLI=./sd-cli; LIBS=$A; fi
@@ -33,12 +34,15 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
-if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "${MODEL:-2}" ]; then   # loaded server holds another model: restart it
+# LORA=<file.safetensors> LORA_S=<strength>: an Anima LoRA folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so it is part of the loaded model
+MKEY="${MODEL:-2}${LORA:+|$LORA|${LORA_S:-1}}"
+if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$MKEY" ]; then   # loaded server holds another model (or LoRA): restart it
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi
 if ! pidof $NA >/dev/null; then
-  echo ${MODEL:-2} > $A/model
+  echo "$MKEY" > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
+  if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}"; else unset MEGA_LORA MEGA_LORA_S; fi
   cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
   while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done
 fi
@@ -58,10 +62,14 @@ if [ "${IDLE:-0}" -gt 0 ] && ! kill -0 "$(cat $A/wd.pid 2>/dev/null)" 2>/dev/nul
 fi
 ID=r$(date +%s)$$
 OUT=${3:-/sdcard/Download/anima_$ID.png}
-mkdir -p $ROOT/$ID/vae && chmod -R 777 $ROOT/$ID && echo ${STEPS:-4} > $ROOT/$ID/start
+# "plain" (Euler, discrete schedule, no CFG) lets animad run the first steps at half size; anything else gets the exact full-size path
+PLAIN=1; case "${SAMPLER:-euler}/${SCHED:-discrete}/${CFG:-1}" in euler/discrete/1|euler/discrete/1.0) ;; *) PLAIN=0;; esac
+mkdir -p $ROOT/$ID/vae && chmod -R 777 $ROOT/$ID && echo "${STEPS:-4} $PLAIN" > $ROOT/$ID/start
 V=${V:-1}   # the NPU VAE graph is 512x768; animad tiles larger latents through it
 if [ -z "$ANIMA_NOSERVE" ]; then
   printf 'p=%s\ns=%s\nn=%s\no=%s\nd=%s\nw=%s\nh=%s\nv=%s\n' "${PREFIX:-best quality, score_7, score_9, very aesthetic, ultra detailed, fair skin, high contrast, anime coloring, }$1" "${2:--1}" "${STEPS:-4}" "$OUT" "$ROOT/$ID" "${W:-512}" "${H:-768}" "$V" > $SQ/job.tmp
+  printf 'c=%s\na=%s\nk=%s\n' "${CFG:-1}" "${SAMPLER:-euler}" "${SCHED:-discrete}" >> $SQ/job.tmp
+  [ -n "$NEG" ] && printf 'g=%s\n' "$(printf '%s' "$NEG" | tr '\n' ' ')" >> $SQ/job.tmp
   mv $SQ/job.tmp $SQ/job
   while [ ! -f $ROOT/$ID/sd_done ] && [ ! -f $ROOT/$ID/sd_failed ] && [ ! -f $A/cancel ]; do sleep 0.05; done
 else

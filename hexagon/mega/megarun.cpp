@@ -23,6 +23,7 @@ extern "C" {
 }
 #include "blk_meta.h"
 #include "blk_wlayout.h"
+#include "lora_fold.h"
 
 struct dma_buf_sync_ { unsigned long long flags; };
 #define DMA_BUF_IOCTL_SYNC_ _IOW('b', 0, dma_buf_sync_)
@@ -106,6 +107,16 @@ int main(int argc, char** argv) {
     if (got != wtot) { fprintf(stderr, "short read %s\n", p); return 1; }
   }
   fprintf(stderr, "megarun: weights loaded %.1fs\n", now() - t0);
+  if (const char* lp = getenv("MEGA_LORA")) {   // user LoRA (Anima 2B): folded into the fp16 weights in RAM, see lora_fold.h
+    LoraFile L; const float s = getenv("MEGA_LORA_S") ? (float)atof(getenv("MEGA_LORA_S")) : 1.f; double tl = now();
+    if (g_q8) fprintf(stderr, "megarun: LoRA skipped: q8 weights (2.9B models) are not supported\n");
+    else if (!L.open(lp)) fprintf(stderr, "megarun: LoRA skipped: cannot read %s\n", lp);
+    else {
+      int nm = 0;
+      for (int i = 0; i < count; i++) { int k = lora_fold_block(L, s, first + i, wts[i]); if (k < 0) { fprintf(stderr, "megarun: LoRA skipped: shapes do not fit block %d (another model?)\n", first + i); return 1; } nm += k; }
+      fprintf(stderr, "megarun: LoRA %d matrices of blocks %d..%d, strength %.2f, %.1fs\n", nm, first, first + count - 1, s, now() - tl);
+    }
+  }
   struct remote_rpc_control_unsigned_module ud = {CDSP_DOMAIN_ID, 1};
   remote_session_control(DSPRPC_CONTROL_UNSIGNED_MODULE, &ud, sizeof ud);
   remote_handle64 h = 0; int r = mega_open(mega_URI CDSP_DOMAIN, &h);

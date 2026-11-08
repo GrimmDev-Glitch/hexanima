@@ -69,7 +69,10 @@ public class Main extends Base {
     File lastFile;
     boolean customOpen;
 
-    String mp() { return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " "; }
+    String mp() {
+        String lora = !isMoss() && loraOn() ? "LORA=" + q(loraSrc().getPath()) + " LORA_S=" + String.format(java.util.Locale.US, "%.2f", strBar.getProgress() * 0.05f) + " " : "";   // part of the loaded model: anima.sh reloads when it changes
+        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora;
+    }
 
     GradientDrawable gradient(boolean enabled) {
         GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{enabled ? ACC : 0xFF3A4158, enabled ? ACC2 : 0xFF3A4158});
@@ -282,11 +285,11 @@ public class Main extends Base {
         loraInfo = text("", 12, DIM, false); loraInfo.setPadding(dp(4), dp(6), dp(4), 0); loraBox.addView(loraInfo);
         LinearLayout sr2 = new LinearLayout(this); sr2.setGravity(Gravity.CENTER_VERTICAL); sr2.setPadding(0, dp(6), 0, 0);
         sr2.addView(text(L.s("Сила", "Strength"), 14, TXT, false));
-        strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat("moss_lora_str", 1f) * 20));
+        strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
         sr2.addView(strBar, new LinearLayout.LayoutParams(0, -2, 1));
         strText = text("", 14, TXT, true); strText.setMinWidth(dp(44)); strText.setGravity(Gravity.END); sr2.addView(strText);
         strBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar b, int p, boolean u) { strText.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); if (u) prefs().edit().putFloat("moss_lora_str", p * 0.05f).apply(); }
+            public void onProgressChanged(SeekBar b, int p, boolean u) { strText.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); if (u) prefs().edit().putFloat(lp() + "lora_str", p * 0.05f).apply(); }
             public void onStartTrackingTouch(SeekBar b) { }
             public void onStopTrackingTouch(SeekBar b) { }
         });
@@ -408,15 +411,26 @@ public class Main extends Base {
     }
 
 
-    // ---- MOSS-Image user LoRA ---------------------------------------------------------------------
-    String loraId() { return prefs().getString("moss_lora_id", ""); }
-    boolean loraOn() { return isMoss() && !loraId().isEmpty() && MossLora.src(getFilesDir()).exists() && strBar.getProgress() > 0; }
+    // ---- user LoRA: MOSS-Image (MossLora, folded with its turbo adapter) or Anima 2B (AnimaLora, folded into the block weights at load); one LoRA per family ----
+    /** prefs prefix of the selected model's family */
+    String lp() { return isMoss() ? "moss_" : "anima_"; }
+    File loraSrc() { return isMoss() ? MossLora.src(getFilesDir()) : AnimaLora.src(getFilesDir()); }
+    File loraDir() { return isMoss() ? MossLora.dir(getFilesDir()) : AnimaLora.dir(getFilesDir()); }
+    String loraId() { return prefs().getString(lp() + "lora_id", ""); }
+    /** Anima LoRAs fit the 2B models only; the 2.9B ones hold q8 weights (and another base) */
+    boolean loraFitsModel() { return isMoss() || !model.contains("29"); }
+    boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && strBar.getProgress() > 0 && loraFitsModel(); }
     void refreshLora() {
-        boolean has = !loraId().isEmpty() && MossLora.src(getFilesDir()).exists();
-        loraName.setText(has ? prefs().getString("moss_lora_name", "LoRA") : L.s("не выбрана", "none"));
-        loraInfo.setText(has ? prefs().getString("moss_lora_info", "") : L.s("Файл .safetensors для MOSS-Image: проверяется сразу после выбора", "A .safetensors file for MOSS-Image: it is checked as soon as you pick it"));
-        loraInfo.setTextColor(has ? OK : DIM);
+        boolean has = !loraId().isEmpty() && loraSrc().exists();
+        loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
+        String hint = isMoss() ? L.s("Файл .safetensors для MOSS-Image: проверяется сразу после выбора", "A .safetensors file for MOSS-Image: it is checked as soon as you pick it")
+                : L.s("LoRA для Anima 2B (.safetensors): проверяется сразу после выбора; новая LoRA или сила перезагружает модель", "A LoRA for Anima 2B (.safetensors): checked as soon as you pick it; a new LoRA or strength reloads the model");
+        String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
+        if (has && !loraFitsModel()) info = L.s("Не применяется к моделям 2.9B: LoRA для Anima 2B", "Not applied to the 2.9B models: it is a LoRA for Anima 2B");
+        loraInfo.setText(info);
+        loraInfo.setTextColor(has ? (loraFitsModel() ? OK : WARN) : DIM);
         loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f);
+        strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
     }
     void pickLora() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
@@ -424,25 +438,28 @@ public class Main extends Base {
     }
     void dropLora() {
         if (busy) return;
-        prefs().edit().remove("moss_lora_id").remove("moss_lora_name").remove("moss_lora_info").apply();
-        ex2.submit(() -> { MossLora.deleteTree(MossLora.dir(getFilesDir())); ui.post(this::refreshLora); });
+        final File ld = loraDir();
+        prefs().edit().remove(lp() + "lora_id").remove(lp() + "lora_name").remove(lp() + "lora_info").apply();
+        ex2.submit(() -> { MossLora.deleteTree(ld); ui.post(this::refreshLora); });
     }
     void importLora(Uri uri) {
         String nm = "LoRA";
         try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (i >= 0) nm = c.getString(i); } } catch (Exception ignored) { }
         final String name = nm;
+        final boolean moss = isMoss(); final String pre = lp(); final File src = loraSrc();
         loraInfo.setTextColor(WARN); loraInfo.setText(L.s("Проверяю файл…", "Checking the file…"));
         ex2.submit(() -> {
-            final File dir = MossLora.dir(getFilesDir()); dir.mkdirs(); final File tmp = new File(dir, "new.safetensors");
+            final File dir = loraDir(); dir.mkdirs(); final File tmp = new File(dir, "new.safetensors");
             try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(tmp)) {
                 byte[] b = new byte[1 << 16]; long total = 0;
                 for (int n; (n = in.read(b)) > 0; ) { o.write(b, 0, n); total += n; if (total > (1L << 30)) throw new IOException(L.s("файл больше 1 ГБ", "the file is larger than 1 GB")); }
             } catch (Exception e) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, L.f("Не удалось прочитать файл: %s", "Cannot read the file: %s", e.getMessage())); }); return; }
-            MossLora.Check c = MossLora.check(BIN, tmp);
-            if (!c.ok) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, c.message()); }); return; }
-            File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f);   // the old LoRA and its folded patches go
-            tmp.renameTo(MossLora.src(getFilesDir()));
-            prefs().edit().putString("moss_lora_id", Long.toHexString(System.currentTimeMillis())).putString("moss_lora_name", name).putString("moss_lora_info", "✓ " + c.message()).apply();
+            final boolean ok; final String msg;
+            if (moss) { MossLora.Check c = MossLora.check(BIN, tmp); ok = c.ok; msg = c.message(); } else { AnimaLora.Check c = AnimaLora.check(tmp); ok = c.ok; msg = c.message(); }
+            if (!ok) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, msg); }); return; }
+            File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f);   // the old LoRA (and MOSS's folded patches) go
+            tmp.renameTo(src);
+            prefs().edit().putString(pre + "lora_id", Long.toHexString(System.currentTimeMillis())).putString(pre + "lora_name", name).putString(pre + "lora_info", "✓ " + msg).apply();
             ui.post(this::refreshLora);
         });
     }
@@ -602,12 +619,14 @@ public class Main extends Base {
     /** rough time to a picture: the catalog speed at 512x768 scaled by the patch count, times the number of pictures */
     String genLabel() {
         if (model.isEmpty()) return L.s("Скачать модель", "Get a model");
-        long est = Math.max(3, Math.round(store.speed(model) * ((resW / 16) * (resH / 16)) / 1536.0)) * count;
+        double sm = isMoss() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;   // the default 4 steps cost ~2.6 full DiT calls (two run at half size)
+        long est = Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0)) * count;
         return count > 1 ? L.f("Генерировать ×%d  ·  ~%d с", "Generate ×%d  ·  ~%d s", count, est) : L.f("Генерировать  ·  ~%d с", "Generate  ·  ~%d s", est);
     }
 
     /** Share of the DiT time spent after `st` steps: the first two of the 4 steps use a half-size latent and cost ~0.3 (512x768) / ~0.22 (960x1536) of a full step. */
     double stepShare(int st) {
+        if (!Settings.defaultSampling(this)) return Math.min(1.0, st / (double) Settings.calls(this));   // other sampling: no half-size steps, every DiT call costs the same
         double lo = resW * resH < 500000 ? 0.3 : 0.22;
         double done = 0, total = 0;
         for (int i = 0; i < STEPS; i++) { double c = i < 2 ? lo : 1.0; total += c; if (i < st) done += c; }
@@ -618,7 +637,7 @@ public class Main extends Base {
         ui.post(() -> {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
-            if (loraBox != null) loraBox.setVisibility(isMoss() ? View.VISIBLE : View.GONE);
+            if (loraBox != null) { loraBox.setVisibility(model.isEmpty() ? View.GONE : View.VISIBLE); refreshLora(); }
             state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
                 : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
@@ -802,19 +821,21 @@ public class Main extends Base {
         final String f = D + "/last.png";
         final boolean[] done = {false};
         final int[] base = count();
+        final int steps = Settings.steps(this), calls = Settings.calls(this);   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
                 int[] c = count();
                 int st = c[0] - base[0];
                 if (c[1] > base[1]) setProgressUi(97, L.s("Сохраняю…", "Saving…"), t0);
-                else if (st >= STEPS) setProgressUi(92, L.s("Декодирование…", "Decoding…"), t0);
-                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", st + 1, STEPS), t0);  // adapter line = step 1 started
+                else if (st >= calls) setProgressUi(92, L.s("Декодирование…", "Decoding…"), t0);
+                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", st * steps / calls + 1, steps), t0);  // adapter line = step 1 started
                 else setProgressUi(8, L.s("Кодирование текста…", "Encoding the text…"), t0);
             }
         });
         poll.start();
-        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + STEPS + " W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
+        final String samp = "CFG=" + q(Settings.cfg(this)) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (Settings.cfgOn(this) ? " NEG=" + q(Settings.negative(this)) : "");
+        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
         done[0] = true;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
@@ -822,7 +843,10 @@ public class Main extends Base {
         try { png = Models.readBytes(new File(f)); } catch (Exception ignored) { }
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
         try {
-            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
+                .put("steps", steps).put("cfg", Settings.cfg(this)).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
+            if (Settings.cfgOn(this) && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
+            if (loraOn()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", strBar.getProgress() * 0.05f);
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
     }

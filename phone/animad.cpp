@@ -361,16 +361,22 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "animad: chain ready %.1fs (text encoder on NPU: %s)\n", now() - t0, te.empty() ? "no" : "yes");
     }
-    auto handle = [&](const std::string& dir, int steps, const std::string& vd) {
+    // plain: Euler, discrete schedule, no CFG (one DiT call per step on sd.cpp's flow schedule), the only case the low-res first steps are exact for
+    auto handle = [&](const std::string& dir, int steps, const std::string& vd, bool plain) {
     std::vector<f32> ctx512;  // adapter output [512,1024]
-    if (te.empty() && serve) writefile(dir + "/qh.cpu", "", 0);  // no NPU text encoder: sd.cpp computes it
-    if (!te.empty()) {  // sd.cpp (SD_TE_MODE=extern) writes qids.bin/qids.shape (Qwen token ids) and waits for qh.bin(.done) or qh.cpu (= compute it yourself)
-        while (access((dir + "/qids.shape").c_str(), F_OK) && access((dir + "/ready_0").c_str(), F_OK)) usleep(2000);
-        if (!access((dir + "/qids.shape").c_str(), F_OK)) {
+    // text encoder requests: sd.cpp (SD_TE_MODE=extern) writes qids<sfx>.bin/.shape (Qwen token ids) for every prompt it encodes (the prompt, then the
+    // negative prompt when CFG > 1; sfx "" for the first, "_1", "_2"... after it) and waits for qh<sfx>.bin(.done) or qh<sfx>.cpu (= compute it yourself)
+    int tek = 0;
+    auto te_poll = [&]() {
+        const std::string sfx = tek ? "_" + std::to_string(tek) : "";
+        if (access((dir + "/qids" + sfx + ".shape").c_str(), F_OK)) return false;
+        tek++;
+        if (te.empty()) { writefile(dir + "/qh" + sfx + ".cpu", "", 0); return true; }  // no NPU text encoder: sd.cpp computes it
+        {
             double tt = now();
-            auto ib = readfile(dir + "/qids.bin");
+            auto ib = readfile(dir + "/qids" + sfx + ".bin");
             int S = (int)(ib.size() / 4); const int SM = 128;
-            if (S > SM) { writefile(dir + "/qh.cpu", "", 0); fprintf(stderr, "animad: text S=%d > %d, CPU fallback\n", S, SM); }
+            if (S > SM) { writefile(dir + "/qh" + sfx + ".cpu", "", 0); fprintf(stderr, "animad: text S=%d > %d, CPU fallback\n", S, SM); }
             else {
                 std::vector<f32> in((size_t)SM * 1024);
                 for (int i = 0; i < SM; i++) {
@@ -383,42 +389,58 @@ int main(int argc, char** argv) {
                 std::string r = waitline(te[0], "done", "error");
                 if (r[0] != 'd') die("terun error", r);
                 auto ob = readfile(ph + "/te_out.raw");
-                writefile(dir + "/qh.bin", ob.data(), (size_t)S * 1024 * 4);
-                writefile(dir + "/qh.bin.done", "", 0);
+                writefile(dir + "/qh" + sfx + ".bin", ob.data(), (size_t)S * 1024 * 4);
+                writefile(dir + "/qh" + sfx + ".bin.done", "", 0);
                 fprintf(stderr, "animad: text encoder S=%d %.3fs (npu %s)\n", S, now() - tt, r.c_str() + 5);
             }
         }
-    }
+        return true;
+    };
     // low-res first steps (ANIMAD_LOWRES=K): the first K steps run the DiT on a 2x downsampled latent (4x fewer tokens); the full-res x0 estimate is the upsampled low-res one,
     // and the full-res state is rebuilt as (1-t')*up(x0_low) + t'*noise, so sd.cpp's Euler update lands exactly there.
     std::vector<int> lowF;   // per-step downsample factor (1 = full res); ANIMAD_LOWRES="2,2" or "4,2"; default for the HMX path: 2,2 for 4+ steps (the first two at half size), 2 for 3 steps; never the second-to-last step: the last step (t~0) cannot add detail
-    { std::string cfg = getenv("ANIMAD_LOWRES") ? getenv("ANIMAD_LOWRES") : (hmx ? (steps >= 4 ? "2,2" : steps == 3 ? "2" : "") : "");
+    { std::string cfg = !plain ? "" : getenv("ANIMAD_LOWRES") ? getenv("ANIMAD_LOWRES") : (hmx ? (steps >= 4 ? "2,2" : steps == 3 ? "2" : "") : "");
       for (size_t p = 0; p < cfg.size();) { size_t q = cfg.find(',', p); if (q == std::string::npos) q = cfg.size(); int f = atoi(cfg.substr(p, q - p).c_str()); if (f > 0) lowF.push_back(f); p = q + 1; } }
     std::vector<double> sig(steps + 1);   // sd.cpp flow schedule: s = linspace(1, 0.001), sigma = 3s/(1+2s), final 0
     for (int i = 0; i < steps; i++) { double sv = steps > 1 ? 1.0 - (1.0 - 0.001) * i / (steps - 1) : 1.0; sig[i] = 3 * sv / (1 + 2 * sv); }
     sig[steps] = 0;
     std::vector<f32> nfull, xlow, dhatf;
-    for (int n = test ? steps : 0; n < (test ? steps + 1 : steps); n++) {
+    std::vector<std::pair<std::vector<char>, std::vector<f32>>> ctxs;   // (ctx+ids+weights bytes, adapter output transposed [1024][512]): the prompt and, with CFG, the negative prompt
+    int ctx_on = -1;                                                     // which of them st_ctx.raw holds
+    // serve mode: one request = as many DiT calls as the sampler makes (CFG doubles them, 2nd-order samplers add more); it is over when sd.cpp moves on
+    // to the decoder (z.shape) or finishes. Without serve mode exactly `steps` calls.
+    for (int n = test ? steps : 0; test ? n < steps + 1 : serve || n < steps; n++) {
         std::string sn = std::to_string(n);
-        while (access((dir + "/ready_" + sn).c_str(), F_OK)) usleep(1000);  // sd.cpp writes it after all inputs of the step are complete
+        bool over = false;
+        while (access((dir + "/ready_" + sn).c_str(), F_OK)) {  // sd.cpp writes it after all inputs of the call are complete
+            if (te_poll()) continue;
+            if (serve && ((!vd.empty() && !access((vd + "/z.shape").c_str(), F_OK)) || !access((dir + "/sd_done").c_str(), F_OK) || !access((dir + "/sd_failed").c_str(), F_OK))) { over = true; break; }
+            usleep(1000);
+        }
+        if (over) break;
         double ts = now();
         auto xb = readfile(dir + "/x_" + sn + ".bin");
         auto xs = readshape(dir + "/x_" + sn + ".shape");  // ggml order: W,H,C
         int Wd = (int)xs[0], H = (int)xs[1], gw = Wd / 2, gh = H / 2, T = gh * gw;
         const int Wf = Wd, Hf = H; const int fct = n < (int)lowF.size() ? lowF[n] : 1; const bool lr = fct > 1 && (H % (2 * fct) == 0) && (Wd % (2 * fct) == 0) && (((H / 2 / fct) * (Wd / 2 / fct)) % 32 == 0);   // the low-res token count must also be a multiple of 32
         f32 t = ((const f32*)readfile(dir + "/t_" + sn + ".bin").data())[0];
-        if (ctx512.empty()) {
+        {
             auto hb = readfile(dir + "/ctx_" + sn + ".bin");
             auto idb = readfile(dir + "/ids_" + sn + ".bin");
             auto wb = readfile(dir + "/w_" + sn + ".bin");
-            int S = (int)(hb.size() / 4 / 1024), L = (int)(idb.size() / 4);
-            double ta = now();
-            ctx512 = adapter((const f32*)hb.data(), S, (const int32_t*)idb.data(), (const f32*)wb.data(), L);
-            fprintf(stderr, "animad: adapter S=%d L=%d %.2fs\n", S, L, now() - ta);
-            if (test) { writefile(dir + "/ctx_adapter.bin", ctx512.data(), ctx512.size() * 4); return; }
-            std::vector<f32> ct((size_t)1024 * 512);
-            for (int i = 0; i < 512; i++) for (int c = 0; c < 1024; c++) ct[(size_t)c * 512 + i] = ctx512[(size_t)i * 1024 + c];
-            writefile(ph + "/st_ctx.raw", ct.data(), ct.size() * 4);
+            std::vector<char> key(hb); key.insert(key.end(), idb.begin(), idb.end()); key.insert(key.end(), wb.begin(), wb.end());
+            int ci = -1; for (size_t i = 0; i < ctxs.size(); i++) if (ctxs[i].first == key) ci = (int)i;
+            if (ci < 0) {
+                int S = (int)(hb.size() / 4 / 1024), L = (int)(idb.size() / 4);
+                double ta = now();
+                ctx512 = adapter((const f32*)hb.data(), S, (const int32_t*)idb.data(), (const f32*)wb.data(), L);
+                fprintf(stderr, "animad: adapter S=%d L=%d %.2fs\n", S, L, now() - ta);
+                if (test) { writefile(dir + "/ctx_adapter.bin", ctx512.data(), ctx512.size() * 4); return; }
+                std::vector<f32> ct((size_t)1024 * 512);
+                for (int i = 0; i < 512; i++) for (int c = 0; c < 1024; c++) ct[(size_t)c * 512 + i] = ctx512[(size_t)i * 1024 + c];
+                ctxs.emplace_back(std::move(key), std::move(ct)); ci = (int)ctxs.size() - 1;
+            }
+            if (ci != ctx_on) { writefile(ph + "/st_ctx.raw", ctxs[ci].second.data(), ctxs[ci].second.size() * 4); ctx_on = ci; }
         }
         // timestep embedding
         std::vector<f32> tp(D), emb(D), lora(6144), tmp(D);
@@ -580,10 +602,10 @@ int main(int argc, char** argv) {
                 for (auto& nm : names) {
                     std::string rd = dir + "/" + nm;
                     if (access((rd + "/start").c_str(), F_OK) || !access((rd + "/finished").c_str(), F_OK)) continue;
-                    auto sb = readfile(rd + "/start");
-                    int st = atoi(std::string(sb.begin(), sb.end()).c_str());
+                    auto sb = readfile(rd + "/start");   // "<steps> [plain]": plain 0 = another sampler/schedule or CFG > 1 (default 1)
+                    int st = 0, pl = 1; sscanf(std::string(sb.begin(), sb.end()).c_str(), "%d %d", &st, &pl);
                     double tr = now();
-                    handle(rd, st > 0 ? st : 4, rd + "/vae");
+                    handle(rd, st > 0 ? st : 4, rd + "/vae", pl != 0);
                     writefile(rd + "/finished", "", 0);
                     fprintf(stderr, "animad: request %s done in %.1fs\n", nm.c_str(), now() - tr);
                     did = true;
@@ -593,7 +615,7 @@ int main(int argc, char** argv) {
             if (!access((dir + "/quit").c_str(), F_OK)) break;
         }
     } else {
-        handle(dir, steps, getenv("SD_VAE_DIR") ? getenv("SD_VAE_DIR") : "");
+        handle(dir, steps, getenv("SD_VAE_DIR") ? getenv("SD_VAE_DIR") : "", true);
     }
     if (!vae.empty()) { fprintf(vae[0].in, "quit\n"); fflush(vae[0].in); }
     if (!te.empty()) { fprintf(te[0].in, "quit\n"); fflush(te[0].in); }

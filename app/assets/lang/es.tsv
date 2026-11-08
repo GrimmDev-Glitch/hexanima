@@ -103,7 +103,6 @@ A loaded model holds several gigabytes of RAM. If the phone slows down or you ar
 Where pictures are stored	Dónde se guardan las imágenes
 Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days.	Solo dentro de la app. Una imagen llega a la galería del teléfono (Pictures/Anima) tras pulsar «Descargar». Las imágenes eliminadas van a la papelera y permanecen 30 días.
 Supported phones	Teléfonos compatibles
-Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No root needed. Other chips are not supported.	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69). No requiere root. Los demás chips no son compatibles.
 Licenses	Licencias
 MiaoMiao models (by MIAOKA, Civitai) are built on Anima by CircleStone Labs and NVIDIA Cosmos. Non-commercial use only. A model author can ask for removal from the catalog.	Los modelos MiaoMiao (de MIAOKA, Civitai) están basados en Anima de CircleStone Labs y NVIDIA Cosmos. Solo uso no comercial. El autor de un modelo puede pedir que se retire del catálogo.
 Fast, 3D-render style	Rápido, estilo render 3D
@@ -209,3 +208,25 @@ MOSS-Image licenses	Licencias de MOSS-Image
 MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (equipo Qwen), el adaptador rapid-moss (darask0, lodestones), el decodificador FLUX.2 small (Black Forest Labs) y las cuantizaciones de Unsloth están todos bajo la Apache License 2.0. Los archivos son copias convertidas para la NPU; los cambios se indican en los avisos de abajo. Los textos de las licencias están al final, en Licencias de componentes.
 MOSS-Image notices (changes made)	Avisos de MOSS-Image (cambios realizados)
 Quality tags before the prompt (Anima models)	Etiquetas de calidad antes de la descripción (Anima)
+, experimental	, experimental
+Chip %s: supported (%s)	Chip %s: compatible (%s)
+Chip %s · supported (%s)	Chip %s · compatible (%s)
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 is required	Chip %s: no compatible, se necesita un Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2
+Chip %s · not supported	Chip %s · no compatible
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 and 8 Gen 2 (Poco F6 Pro)	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 y 8 Gen 2 (Poco F6 Pro)
+Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2. Download anyway?	El chip %s no es compatible: los modelos están hechos para Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2. ¿Descargar de todos modos?
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) and Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro, experimental; MOSS-Image does not run on it yet). No root needed. Other chips are not supported.	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) y Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro, experimental; MOSS-Image todavía no funciona en él). No se necesita root. Otros chips no son compatibles.
+Sampling (Anima models)	Muestreo (modelos Anima)
+The models are distilled for 4 steps, Euler, CFG 1. A CFG above 1 makes a picture twice as slow and uses the negative prompt; heun, dpm2, dpm++2s_a and res_2s are twice as slow too.	Los modelos están destilados para 4 pasos, Euler y CFG 1. Un CFG mayor que 1 hace cada imagen el doble de lenta y usa el prompt negativo; heun, dpm2, dpm++2s_a y res_2s también son el doble de lentos.
+Steps	Pasos
+Sampler	Sampler
+Scheduler	Scheduler
+Negative prompt (only with CFG above 1)	Prompt negativo (solo con CFG mayor que 1)
+Compatible: rank %d, %d of 28 blocks	Compatible: rango %d, %d de 28 bloques
+This is not a .safetensors file.	No es un archivo .safetensors.
+Layer sizes do not match Anima 2B. It is probably a LoRA for another model or version.	Los tamaños de las capas no coinciden con Anima 2B. Probablemente es un LoRA para otro modelo o versión.
+The LoRA has blocks that Anima 2B does not have.	El LoRA tiene bloques que Anima 2B no tiene.
+This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does not fit Anima.	Este LoRA es para otro modelo (SDXL / Illustrious, FLUX o similar). No sirve para Anima.
+This file does not look like an Anima LoRA: the lora_unet_blocks_N_* layers are missing.	El archivo no parece un LoRA de Anima: faltan las capas lora_unet_blocks_N_*.
+A LoRA for Anima 2B (.safetensors): checked as soon as you pick it; a new LoRA or strength reloads the model	Un LoRA para Anima 2B (.safetensors): se revisa al elegirlo; un LoRA o una fuerza nuevos recargan el modelo
+Not applied to the 2.9B models: it is a LoRA for Anima 2B	No se aplica a los modelos 2.9B: es un LoRA para Anima 2B

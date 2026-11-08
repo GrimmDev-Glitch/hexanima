@@ -23,6 +23,8 @@ about 30 s for 512x768 and about 80 s for 1 Mpx; any size with sides that are mu
 - History with favourites, trash, multi-select, share and save; settings are stored in the PNG, so any picture can be reopened with its prompt and seed.
 - Prompt tag suggestions (Danbooru tags), templates, quality-tag prefix (Anima models only; MOSS-Image takes plain sentences and gets no tags).
 - Your own LoRA for MOSS-Image: pick a `.safetensors` file, the app checks it at once (layer names, shapes, rank, data type) and says why if it does not fit; a strength slider (0-2). The LoRA is folded with the built-in 4-step adapter on the phone (about 15 s the first time) and never leaves the device.
+- Sampling settings for the Anima models (Settings): steps, CFG with a negative prompt, sampler (Euler, DPM++ 2M, DPM++ 2M SDE, ...) and scheduler (discrete, SGM Uniform, Karras, ...). The defaults (4 steps, Euler, CFG 1) are what the turbo models are made for; CFG above 1 doubles the time.
+- Your own LoRA for the Anima 2B models (kohya `lora_unet_blocks_*` files from Civitai): folded into the block weights when the model loads (a few seconds, nothing extra on storage), strength slider. Only the DiT part is applied (the text encoder is a precompiled NPU graph); not for the 2.9B models.
 - Live RAM meter, thermal / battery warnings, the model unloads itself when idle.
 - Light / dark / system themes, notifications, 13 languages (English, Russian, Chinese, Japanese, Korean, Spanish, Portuguese, German, French, Indonesian, Turkish, Vietnamese, Hindi).
 
@@ -97,7 +99,8 @@ Limits worth knowing: MOSS-Image only does text-to-image (no editing or image in
 
 - A phone with **Snapdragon 8 Gen 1 or 8+ Gen 1** (SM8450 / SM8475, Hexagon V69): the tested target.
 - **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): not supported. Versions 1.2.0 and 1.2.1 had experimental support, withdrawn in 1.2.2: on a tester's Galaxy S25 the NPU matrix unit is sometimes silently unavailable after an interrupted run (garbage pictures) and large sizes come out as noise. A proper port is not planned in the short term.
-- Other chips (Snapdragon 8 Gen 2 / 8 Gen 3, SM8550 / SM8650) are not supported yet; the app tells you if yours is not.
+- **Snapdragon 8 Gen 2** (SM8550, Hexagon V73): experimental, tested on a Poco F6 Pro (12 GB): 512x768 in about 7 s with the 2B models, 1024x1024 in about 17 s. The DiT kernels have their own V73 build (V73 stores HMX results through the convert unit, see `hexagon/mega/hmxacc.S`); the text-encoder and VAE contexts for V73 are not on the download server yet and are installed with `tools/push_common.sh v73`. MOSS-Image does not run on it yet.
+- Other chips (Snapdragon 8 Gen 3, SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
 - RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per Anima model; MOSS-Image needs about 14 GB (and ~300 MB more while a user LoRA is in use). MOSS-Image was tested on a 12 GB phone only.
 
