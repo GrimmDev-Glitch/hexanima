@@ -16,18 +16,16 @@ import org.json.JSONObject;
 
 /** Civitai (civitai.com / civitai.red) public REST API: model search, model details, file downloads. The user's own API key (Settings) is sent as a
  *  Bearer header to civitai.com only (never to the storage host a download redirects to); without it, files marked +18 or "login required" cannot be downloaded.
- *  Downloaded files go to the app's libraries: Anima LoRAs to files/anima/lora (usable at once), SDXL-family LoRAs and checkpoints to files/sdxl/{lora,models}.
+ *  Only Anima files are offered (they run on the NPU): LoRAs go to files/anima/lora (usable at once), checkpoints are converted on the phone (AnimaImport).
  *  Next to every file a <name>.json keeps what the app shows later (Civitai ids, base model, trigger words, preview). */
 final class Civitai {
     static final String API = "https://civitai.com/api/v1/";
     static String key(Context c) { return c.getSharedPreferences("anima", 0).getString("civitai_key", "").trim(); }
 
-    /** base models the app can use, in the filter order: Anima runs on the NPU, the SDXL family (Illustrious, NoobAI, Pony, SDXL 1.0) on the CPU */
-    static final String[] BASES = {"Anima", "Illustrious", "NoobAI", "Pony", "SDXL 1.0"};
-    static boolean sdxlFamily(String base) { return base != null && (base.startsWith("Illustrious") || base.startsWith("NoobAI") || base.startsWith("Pony") || base.startsWith("SDXL")); }
+    /** the one base model the app runs (SDXL-family models have no NPU path on the phone and were too slow and hot on the CPU) */
+    static final String BASE = "Anima";
     static boolean anima(String base) { return base != null && base.toLowerCase(Locale.ROOT).startsWith("anima"); }
 
-    static File sdxlDir(File home, String kind) { return new File(new File(home, "sdxl"), kind); }   // kind: lora | models
 
     static HttpURLConnection open(Context c, String url) throws IOException {
         HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
@@ -44,7 +42,7 @@ final class Civitai {
         try (InputStream in = h.getInputStream(); ByteArrayOutputStream bo = new ByteArrayOutputStream()) { byte[] b = new byte[1 << 15]; for (int n; (n = in.read(b)) > 0; ) bo.write(b, 0, n); return bo.toString("UTF-8"); }
     }
 
-    /** search: type "LORA" / "Checkpoint", base one of BASES or "" (all), sort "Most Downloaded" / "Highest Rated" / "Newest"; cursor from the previous page or null */
+    /** search: type "LORA" / "Checkpoint", base "Anima" (BASE) or "" (all), sort "Most Downloaded" / "Highest Rated" / "Newest"; cursor from the previous page or null */
     static JSONObject search(Context c, String query, String type, String base, String sort, boolean nsfw, String cursor) throws Exception {
         StringBuilder u = new StringBuilder(API + "models?limit=20");
         if (!query.isEmpty()) u.append("&query=").append(URLEncoder.encode(query, "UTF-8"));
@@ -128,10 +126,8 @@ final class Civitai {
     static File target(File home, String type, String base, String fileName, String[] msg) {
         boolean lora = type.equalsIgnoreCase("LORA") || type.equalsIgnoreCase("LoCon") || type.equalsIgnoreCase("DoRA");
         if (lora && anima(base)) return new File(AnimaLora.dir(home), AnimaLora.fileName(fileName));
-        if (lora && sdxlFamily(base)) return new File(sdxlDir(home, "lora"), AnimaLora.fileName(fileName));
-        if (type.equalsIgnoreCase("Checkpoint") && sdxlFamily(base)) return new File(sdxlDir(home, "models"), AnimaLora.fileName(fileName));
         if (type.equalsIgnoreCase("Checkpoint") && anima(base)) return new File(AnimaImport.importDir(home), AnimaLora.fileName(fileName));   // converted on the phone after the download (AnimaImport)
-        msg[0] = L.f("База «%s» не поддерживается (нужны Anima или Illustrious / NoobAI / Pony / SDXL)", "Base model \"%s\" is not supported (Anima or Illustrious / NoobAI / Pony / SDXL are)", base); return null;
+        msg[0] = L.f("База «%s» не поддерживается: только модели и LoRA для Anima (они работают на NPU)", "Base model \"%s\" is not supported: only Anima models and LoRAs (they run on the NPU)", base); return null;
     }
 
     /** sidecar <name>.json: what the library shows and inserts into the prompt */

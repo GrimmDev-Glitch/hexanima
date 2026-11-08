@@ -17,22 +17,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Civitai browser: search by name or paste a civitai.com / civitai.red link or id, filter by type (LoRA / checkpoint), base model, sort and +18,
+/** Civitai browser (Anima models and LoRAs only: they run on the NPU): search by name or paste a civitai.com / civitai.red link or id, filter by type (LoRA / checkpoint), sort and +18,
  *  open a model, pick a version and download it into the app's libraries (see Civitai). +18 content and "login required" files need the user's own
  *  Civitai API key, entered in Settings; without a key +18 results are not requested at all. */
 public class CivitaiActivity extends Base {
     static final String[] TYPES = {"LORA", "Checkpoint"}, SORTS = {"Most Downloaded", "Highest Rated", "Newest"};
     EditText query; LinearLayout results; TextView status; Button more;
-    String type = "LORA", base = "Anima", sort = "Most Downloaded", cursor = null; boolean nsfw = false;
+    String type = "LORA", base = Civitai.BASE, sort = "Most Downloaded", cursor = null; boolean nsfw = false;
     final ExecutorService net = Executors.newFixedThreadPool(3);
     final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     final AtomicBoolean cancel = new AtomicBoolean();
-    LinearLayout typeRow, baseRow, sortRow;
+    LinearLayout typeRow, sortRow;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         nsfw = getSharedPreferences("anima", 0).getBoolean("civitai_nsfw", false) && !Civitai.key(this).isEmpty();
-        base = getSharedPreferences("anima", 0).getString("civitai_base", "Anima");
         if ("Checkpoint".equals(getIntent().getStringExtra("type"))) type = "Checkpoint";   // opened from the model picker
         LinearLayout col = screen("Civitai", null);
         LinearLayout sr = new LinearLayout(this); sr.setGravity(Gravity.CENTER_VERTICAL);
@@ -44,10 +43,6 @@ public class CivitaiActivity extends Base {
         LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(dp(52), dp(46)); gl.leftMargin = dp(8); sr.addView(go, gl);
         col.addView(sr);
         typeRow = chips(col, L.s("ТИП", "TYPE"), new String[]{"LoRA", L.s("Модели", "Checkpoints")}, TYPES, type, v -> { type = v; search(true); });
-        String[] bn = new String[Civitai.BASES.length + 1], bv = new String[Civitai.BASES.length + 1];
-        for (int i = 0; i < Civitai.BASES.length; i++) { bn[i] = Civitai.BASES[i] + (i == 0 ? " (NPU)" : ""); bv[i] = Civitai.BASES[i]; }
-        bn[bn.length - 1] = L.s("Все", "All"); bv[bv.length - 1] = "";
-        baseRow = chips(col, L.s("БАЗОВАЯ МОДЕЛЬ", "BASE MODEL"), bn, bv, base, v -> { base = v; getSharedPreferences("anima", 0).edit().putString("civitai_base", v).apply(); search(true); });
         sortRow = chips(col, L.s("СОРТИРОВКА", "SORT"), new String[]{L.s("Популярные", "Most downloaded"), L.s("Лучшие", "Highest rated"), L.s("Новые", "Newest")}, SORTS, sort, v -> { sort = v; search(true); });
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL); nr.setPadding(dp(2), dp(10), 0, dp(4));
         TextView nl = text(L.s("Показывать +18", "Show +18"), 15, TXT, true); nr.addView(nl, new LinearLayout.LayoutParams(0, -2, 1));
@@ -130,7 +125,7 @@ public class CivitaiActivity extends Base {
         JSONArray vs = m.optJSONArray("modelVersions"); JSONObject v0 = vs != null && vs.length() > 0 ? vs.optJSONObject(0) : new JSONObject();
         TextView name = text(m.optString("name"), 15, TXT, true); name.setMaxLines(2); t.addView(name);
         JSONObject cr = m.optJSONObject("creator"); JSONObject st = m.optJSONObject("stats");
-        t.addView(text(m.optString("type") + " · " + v0.optString("baseModel") + (m.optBoolean("nsfw") ? " · 18+" : ""), 12, Civitai.anima(v0.optString("baseModel")) || Civitai.sdxlFamily(v0.optString("baseModel")) ? ACC : DIM, false));
+        t.addView(text(m.optString("type") + " · " + v0.optString("baseModel") + (m.optBoolean("nsfw") ? " · 18+" : ""), 12, Civitai.anima(v0.optString("baseModel")) ? ACC : DIM, false));
         t.addView(text((cr != null ? cr.optString("username") : "") + (st != null ? "  ·  ⬇ " + st.optInt("downloadCount") : ""), 12, DIM, false));
         JSONArray w = v0.optJSONArray("trainedWords");
         if (w != null && w.length() > 0) { TextView tw = text(L.s("Слова: ", "Trigger: ") + w.optString(0) + (w.length() > 1 ? " …" : ""), 12, DIM, false); tw.setMaxLines(1); t.addView(tw); }
@@ -200,7 +195,7 @@ public class CivitaiActivity extends Base {
                     AnimaLora.Check c = AnimaLora.check(out);
                     if (!c.ok) { out.delete(); throw new Exception(c.message()); }
                     msg = c.message();
-                } else msg = Civitai.sdxlFamily(ver.optString("baseModel")) ? L.s("Сохранено для моделей SDXL (Illustrious / Pony / NoobAI)", "Saved for the SDXL models (Illustrious / Pony / NoobAI)") : "";
+                } else msg = "";
                 Civitai.writeMeta(out, m, ver);
                 String tag = out.getName().replaceAll("\\.safetensors$", "");
                 final String done = "✓ " + msg + "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag) + (Civitai.words(out).isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + Civitai.words(out));
