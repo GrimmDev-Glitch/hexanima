@@ -65,7 +65,11 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 </tr>
 <tr>
 <td align="center"><img src="docs/screens/v73/14-info.jpg" width="220"><br><b>Info · credits to ayanoby</b></td>
-<td></td><td></td>
+<td align="center"><img src="docs/screens/v73/15-cool-mode.jpg" width="220"><br><b>Cool mode: Automatic / Always / Never</b></td>
+<td align="center"><img src="docs/screens/v73/17-lora-cache.jpg" width="220"><br><b>LoRA library · q8 cache size</b></td>
+</tr>
+<tr>
+<td align="center" colspan="3"><img src="docs/screens/v73/16-lora-text-encoder.jpg" width="440"><br><b>A LoRA with text-encoder weights: applied, the prompt is encoded on the CPU</b></td>
 </tr>
 </table>
 
