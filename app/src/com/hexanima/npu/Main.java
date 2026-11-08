@@ -448,6 +448,7 @@ public class Main extends Base {
         if (req == 9 && res == RESULT_OK && d != null && d.getData() != null) { importLora(d.getData()); return; }
         if (req == 11 && res == RESULT_OK && d != null && d.getData() != null) { importInit(d.getData()); return; }
         if (req == 12 && res == RESULT_OK && d != null && d.getData() != null) { importAd(d.getData()); return; }
+        if (req == 13 && res == RESULT_OK && d != null && d.getData() != null) { importCheckpoint(d.getData()); return; }
         if (req == 7 && res == RESULT_OK && d != null) {
             prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
             customOpen = false;
@@ -673,6 +674,39 @@ public class Main extends Base {
         if (prefs().getBoolean("x_ad", false) && adModel() != null) a.append(" --ad-model ").append(q(adModel().getPath()));
         File init = initFor(w, h); if (init != null) a.append(" --init-img ").append(q(init.getPath())).append(" --strength ").append(pf("x_strength", .6f));
         return a.toString();
+    }
+    /** a local Anima checkpoint: copied into the app, converted on the phone (AnimaImport), then selectable like the catalog models */
+    void importCheckpoint(Uri uri) {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        String nm = "Anima";
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (i >= 0) nm = c.getString(i); } } catch (Exception ignored) { }
+        final String name = nm.replaceAll("(?i)\\.safetensors$", "");
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(16), dp(20), dp(8));
+        v.addView(text(name, 14, TXT, true));
+        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(1000); v.addView(pb);
+        TextView pt = text(L.s("Копирование…", "Copying…"), 12, DIM, false); v.addView(pt);
+        final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+        AlertDialog dl = builder().setTitle(L.s("Импорт модели", "Importing a model")).setView(v).setCancelable(false).setNegativeButton(L.s("Отмена", "Cancel"), (d, i) -> stop.set(true)).show();
+        if (loaded) ex.submit(() -> { su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); });   // the conversion needs the RAM
+        ex2.submit(() -> {
+            File dir = AnimaImport.importDir(getFilesDir()); dir.mkdirs(); File src = new File(dir, AnimaLora.fileName(name));
+            String err = null;
+            try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(src)) {
+                long total = -1; try (android.content.res.AssetFileDescriptor a = getContentResolver().openAssetFileDescriptor(uri, "r")) { if (a != null) total = a.getLength(); } catch (Exception ignored) { }
+                byte[] b = new byte[1 << 16]; long done = 0, last = 0; final long tt = total;
+                for (int n; (n = in.read(b)) > 0; ) { if (stop.get()) throw new IOException(L.s("Отменено", "Cancelled")); o.write(b, 0, n); done += n; if (done - last > (32 << 20)) { last = done; final long dd = done; ui.post(() -> { if (tt > 0) pb.setProgress((int) (1000 * dd / tt)); pt.setText(String.format(java.util.Locale.US, "%.1f GB", dd / 1e9)); }); } }
+            } catch (Exception e) { err = e.getMessage(); }
+            if (err == null) err = AnimaImport.convert(getFilesDir(), BIN, DEFAULT_BASE, src, "cv" + Long.toHexString(System.currentTimeMillis()), name,
+                (d, t, what) -> ui.post(() -> { pb.setProgress(1000 * d / Math.max(1, t)); pt.setText(what + " " + d + "/" + t); }), stop);
+            if (err != null) src.delete();
+            final String e2 = err;
+            ui.post(() -> {
+                dl.dismiss();
+                if (e2 != null) builder().setTitle(L.s("Не удалось импортировать", "Import failed")).setMessage(e2).setPositiveButton("OK", null).show();
+                else { refreshModels(); builder().setTitle(name).setMessage("✓ " + L.s("Модель установлена: выберите её в списке моделей. Если это не «turbo»-модель, используйте 20–30 шагов и CFG 4–5 (или LoRA turbo для 2B).",
+                    "Model installed: pick it in the model list. If it is not a \"turbo\" model, use 20–30 steps and CFG 4–5 (or a turbo LoRA on the 2B ones).")).setPositiveButton("OK", null).show(); }
+            });
+        });
     }
     void importInit(Uri uri) {
         ex2.submit(() -> {
@@ -959,10 +993,17 @@ public class Main extends Base {
     void pickModel() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
         if (ids.isEmpty()) { openModels(); return; }
-        String[] names = new String[ids.size() + 1];
+        String[] names = new String[ids.size() + 3];
         for (int i = 0; i < ids.size(); i++) names[i] = (ids.get(i).equals(model) ? "✓  " : "      ") + store.name(ids.get(i));
         names[ids.size()] = "＋  " + L.s("Каталог моделей…", "Model catalog…");
-        builder().setTitle(L.s("Модель", "Model")).setItems(names, (d, i) -> { if (i < ids.size()) setModel(ids.get(i)); else openModels(); }).show();
+        names[ids.size() + 1] = "＋  Civitai…";
+        names[ids.size() + 2] = "＋  " + L.s("Импорт чекпойнта Anima (.safetensors)…", "Import an Anima checkpoint (.safetensors)…");
+        builder().setTitle(L.s("Модель", "Model")).setItems(names, (d, i) -> {
+            if (i < ids.size()) setModel(ids.get(i));
+            else if (i == ids.size()) openModels();
+            else if (i == ids.size() + 1) startActivity(new Intent(this, CivitaiActivity.class).putExtra("type", "Checkpoint"));
+            else startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 13);
+        }).show();
     }
 
     /** The NPU pipeline needs width/height multiples of 16, patch count divisible by 32 and at most 6144 patches (megarun TMAX). */

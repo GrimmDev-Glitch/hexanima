@@ -33,6 +33,7 @@ public class CivitaiActivity extends Base {
         super.onCreate(b);
         nsfw = getSharedPreferences("anima", 0).getBoolean("civitai_nsfw", false) && !Civitai.key(this).isEmpty();
         base = getSharedPreferences("anima", 0).getString("civitai_base", "Anima");
+        if ("Checkpoint".equals(getIntent().getStringExtra("type"))) type = "Checkpoint";   // opened from the model picker
         LinearLayout col = screen("Civitai", null);
         LinearLayout sr = new LinearLayout(this); sr.setGravity(Gravity.CENTER_VERTICAL);
         query = field(L.s("Название или ссылка civitai.com / civitai.red", "Name or a civitai.com / civitai.red link"));
@@ -185,6 +186,16 @@ public class CivitaiActivity extends Base {
             try {
                 Civitai.download(this, f.optString("downloadUrl"), out, (long) (f.optDouble("sizeKB") * 1024), (d, t) -> ui.post(() -> { if (t > 0) pb.setProgress((int) (1000 * d / t)); pt.setText(String.format(Locale.US, "%.0f / %.0f MB", d / 1048576.0, t / 1048576.0)); }), stop);
                 String msg;
+                if (out.getParentFile().equals(AnimaImport.importDir(getFilesDir()))) {   // Anima checkpoint: convert it into an installed model on the phone
+                    String id = "cv" + ver.optLong("id"), nm = m.optString("name") + " · " + ver.optString("name");
+                    ui.post(() -> { pt.setText(L.s("Конвертация для NPU…", "Converting for the NPU…")); pb.setProgress(0); });
+                    String err = AnimaImport.convert(getFilesDir(), getApplicationInfo().nativeLibraryDir, Main.DEFAULT_BASE, out, id, nm,
+                        (d, t, what) -> ui.post(() -> { pb.setProgress(1000 * d / Math.max(1, t)); pt.setText(what + " " + d + "/" + t); }), stop);
+                    if (err != null) throw new Exception(err);
+                    ui.post(() -> { dl.dismiss(); builder().setTitle(nm).setMessage("✓ " + L.s("Модель установлена: выберите её в списке моделей. Если это не «turbo»-модель, используйте 20–30 шагов и CFG 4–5 (или LoRA turbo для 2B).",
+                        "Model installed: pick it in the model list. If it is not a \"turbo\" model, use 20–30 steps and CFG 4–5 (or a turbo LoRA on the 2B ones).")).setPositiveButton("OK", null).show(); });
+                    return;
+                }
                 if (out.getParentFile().equals(AnimaLora.dir(getFilesDir()))) {
                     AnimaLora.Check c = AnimaLora.check(out);
                     if (!c.ok) { out.delete(); throw new Exception(c.message()); }

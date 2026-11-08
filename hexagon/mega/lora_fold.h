@@ -29,12 +29,28 @@ struct LoraFile {
     if (m == MAP_FAILED) { size = 0; return false; }
     data = (const uint8_t*)m; if (size < 8) return false; uint64_t n; memcpy(&n, data, 8); if (8 + n > size) return false;
     std::string h((const char*)data + 8, n); const uint8_t* base = data + 8 + n;
-    // minimal parser for the safetensors header: {"name":{"dtype":"BF16","shape":[a,b],"data_offsets":[x,y]},...}
-    size_t p = 0;
-    auto str = [&](std::string& out) { p = h.find('"', p); if (p == std::string::npos) return false; size_t q = h.find('"', p + 1); out = h.substr(p + 1, q - p - 1); p = q + 1; return true; };
+    // minimal parser for the safetensors header: {"name":{"dtype":"BF16","shape":[a,b],"data_offsets":[x,y]},...}; values are objects, skipped
+    // with brace matching that ignores braces inside strings (checkpoint metadata often holds JSON text)
+    size_t p = h.find('{'); if (p == std::string::npos) return false; p++;
+    auto str = [&](std::string& out) {
+      p = h.find('"', p); if (p == std::string::npos) return false;
+      out.clear(); size_t q = p + 1; for (; q < h.size() && h[q] != '"'; q++) { if (h[q] == '\\' && q + 1 < h.size()) q++; out += h[q]; }
+      p = q + 1; return q < h.size();
+    };
+    auto object_end = [&](size_t ob) {   // index just past the object that starts at ob
+      int depth = 0; bool in = false;
+      for (size_t i = ob; i < h.size(); i++) {
+        char ch = h[i];
+        if (in) { if (ch == '\\') i++; else if (ch == '"') in = false; continue; }
+        if (ch == '"') in = true; else if (ch == '{') depth++; else if (ch == '}' && --depth == 0) return i + 1;
+      }
+      return h.size();
+    };
     while (true) {
       std::string k; if (!str(k)) break;
-      size_t ob = h.find('{', p); if (ob == std::string::npos) break; size_t cb = h.find('}', ob); std::string body = h.substr(ob, cb - ob); p = cb + 1;
+      size_t ob = h.find_first_of("{\"", h.find(':', p)); if (ob == std::string::npos) break;
+      if (h[ob] == '"') { std::string skip; p = ob; if (!str(skip)) break; continue; }   // a string value (not expected at top level)
+      size_t ce = object_end(ob); std::string body = h.substr(ob, ce - ob); p = ce;
       if (k == "__metadata__") continue;
       T x; size_t d = body.find("\"dtype\""); if (d != std::string::npos) { size_t a = body.find('"', d + 7); size_t b = body.find('"', a + 1); x.dtype = body.substr(a + 1, b - a - 1); }
       size_t s = body.find("\"shape\""); if (s != std::string::npos) { size_t a = body.find('[', s), b = body.find(']', a); std::string v = body.substr(a + 1, b - a - 1); for (char* c = &v[0]; *c;) { x.shape.push_back(strtoll(c, &c, 10)); while (*c == ',' || *c == ' ') c++; } }

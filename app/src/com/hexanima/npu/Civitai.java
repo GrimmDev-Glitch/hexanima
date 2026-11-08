@@ -128,7 +128,7 @@ final class Civitai {
         if (lora && anima(base)) return new File(AnimaLora.dir(home), AnimaLora.fileName(fileName));
         if (lora && sdxlFamily(base)) return new File(sdxlDir(home, "lora"), AnimaLora.fileName(fileName));
         if (type.equalsIgnoreCase("Checkpoint") && sdxlFamily(base)) return new File(sdxlDir(home, "models"), AnimaLora.fileName(fileName));
-        if (type.equalsIgnoreCase("Checkpoint") && anima(base)) { msg[0] = L.s("Чекпойнты Anima пока нужно конвертировать на ПК (tools/make_pack.py)", "Anima checkpoints still have to be converted on a PC (tools/make_pack.py)"); return null; }
+        if (type.equalsIgnoreCase("Checkpoint") && anima(base)) return new File(AnimaImport.importDir(home), AnimaLora.fileName(fileName));   // converted on the phone after the download (AnimaImport)
         msg[0] = L.f("База «%s» не поддерживается (нужны Anima или Illustrious / NoobAI / Pony / SDXL)", "Base model \"%s\" is not supported (Anima or Illustrious / NoobAI / Pony / SDXL are)", base); return null;
     }
 
