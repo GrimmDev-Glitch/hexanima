@@ -116,10 +116,11 @@ int main(int argc, char** argv) {
       std::string item = all.substr(p, q - p); p = q + 1; if (item.empty()) continue;
       float s = s0; size_t st = item.rfind('*'); if (st != std::string::npos) { s = (float)atof(item.c_str() + st + 1); item.resize(st); }
       LoraFile L; double tl = now();
-      if (g_q8) { fprintf(stderr, "megarun: LoRA skipped: q8 weights (2.9B models) are not supported\n"); break; }
       if (!L.open(item.c_str())) { fprintf(stderr, "megarun: LoRA skipped: cannot read %s\n", item.c_str()); continue; }
+      struct stat st40; char p40[512]; snprintf(p40, sizeof p40, "%s/blk39.bin", dir.c_str());
+      const int model_blocks = stat(p40, &st40) == 0 ? 40 : 28, lora_n = lora_blocks(L);   // 2B LoRAs on 2.9B models (and back) through FROM2B
       int nm = 0; bool fit = true;
-      for (int i = 0; i < count && fit; i++) { int k = lora_fold_block(L, s, first + i, wts[i]); if (k < 0) fit = false; else nm += k; }
+      for (int i = 0; i < count && fit; i++) { int src = lora_source(first + i, model_blocks, lora_n); if (src < 0) continue; int k = lora_fold_block(L, s, src, wts[i], g_q8); if (k < 0) fit = false; else nm += k; }
       if (!fit) fprintf(stderr, "megarun: LoRA %s does not fit this model (shapes), partly applied\n", item.c_str());
       fprintf(stderr, "megarun: LoRA %s: %d matrices of blocks %d..%d, strength %.2f, %.1fs\n", item.c_str(), nm, first, first + count - 1, s, now() - tl);
     }

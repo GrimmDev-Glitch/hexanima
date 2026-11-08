@@ -314,6 +314,7 @@ static std::string waitline(Chain& c, const char* a, const char* b) {
     while (fgets(line, sizeof line, c.out)) {
         if (!strncmp(line, a, strlen(a)) || (b && !strncmp(line, b, strlen(b)))) return line;
         if (strstr(line, "ERROR") || strstr(line, "failed")) fprintf(stderr, "chainrun: %s", line);
+        else if (!strncmp(line, "megarun: LoRA", 13)) fprintf(stderr, "%s", line);   // which LoRA was folded into which blocks
     }
     die("chainrun exited");
     return "";

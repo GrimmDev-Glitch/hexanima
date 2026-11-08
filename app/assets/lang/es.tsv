@@ -291,3 +291,6 @@ Upscale ×2 (AI)	Reescalar ×2 (IA)
 RealESRGAN anime on the CPU, ~80 s, up to 512×768; 18 MB on first use. Faster: the hires fix (NPU)	RealESRGAN anime en la CPU, ~80 s, hasta 512×768; 18 MB la primera vez. Más rápido: hires fix (NPU)
 Upscale skipped: up to 512×768 only (use the hires fix)	Reescalado omitido: solo hasta 512×768 (usa hires fix)
 Upscaling ×2 (CPU, ~80 s)…	Reescalando ×2 (CPU, ~80 s)…
+Compatible: rank %d, %d of %d blocks (%s)	Compatible: rango %d, %d de %d bloques (%s)
+The LoRA has blocks that Anima 2B / 2.9B do not have.	El LoRA tiene bloques que Anima 2B / 2.9B no tienen.
+2.9B model: a 2B LoRA is remapped block by block (the model loads a bit longer)	Modelo 2.9B: el LoRA de 2B se reasigna bloque a bloque (el modelo tarda un poco más en cargar)

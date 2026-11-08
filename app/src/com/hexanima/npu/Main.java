@@ -475,7 +475,9 @@ public class Main extends Base {
     File loraDir() { return isMoss() ? MossLora.dir(getFilesDir()) : AnimaLora.dir(getFilesDir()); }
     String loraId() { return prefs().getString(lp() + "lora_id", ""); }
     /** Anima LoRAs fit the 2B models only; the 2.9B ones hold q8 weights (and another base) */
-    boolean loraFitsModel() { return isMoss() || !store.is29(model); }
+    /** every Anima model takes Anima LoRAs: 2B (28-block) LoRAs on the 2.9B models and 2.9B (40-block) ones on the 2B models are remapped block by block
+     *  in megarun (the 2.9B models are the 2B ones with 12 blocks doubled, see lora_fold.h) */
+    boolean loraFitsModel() { return true; }
     boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && loraStr() > 0 && loraFitsModel(); }
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
@@ -483,7 +485,7 @@ public class Main extends Base {
         String hint = isMoss() ? L.s("Файл .safetensors для MOSS-Image: проверяется сразу после выбора", "A .safetensors file for MOSS-Image: it is checked as soon as you pick it")
                 : L.s("LoRA для Anima 2B (.safetensors): проверяется сразу после выбора; новая LoRA или сила перезагружает модель", "A LoRA for Anima 2B (.safetensors): checked as soon as you pick it; a new LoRA or strength reloads the model");
         String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
-        if (has && !loraFitsModel()) info = L.s("Не применяется к моделям 2.9B: LoRA для Anima 2B", "Not applied to the 2.9B models: it is a LoRA for Anima 2B");
+        if (has && !isMoss() && store.is29(model)) info += "\n" + L.s("Модель 2.9B: LoRA для 2B переносится по блокам (загрузка модели дольше)", "2.9B model: a 2B LoRA is remapped block by block (the model loads a bit longer)");
         loraInfo.setText(info);
         loraInfo.setTextColor(has ? (loraFitsModel() ? OK : WARN) : DIM);
         loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f); strText.setEnabled(has);
@@ -1256,7 +1258,6 @@ public class Main extends Base {
         AnimaLora.Tags tg = AnimaLora.tags(getFilesDir(), pr);
         pr = tg.prompt; tagLoras = tg.items;
         if (!tg.missing.isEmpty()) { final String miss = String.join(", ", tg.missing); ui.post(() -> Toast.makeText(this, L.f("LoRA не найдена: %s", "LoRA not found: %s", miss), Toast.LENGTH_LONG).show()); }
-        if (!tg.items.isEmpty() && !loraFitsModel()) ui.post(() -> Toast.makeText(this, L.s("Не применяется к моделям 2.9B: LoRA для Anima 2B", "Not applied to the 2.9B models: it is a LoRA for Anima 2B"), Toast.LENGTH_LONG).show());
         if (!loaded) {
             setProgressUi(0, L.s("Загружаю модель…", "Loading the model…"), t0);
             su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh load < /dev/null >/dev/null 2>&1", false);

@@ -47,10 +47,11 @@ final class AnimaLora {
     }
 
     static final class Check {
-        boolean ok; String why = ""; int blocks, mats, rank; boolean te;
+        boolean ok; String why = ""; int blocks, mats, rank, maxBlock; boolean te;
         String message() {
             if (!ok) return why;
-            StringBuilder s = new StringBuilder(L.f("Подходит: ранг %d, блоков %d из 28", "Compatible: rank %d, %d of 28 blocks", rank, blocks));
+            boolean big = maxBlock >= 28;   // made for the 40-block 2.9B models
+            StringBuilder s = new StringBuilder(L.f("Подходит: ранг %d, блоков %d из %d (%s)", "Compatible: rank %d, %d of %d blocks (%s)", rank, blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B"));
             if (te) s.append("\n").append(L.s("Часть для текстового энкодера не применяется", "The text-encoder part is not applied"));
             return s.toString();
         }
@@ -92,8 +93,8 @@ final class AnimaLora {
             int r = ds.optInt(0);
             if (ds.optInt(1) != io[0] || uss.optInt(0) != io[1])
                 return fail(L.s("Размеры слоёв не совпадают с Anima 2B. Скорее всего это LoRA для другой модели или версии.", "Layer sizes do not match Anima 2B. It is probably a LoRA for another model or version."));
-            if (b < 0 || b >= 28) return fail(L.s("В LoRA есть блоки, которых нет в Anima 2B.", "The LoRA has blocks that Anima 2B does not have."));
-            blocks.add(b); c.mats++; c.rank = Math.max(c.rank, r);
+            if (b < 0 || b >= 40) return fail(L.s("В LoRA есть блоки, которых нет в Anima 2B / 2.9B.", "The LoRA has blocks that Anima 2B / 2.9B do not have."));
+            blocks.add(b); c.mats++; c.rank = Math.max(c.rank, r); c.maxBlock = Math.max(c.maxBlock, b);
         }
         if (c.mats == 0) return fail(other ? L.s("Это LoRA для другой модели (SDXL / Illustrious, FLUX или похожей). Для Anima она не подходит.", "This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does not fit Anima.")
                 : c.te ? L.s("В файле только LoRA для текстового энкодера. Такие пока не поддерживаются.", "The file only has text-encoder LoRA weights. Those are not supported yet.")
