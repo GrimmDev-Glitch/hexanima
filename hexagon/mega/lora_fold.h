@@ -2,7 +2,7 @@
 // Anima LoRA folded into the fp16 crouton block weights right after megarun reads them (no copy of the model on disk, the cost is paid at load).
 // MEGA_LORA=<file*strength|...>: kohya ("lora_unet_blocks_<b>_<module>.lora_down/lora_up/alpha"), diffusers ("diffusion_model.blocks.<b>.<module>.lora_A/lora_B"),
 // LyCORIS LoKr / LoHa; the 10 matrices of a block and its adaLN modulation. W' = W + strength * scale * delta.
-// The text-encoder part (lora_te_*) is not applied (the text encoder is a precompiled NPU graph). q8 blocks (2.9B models) are dequantised, updated, requantised.
+// The LLM-adapter and text-encoder parts are applied by animad (phone/lora_side.h). q8 blocks (2.9B models) are dequantised, updated, requantised.
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
