@@ -61,6 +61,8 @@ final class Models {
     boolean modelInstalled(String id) { if (Moss.is(id)) return Moss.installed(home) && id.equals(mossId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
     /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */
     static String commonDir() { String a = Compat.dspArch(); return a.isEmpty() || a.equals("v69") ? "common" : "common_" + a; }
+    /** where common_<arch> lives: the V73 contexts (Snapdragon 8 Gen 2 port) are in their own repository; the models stay in the main one */
+    static String commonBase(String base) { return Compat.dspArch().equals("v73") ? "https://huggingface.co/GrimmDev-Glitch/hexanima-packs/resolve/main/" : base; }
     boolean commonInstalled() { return doneMark(new File(anima, commonDir())).exists(); }
     String mossId() { try { return new JSONObject(read(new File(Moss.dir(home), "meta.json"))).getString("id"); } catch (Exception e) { return ""; } }
     /** ids of installed models, in catalog order of installation directory names */
@@ -87,6 +89,7 @@ final class Models {
     // ---- install --------------------------------------------------------------------------------
     void installCommon(String base, Progress pg, AtomicBoolean cancel) throws Exception {
         if (commonInstalled()) return;
+        base = commonBase(base);
         JSONObject m = new JSONObject(get(base + commonDir() + "/manifest.json"));
         File marker = new File(anima, commonDir()); marker.mkdirs();
         long total = total(m.getJSONArray("files")) + total(m.getJSONArray("sd"));

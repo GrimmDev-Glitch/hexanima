@@ -45,7 +45,7 @@ public class Settings extends Base {
     static int calls(Context c) { return steps(c) * (cfgOn(c) ? 2 : 1) * (twoCalls(sampler(c)) ? 2 : 1); }
     static boolean defaultSampling(Context c) { return steps(c) == 4 && !cfgOn(c) && sampler(c).equals("euler") && scheduler(c).equals("discrete"); }
 
-    EditText prefixEdit;
+    EditText prefixEdit, keyEdit;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -75,6 +75,14 @@ public class Settings extends Base {
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
+
+        LinearLayout cc = card(col);
+        TextView ct = text(L.s("Ключ API Civitai", "Civitai API key"), 15, TXT, true); ct.setPadding(dp(2), dp(6), 0, dp(2)); cc.addView(ct);
+        TextView cn = text(L.s("Для +18 и файлов «только после входа». civitai.com → аккаунт → API Keys. Хранится только на телефоне и отправляется только на civitai.com.",
+                "For +18 and \"login required\" files. civitai.com → Account settings → API Keys. It stays on this phone and is only sent to civitai.com."), 12, DIM, false);
+        cn.setPadding(dp(2), 0, 0, dp(6)); cc.addView(cn);
+        keyEdit = field("…"); keyEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD); keyEdit.setText(p.getString("civitai_key", "")); keyEdit.setTextSize(14);
+        cc.addView(keyEdit);
         if (Moss.is(p.getString("model", ""))) return;   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
         TextView pl = text(L.s("Теги качества перед описанием (модели Anima)", "Quality tags before the prompt (Anima models)"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
         prefixEdit = field("");
@@ -90,6 +98,7 @@ public class Settings extends Base {
     @Override protected void onPause() {
         super.onPause();
         if (prefixEdit != null) prefs(this).edit().putString("prefix", prefixEdit.getText().toString()).apply();
+        if (keyEdit != null) prefs(this).edit().putString("civitai_key", keyEdit.getText().toString().trim()).apply();
     }
 
     View choice(String title, String value, View.OnClickListener l) {

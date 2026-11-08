@@ -207,6 +207,10 @@ public class Main extends Base {
         LinearLayout pl = new LinearLayout(this);
         pl.setGravity(Gravity.CENTER_VERTICAL);
         pl.addView(label(L.s("ОПИСАНИЕ", "PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
+        TextView lib = text("LoRAs", 12, ACC, true);
+        lib.setPadding(dp(8), dp(14), dp(8), dp(6));
+        lib.setOnClickListener(v -> loraLibrary());
+        pl.addView(lib);
         TextView tpl = text(L.s("Шаблоны", "Templates"), 12, ACC, true);
         tpl.setPadding(dp(8), dp(14), dp(8), dp(6));
         tpl.setOnClickListener(v -> templates());
@@ -483,6 +487,35 @@ public class Main extends Base {
         strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20)); strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
     }
 
+    /** LoRA library of the selected family: tap inserts <lora:name:1.0> and its trigger words into the prompt; long tap removes the file; Civitai to find more */
+    void loraLibrary() {
+        final boolean sdxl = false;   // SDXL models come with the SDXL engine; the dir is already filled by Civitai downloads
+        final File dir = sdxl ? Civitai.sdxlDir(getFilesDir(), "lora") : AnimaLora.dir(getFilesDir());
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
+        v.addView(text(L.s("Библиотека LoRA (Anima 2B)", "LoRA library (Anima 2B)"), 18, TXT, true));
+        TextView hint = text(L.s("Нажмите: вставить в промпт. Долгое нажатие: удалить.", "Tap: insert into the prompt. Long tap: delete."), 12, DIM, false); hint.setPadding(0, dp(6), 0, dp(8)); v.addView(hint);
+        ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(320)));
+        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
+        List<String> names = AnimaLora.names(getFilesDir());
+        if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или выберите файл ниже на главном экране.", "Empty: download LoRAs from Civitai or pick a file on the main screen."), 14, DIM, false));
+        for (String n : names) {
+            File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); String words = Civitai.words(f);
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setBackground(bg(FIELD, 12)); row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.addView(text(md != null ? md.optString("name") + " · " + md.optString("version") : n, 14, TXT, true));
+            TextView sub = text("<lora:" + n + ":1.0>" + (words.isEmpty() ? "" : "\n" + words), 12, DIM, false); sub.setMaxLines(3); row.addView(sub);
+            row.setOnClickListener(x -> {
+                String add = "<lora:" + n + ":1.0>" + (words.isEmpty() ? "" : ", " + words);
+                String cur = prompt.getText().toString().trim();
+                prompt.setText(cur.isEmpty() ? add : cur + (cur.endsWith(",") ? " " : ", ") + add); prompt.setSelection(prompt.getText().length());
+                if (dlg[0] != null) dlg[0].dismiss();
+            });
+            row.setOnLongClickListener(x -> { builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { f.delete(); Civitai.metaFile(f).delete(); if (dlg[0] != null) dlg[0].dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp);
+        }
+        dlg[0] = builder().setView(v).setPositiveButton(L.s("Найти на Civitai", "Find on Civitai"), (d, i) -> startActivity(new Intent(this, CivitaiActivity.class))).setNegativeButton(L.s("Закрыть", "Close"), null).show();
+    }
+
     // ---- sampling fields under the prompt ----
     interface OnText { void on(String s); }
     static android.text.TextWatcher watch(OnText cb) {
@@ -562,11 +595,13 @@ public class Main extends Base {
     void menu(View anchor) {
         PopupMenu pm = new PopupMenu(this, anchor);
         pm.getMenu().add(0, 1, 0, L.s("Модели", "Models"));
-        pm.getMenu().add(0, 2, 1, L.s("Открыть настройки из PNG", "Load settings from a PNG"));
-        pm.getMenu().add(0, 3, 2, L.s("Настройки", "Settings"));
-        pm.getMenu().add(0, 4, 3, L.s("Инфо", "Info"));
+        pm.getMenu().add(0, 5, 1, "Civitai");
+        pm.getMenu().add(0, 2, 2, L.s("Открыть настройки из PNG", "Load settings from a PNG"));
+        pm.getMenu().add(0, 3, 3, L.s("Настройки", "Settings"));
+        pm.getMenu().add(0, 4, 4, L.s("Инфо", "Info"));
         pm.setOnMenuItemClickListener(i -> {
             if (i.getItemId() == 1) openModels();
+            else if (i.getItemId() == 5) startActivity(new Intent(this, CivitaiActivity.class));
             else if (i.getItemId() == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
             else if (i.getItemId() == 3) startActivity(new Intent(this, Settings.class));
             else startActivity(new Intent(this, Info.class));
