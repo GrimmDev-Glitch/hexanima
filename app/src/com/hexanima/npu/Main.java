@@ -66,6 +66,7 @@ public class Main extends Base {
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
+    Fold sampFold, loraFold, extFold;
     LinearLayout sampBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn; TextView sampNote;
     ProgressBar bar, ramBar;
     ImageView img;
@@ -86,7 +87,7 @@ public class Main extends Base {
     }
 
     GradientDrawable gradient(boolean enabled) {
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{enabled ? ACC : 0xFF3A4158, enabled ? ACC2 : 0xFF3A4158});
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{enabled ? ACC : LINE, enabled ? ACC2 : LINE});
         g.setCornerRadius(dp(18)); return g;
     }
     SharedPreferences prefs() { return getSharedPreferences("anima", 0); }
@@ -169,7 +170,7 @@ public class Main extends Base {
         imgBox = new LinearLayout(this);
         imgBox.setOrientation(LinearLayout.VERTICAL);
         imgBox.setGravity(Gravity.CENTER);
-        imgBox.setBackground(bg(CARD, 24));
+        imgBox.setBackground(new BracketCard(CARD, 24));
         imgBox.setClipToOutline(true);
         imgBox.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(24)); }
@@ -209,22 +210,19 @@ public class Main extends Base {
         LinearLayout pl = new LinearLayout(this);
         pl.setGravity(Gravity.CENTER_VERTICAL);
         pl.addView(label(L.s("ОПИСАНИЕ", "PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
-        TextView lib = text("LoRAs", 12, ACC, true);
-        lib.setPadding(dp(8), dp(14), dp(8), dp(6));
+        TextView lib = link("LoRAs");
         lib.setOnClickListener(v -> loraLibrary());
         pl.addView(lib);
-        TextView tpl = text(L.s("Шаблоны", "Templates"), 12, ACC, true);
-        tpl.setPadding(dp(8), dp(14), dp(8), dp(6));
+        TextView tpl = link(L.s("Шаблоны", "Templates"));
         tpl.setOnClickListener(v -> templates());
         pl.addView(tpl);
-        TextView clr = text(L.s("Очистить", "Clear"), 12, ACC, true);
-        clr.setPadding(dp(8), dp(14), dp(2), dp(6));
+        TextView clr = link(L.s("Очистить", "Clear"));
         clr.setOnClickListener(v -> prompt.setText(""));
         pl.addView(clr);
         root.addView(pl);
         prompt = new MultiAutoCompleteTextView(this);   // Danbooru tag suggestions while typing, comma separated
         prompt.setHint("1girl, smile, outdoors, cherry blossoms…");
-        prompt.setHintTextColor(DIM); prompt.setTextColor(TXT); prompt.setTextSize(16);
+        prompt.setHintTextColor(DIM); prompt.setTextColor(TXT); prompt.setTextSize(17); prompt.setTypeface(F_REG);
         prompt.setMinLines(3);
         prompt.setGravity(Gravity.TOP);
         prompt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -243,16 +241,21 @@ public class Main extends Base {
 
         // sampling, right under the prompt (Anima models; stored in the same prefs as before): negative prompt, steps, CFG, clip skip, sampler, scheduler
         sampBox = new LinearLayout(this); sampBox.setOrientation(LinearLayout.VERTICAL);
-        sampBox.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ  ·  при CFG больше 1", "NEGATIVE PROMPT  ·  with CFG above 1")));
+        LinearLayout negHead = new LinearLayout(this); negHead.setGravity(Gravity.CENTER_VERTICAL);
+        negHead.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ", "NEGATIVE PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
+        TextView negDef = link(L.s("По умолчанию", "Default")); negDef.setOnClickListener(v -> negEdit.setText(Settings.turbo(this) ? "" : Settings.NEG_DEFAULT)); negHead.addView(negDef);
+        TextView negClr = link(L.s("Очистить", "Clear")); negClr.setOnClickListener(v -> negEdit.setText("")); negHead.addView(negClr);
+        sampBox.addView(negHead);
         negEdit = field("lowres, worst quality, bad anatomy…");
         negEdit.setText(Settings.negative(this)); negEdit.setMinLines(2); negEdit.setGravity(Gravity.TOP); negEdit.setBackground(bg(CARD, 14));
         negEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         negEdit.addTextChangedListener(watch(s -> prefs().edit().putString(Settings.key(this, "neg"), s).apply()));
         sampBox.addView(negEdit);
+        sampFold = fold(sampBox, L.s("СЭМПЛИНГ", "SAMPLING"), "samp");
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL);
         stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt(Settings.key(this, "steps"), v).apply(); } catch (NumberFormatException e) { } });
         cfgEdit = numField(nr, "CFG", Settings.cfg(this), true, s -> { try { float v = Float.parseFloat(s.trim().replace(',', '.')); if (v >= 1 && v <= 30) prefs().edit().putString(Settings.key(this, "cfg"), s.trim().replace(',', '.')).apply(); } catch (NumberFormatException e) { } });
-        sampBox.addView(nr);
+        sampFold.body.addView(nr);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL); ar.setPadding(0, dp(8), 0, 0);
         samplerBtn = button("", CARD, TXT); samplerBtn.setAllCaps(false);
         samplerBtn.setOnClickListener(v -> pickFrom(L.s("Сэмплер", "Sampler"), Settings.SAMPLERS, Settings.SAMPLER_NAMES, Settings.sampler(this), x -> { prefs().edit().putString(Settings.key(this, "sampler"), x).apply(); refreshSampling(); }));
@@ -265,8 +268,8 @@ public class Main extends Base {
             sampFill = false; refreshSampling();
         });
         LinearLayout.LayoutParams srl = new LinearLayout.LayoutParams(dp(48), dp(44)); srl.leftMargin = dp(8); ar.addView(sreset, srl);
-        sampBox.addView(ar);
-        sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampBox.addView(sampNote);
+        sampFold.body.addView(ar);
+        sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampFold.body.addView(sampNote);
         root.addView(sampBox);
         buildExtras(root);
         refreshSampling();
@@ -321,7 +324,7 @@ public class Main extends Base {
 
         // MOSS-Image: user LoRA (picked file is checked at once; strength slider; folded with the turbo adapter on first use)
         loraBox = new LinearLayout(this); loraBox.setOrientation(LinearLayout.VERTICAL);
-        loraBox.addView(label(L.s("LORA  ·  необязательно", "LORA  ·  optional")));
+        loraFold = fold(loraBox, L.s("ФАЙЛ LORA", "LORA FILE"), "lora");
         LinearLayout lr = new LinearLayout(this); lr.setGravity(Gravity.CENTER_VERTICAL);
         loraName = text(L.s("не выбрана", "none"), 14, TXT, false); loraName.setSingleLine(true); loraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         loraName.setBackground(bg(CARD, 16)); loraName.setPadding(dp(16), dp(12), dp(16), dp(12));
@@ -330,8 +333,8 @@ public class Main extends Base {
         LinearLayout.LayoutParams pl2 = new LinearLayout.LayoutParams(-2, dp(44)); pl2.leftMargin = dp(8); lr.addView(loraPick, pl2);
         loraDrop = button("✕", CARD, TXT); loraDrop.setOnClickListener(v -> dropLora());
         LinearLayout.LayoutParams dl2 = new LinearLayout.LayoutParams(dp(48), dp(44)); dl2.leftMargin = dp(8); lr.addView(loraDrop, dl2);
-        loraBox.addView(lr);
-        loraInfo = text("", 12, DIM, false); loraInfo.setPadding(dp(4), dp(6), dp(4), 0); loraBox.addView(loraInfo);
+        loraFold.body.addView(lr);
+        loraInfo = text("", 12, DIM, false); loraInfo.setPadding(dp(4), dp(6), dp(4), 0); loraFold.body.addView(loraInfo);
         LinearLayout sr2 = new LinearLayout(this); sr2.setGravity(Gravity.CENTER_VERTICAL); sr2.setPadding(0, dp(6), 0, 0);
         sr2.addView(text(L.s("Сила", "Strength"), 14, TXT, false));
         strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
@@ -347,7 +350,7 @@ public class Main extends Base {
             public void onStopTrackingTouch(SeekBar b) { }
         });
         strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
-        loraBox.addView(sr2);
+        loraFold.body.addView(sr2);
         root.addView(loraBox);
         refreshLora();
 
@@ -482,10 +485,10 @@ public class Main extends Base {
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
         loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
-        String hint = isMoss() ? L.s("Файл .safetensors для MOSS-Image: проверяется сразу после выбора", "A .safetensors file for MOSS-Image: it is checked as soon as you pick it")
-                : L.s("LoRA для Anima 2B (.safetensors): проверяется сразу после выбора; новая LoRA или сила перезагружает модель", "A LoRA for Anima 2B (.safetensors): checked as soon as you pick it; a new LoRA or strength reloads the model");
+        String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when picked. Library: “LoRAs” above the prompt.");
         String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
-        if (has && !isMoss() && store.is29(model)) info += "\n" + L.s("Модель 2.9B: LoRA для 2B переносится по блокам (загрузка модели дольше)", "2.9B model: a 2B LoRA is remapped block by block (the model loads a bit longer)");
+        loraFold.sum.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") + String.format(java.util.Locale.US, " · %.2f", loraStr()) : L.s("нет", "none"));
+        loraFold.sum.setTextColor(has ? ACC : DIM);
         loraInfo.setText(info);
         loraInfo.setTextColor(has ? (loraFitsModel() ? OK : WARN) : DIM);
         loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f); strText.setEnabled(has);
@@ -499,34 +502,110 @@ public class Main extends Base {
         strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20)); strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
     }
 
-    /** LoRA library of the selected family: tap inserts <lora:name:1.0> and its trigger words into the prompt; long tap removes the file; Civitai to find more */
+    /** a section whose body folds away; the header keeps a one-line summary; the open state is kept in prefs (fold_<key>) */
+    static class Fold { LinearLayout body; TextView sum, chev; }
+    Fold fold(LinearLayout parent, String title, String key) {
+        Fold f = new Fold();
+        LinearLayout h = new LinearLayout(this); h.setGravity(Gravity.CENTER_VERTICAL);
+        h.addView(label(title));
+        f.sum = text("", 12, DIM, false); f.sum.setSingleLine(true); f.sum.setEllipsize(android.text.TextUtils.TruncateAt.END); f.sum.setGravity(Gravity.END);
+        f.sum.setPadding(dp(10), dp(16), dp(6), dp(7));
+        h.addView(f.sum, new LinearLayout.LayoutParams(0, -2, 1));
+        f.chev = text("", 13, ACC, true); f.chev.setPadding(dp(4), dp(16), dp(2), dp(7)); h.addView(f.chev);
+        parent.addView(h);
+        f.body = new LinearLayout(this); f.body.setOrientation(LinearLayout.VERTICAL); parent.addView(f.body);
+        Runnable apply = () -> { boolean o = prefs().getBoolean("fold_" + key, false); f.body.setVisibility(o ? View.VISIBLE : View.GONE); f.chev.setText(o ? "▴" : "▾"); };
+        h.setOnClickListener(v -> { prefs().edit().putBoolean("fold_" + key, !prefs().getBoolean("fold_" + key, false)).apply(); apply.run(); });
+        apply.run();
+        return f;
+    }
+    /** small accent text action in a section header */
+    TextView link(String s) { TextView t = text(s, 12, ACC, true); t.setPadding(dp(8), dp(16), dp(6), dp(7)); return t; }
+    /** a small coloured badge */
+    TextView badge(String s, int color) {
+        TextView t = text(s, 11, color, true); t.setBackground(bg((color & 0x00FFFFFF) | 0x26000000, 8)); t.setPadding(dp(8), dp(2), dp(8), dp(3));
+        return t;
+    }
+
+    // ---- LoRA picker: ticking adds <lora:name:w> and the trigger words to the prompt, unticking takes them out ----
+    static java.util.regex.Pattern loraTag(String n) { return java.util.regex.Pattern.compile("<lora:" + java.util.regex.Pattern.quote(n) + "(?::([^>]*))?>", java.util.regex.Pattern.CASE_INSENSITIVE); }
+    /** the weight the prompt gives this LoRA, or null when the prompt does not call it */
+    String loraWeight(String n) {
+        java.util.regex.Matcher m = loraTag(n).matcher(prompt.getText()); if (!m.find()) return null;
+        return m.group(1) == null || m.group(1).trim().isEmpty() ? "1.0" : m.group(1).trim();
+    }
+    static List<String> tokens(String s) { List<String> r = new ArrayList<>(); for (String t : s.split(",")) { t = t.trim(); if (!t.isEmpty()) r.add(t); } return r; }
+    void loraAdd(String n, String w, String words) {
+        List<String> cur = tokens(prompt.getText().toString()), low = new ArrayList<>();
+        for (String t : cur) low.add(t.toLowerCase(java.util.Locale.ROOT));
+        cur.add("<lora:" + n + ":" + w + ">");
+        for (String t : tokens(words)) if (!low.contains(t.toLowerCase(java.util.Locale.ROOT))) cur.add(t);
+        prompt.setText(android.text.TextUtils.join(", ", cur)); prompt.setSelection(prompt.getText().length());
+    }
+    void loraRemove(String n, String words) {
+        String p = loraTag(n).matcher(prompt.getText().toString()).replaceAll("");
+        List<String> drop = new ArrayList<>(); for (String t : tokens(words)) drop.add(t.toLowerCase(java.util.Locale.ROOT));
+        List<String> keep = new ArrayList<>(); for (String t : tokens(p)) if (!drop.contains(t.toLowerCase(java.util.Locale.ROOT))) keep.add(t);
+        prompt.setText(android.text.TextUtils.join(", ", keep)); prompt.setSelection(prompt.getText().length());
+    }
+    void loraSetWeight(String n, String w) {
+        String p = loraTag(n).matcher(prompt.getText().toString()).replaceAll(java.util.regex.Matcher.quoteReplacement("<lora:" + n + ":" + w + ">"));
+        prompt.setText(p); prompt.setSelection(prompt.getText().length());
+    }
+
+    /** LoRA library: [✓] name · trigger words · weight, a filter on top; long tap deletes a file; Civitai finds more */
     void loraLibrary() {
         final File dir = AnimaLora.dir(getFilesDir());
-        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
-        v.addView(text(L.s("Библиотека LoRA (Anima 2B)", "LoRA library (Anima 2B)"), 18, TXT, true));
-        TextView hint = text(L.s("Нажмите: вставить в промпт. Долгое нажатие: удалить.", "Tap: insert into the prompt. Long tap: delete."), 12, DIM, false); hint.setPadding(0, dp(6), 0, dp(8)); v.addView(hint);
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
+        LinearLayout th = new LinearLayout(this); th.setGravity(Gravity.CENTER_VERTICAL);
+        th.addView(text("LoRAs", 20, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
+        final TextView cnt = text("", 12, ACC, true); th.addView(cnt); v.addView(th);
+        final EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
+        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
         ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
-        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(320)));
-        final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
+        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
+        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+        Button civ = button("Civitai", FIELD, ACC); bot.addView(civ, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button done = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(0, dp(44), 1); dl.leftMargin = dp(8); bot.addView(done, dl);
+        v.addView(bot);
+        final AlertDialog dlg = dialog(v);
+        civ.setOnClickListener(x -> { dlg.dismiss(); startActivity(new Intent(this, CivitaiActivity.class)); });
+        done.setOnClickListener(x -> dlg.dismiss());
+
         List<String> names = new ArrayList<>(); File[] lf = dir.listFiles();
         if (lf != null) for (File f : lf) if (f.getName().endsWith(".safetensors") && !f.getName().startsWith("new.")) names.add(f.getName().substring(0, f.getName().length() - 12));
         java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
-        if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или выберите файл ниже на главном экране.", "Empty: download LoRAs from Civitai or pick a file on the main screen."), 14, DIM, false));
+        if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai.", "Empty: download LoRAs from Civitai."), 14, DIM, false));
+        final List<View> rows = new ArrayList<>(); final List<String> keys = new ArrayList<>(); final List<CheckBox> boxes = new ArrayList<>();
+        final Runnable count = () -> { int k = 0; for (CheckBox b : boxes) if (b.isChecked()) k++; cnt.setText(k == 0 ? "" : L.f("активно: %d", "active: %d", k)); };
         for (String n : names) {
-            File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); String words = Civitai.words(f);
-            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setBackground(bg(FIELD, 12)); row.setPadding(dp(12), dp(10), dp(12), dp(10));
-            row.addView(text(md != null ? md.optString("name") + " · " + md.optString("version") : n, 14, TXT, true));
-            TextView sub = text("<lora:" + n + ":1.0>" + (words.isEmpty() ? "" : "\n" + words), 12, DIM, false); sub.setMaxLines(3); row.addView(sub);
-            row.setOnClickListener(x -> {
-                String add = "<lora:" + n + ":1.0>" + (words.isEmpty() ? "" : ", " + words);
-                String cur = prompt.getText().toString().trim();
-                prompt.setText(cur.isEmpty() ? add : cur + (cur.endsWith(",") ? " " : ", ") + add); prompt.setSelection(prompt.getText().length());
-                if (dlg[0] != null) dlg[0].dismiss();
+            File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); final String words = Civitai.words(f);
+            String title = md != null && !md.optString("name").isEmpty() ? md.optString("name") : n;
+            LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(4), dp(8), dp(10), dp(8));
+            String w0 = loraWeight(n);
+            row.setBackground(bg(w0 != null ? SEL : FIELD, 12));
+            CheckBox cb = new CheckBox(this); cb.setButtonTintList(ColorStateList.valueOf(ACC)); cb.setChecked(w0 != null);
+            row.addView(cb);
+            LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+            TextView tn = text(title, 15, TXT, true); tn.setSingleLine(true); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
+            TextView sub = text(words.isEmpty() ? n : words, 12, DIM, false); sub.setSingleLine(true); sub.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(sub);
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            EditText we = field("1.0"); we.setText(w0 != null ? w0 : "1.0"); we.setTextSize(14); we.setGravity(Gravity.CENTER); we.setSingleLine(true);
+            we.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); we.setPadding(dp(4), dp(6), dp(4), dp(6)); we.setBackground(bg(CARD, 10));
+            LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(dp(56), -2); wl.leftMargin = dp(8); row.addView(we, wl);
+            cb.setOnCheckedChangeListener((b, on) -> {
+                String w = we.getText().toString().trim().replace(',', '.'); if (w.isEmpty()) w = "1.0";
+                if (on) { if (loraWeight(n) == null) loraAdd(n, w, words); } else loraRemove(n, words);
+                row.setBackground(bg(on ? SEL : FIELD, 12)); count.run();
             });
-            row.setOnLongClickListener(x -> { builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { f.delete(); Civitai.metaFile(f).delete(); if (dlg[0] != null) dlg[0].dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
+            we.addTextChangedListener(watch(s -> { String w = s.trim().replace(',', '.'); try { Float.parseFloat(w); if (cb.isChecked()) loraSetWeight(n, w); } catch (NumberFormatException ignored) { } }));
+            row.setOnClickListener(x -> cb.toggle());
+            row.setOnLongClickListener(x -> { builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp);
+            rows.add(row); keys.add((n + " " + title + " " + words).toLowerCase(java.util.Locale.ROOT)); boxes.add(cb);
         }
-        dlg[0] = builder().setView(v).setPositiveButton(L.s("Найти на Civitai", "Find on Civitai"), (d, i) -> startActivity(new Intent(this, CivitaiActivity.class))).setNegativeButton(L.s("Закрыть", "Close"), null).show();
+        count.run();
+        filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
     }
 
     // ---- sampling fields under the prompt ----
@@ -541,7 +620,7 @@ public class Main extends Base {
     /** a labelled number field added to row: [LABEL / field] */
     EditText numField(LinearLayout row, String title, String value, boolean decimal, OnText cb) {
         LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL);
-        c.addView(label(title));
+        TextView lt = text(title, 11, DIM, true); lt.setLetterSpacing(.12f); lt.setPadding(dp(4), dp(10), 0, dp(4)); c.addView(lt);   // field caption: lighter than a section title
         EditText e = field(""); e.setText(value); e.setBackground(bg(CARD, 14)); e.setGravity(Gravity.CENTER);
         e.setInputType(InputType.TYPE_CLASS_NUMBER | (decimal ? InputType.TYPE_NUMBER_FLAG_DECIMAL : 0));
         e.addTextChangedListener(watch(s -> { cb.on(s); refreshSampling(); }));
@@ -577,16 +656,15 @@ public class Main extends Base {
     }
     void buildExtras(LinearLayout root) {
         extrasBox = new LinearLayout(this); extrasBox.setOrientation(LinearLayout.VERTICAL);
-        extrasBox.addView(label(L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS")));
-        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setBackground(bg(CARD, 18)); c.setPadding(dp(14), dp(6), dp(14), dp(12));
+        extFold = fold(extrasBox, L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS"), "extras");
+        LinearLayout c = card(extFold.body); c.setPadding(dp(14), dp(6), dp(14), dp(12));
         sw(c, "Hires fix", L.s("Второй проход в большем размере (дольше)", "A second pass at a larger size (slower)"), "x_hires", false);
         LinearLayout hr = new LinearLayout(this);
         hsEdit = smallField(hr, L.s("МАСШТАБ", "SCALE"), "x_hires_scale", "1.5", true);
         hdEdit = smallField(hr, "DENOISE", "x_hires_den", "0.45", true);
         hnEdit = smallField(hr, L.s("ШАГИ", "STEPS"), "x_hires_steps", "4", false);
         c.addView(hr);
-        sw(c, L.s("Увеличить ×2 (ИИ)", "Upscale ×2 (AI)"), L.s("RealESRGAN anime на процессоре, ~80 с, до 512×768; 18 МБ при первом использовании. Быстрее: hires fix (NPU)",
-            "RealESRGAN anime on the CPU, ~80 s, up to 512×768; 18 MB on first use. Faster: the hires fix (NPU)"), "x_up", false);
+        sw(c, L.s("Увеличить ×2 (ИИ)", "Upscale ×2 (AI)"), L.s("RealESRGAN на процессоре, ~80 с, до 512×768", "RealESRGAN on the CPU, ~80 s, up to 512×768"), "x_up", false);
         sw(c, L.s("ADetailer (лица)", "ADetailer (faces)"), L.s("Находит лица и перерисовывает их детальнее", "Finds faces and redraws them in more detail"), "x_ad", false);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL);
         adText = text("", 12, DIM, false); ar.addView(adText, new LinearLayout.LayoutParams(0, -2, 1));
@@ -612,7 +690,6 @@ public class Main extends Base {
         LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(dp(48), dp(40)); rl.leftMargin = dp(8); pr.addView(qr, rl);
         c.addView(pr);
         queueText = text("", 12, DIM, false); queueText.setPadding(dp(2), dp(6), 0, 0); queueText.setOnClickListener(v -> showQueue()); c.addView(queueText);
-        extrasBox.addView(c);
         root.addView(extrasBox);
         try { JSONArray a = new JSONArray(prefs().getString("queue", "[]")); for (int i = 0; i < a.length(); i++) queue.add(a.getJSONObject(i)); } catch (Exception ignored) { }
         refreshExtras();
@@ -630,9 +707,13 @@ public class Main extends Base {
     void refreshExtras() {
         if (extrasBox == null) return;
         extrasBox.setVisibility(isMoss() || model.isEmpty() ? View.GONE : View.VISIBLE);
+        List<String> on = new ArrayList<>();
+        if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_up", false)) on.add("×2"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
+        if (initSrc().exists()) on.add("img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
+        extFold.sum.setText(on.isEmpty() ? L.s("выкл.", "off") : android.text.TextUtils.join(" · ", on)); extFold.sum.setTextColor(on.isEmpty() ? DIM : ACC);
         initText.setText(initSrc().exists() ? L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)") : L.s("нет: обычная генерация", "none: normal generation"));
         File ad = adModel();
-        adText.setText(ad != null ? "✓ " + ad.getName() : L.s("Детектор лиц face_yolov8n загрузится при первом использовании (6 МБ)", "The face detector face_yolov8n downloads on first use (6 MB)"));
+        adText.setText(ad != null ? "✓ " + ad.getName() : L.s("face_yolov8n: загрузится сам (6 МБ)", "face_yolov8n: downloads on first use (6 MB)"));
         queueText.setText(queue.isEmpty() ? L.s("Очередь пуста", "Queue is empty") : L.f("В очереди: %d (нажмите, чтобы посмотреть)", "Queued: %d (tap to see)", queue.size()));
     }
     float pf(String key, float def) { try { return Float.parseFloat(prefs().getString(key, String.valueOf(def))); } catch (Exception e) { return def; } }
@@ -829,13 +910,12 @@ public class Main extends Base {
         samplerBtn.setText(Settings.samplerName(Settings.sampler(this)) + "  ▾");
         schedBtn.setText(Settings.schedulerName(Settings.scheduler(this)) + "  ▾");
         sampBox.setVisibility(!isMoss() && !model.isEmpty() ? View.VISIBLE : View.GONE);
-        String n = Settings.defaultSampling(this) ? L.s("По умолчанию: модели обучены на 4 шага, Euler, CFG 1.", "Defaults: the models are distilled for 4 steps, Euler, CFG 1.")
-            : L.f("Вызовов DiT: %d (по умолчанию 4, из них 2 в половинном размере)", "DiT calls: %d (default 4, two of them at half size)", Settings.calls(this));
-        if (!Settings.turbo(this)) n = L.f("Модель не turbo: по умолчанию 20 шагов, DPM++ 2M + SGM Uniform, CFG 4 (вызовов DiT: %d). Значения хранятся для каждой модели.",
-            "Not a turbo model: 20 steps, DPM++ 2M + SGM Uniform, CFG 4 by default (DiT calls: %d). The values are kept per model.", Settings.calls(this));
-        if (Settings.cfgOn(this)) n += "\n" + L.s("CFG больше 1: вдвое медленнее, используется негативный промпт.", "CFG above 1: twice as slow, the negative prompt is used.");
-        if (Settings.twoCalls(Settings.sampler(this))) n += "\n" + L.s("Сэмплер 2-го порядка: вдвое медленнее и с 4 шагами даёт зернистость.", "2nd-order sampler: twice as slow, grainy with 4 steps.");
+        // one short line; ↺ restores the per-model defaults
+        String n = (Settings.turbo(this) ? "Turbo  ·  " : "") + L.f("вызовов DiT: %d", "DiT calls: %d", Settings.calls(this));
+        if (Settings.cfgOn(this)) n += "  ·  " + L.s("CFG > 1: ×2 время", "CFG > 1: ×2 time");
+        if (Settings.twoCalls(Settings.sampler(this))) n += "  ·  " + L.s("2-й порядок: ×2 время", "2nd order: ×2 time");
         sampNote.setText(n);
+        sampFold.sum.setText(L.f("%d шагов · CFG %s · %s", "%d steps · CFG %s · %s", Settings.steps(this), Settings.cfg(this), Settings.samplerName(Settings.sampler(this))));
         countTokens();
         if (genBtn != null && !busy) genBtn.setText(genLabel());
     }
@@ -998,20 +1078,47 @@ public class Main extends Base {
     // ---- model state --------------------------------------------------------------------------
     String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }
 
+    /** model picker: one card per installed model (size, turbo, speed badges; the selected one highlighted), then catalog / Civitai / import */
     void pickModel() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
         if (ids.isEmpty()) { openModels(); return; }
-        String[] names = new String[ids.size() + 3];
-        for (int i = 0; i < ids.size(); i++) names[i] = (ids.get(i).equals(model) ? "✓  " : "      ") + store.name(ids.get(i));
-        names[ids.size()] = "＋  " + L.s("Каталог моделей…", "Model catalog…");
-        names[ids.size() + 1] = "＋  Civitai…";
-        names[ids.size() + 2] = "＋  " + L.s("Импорт чекпойнта Anima (.safetensors)…", "Import an Anima checkpoint (.safetensors)…");
-        builder().setTitle(L.s("Модель", "Model")).setItems(names, (d, i) -> {
-            if (i < ids.size()) setModel(ids.get(i));
-            else if (i == ids.size()) openModels();
-            else if (i == ids.size() + 1) startActivity(new Intent(this, CivitaiActivity.class).putExtra("type", "Checkpoint"));
-            else startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 13);
-        }).show();
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
+        v.addView(text(L.s("Модель", "Model"), 20, TXT, true));
+        ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(0, dp(10), 0, 0); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, -2, 1));
+        final AlertDialog[] dlg = new AlertDialog[1];
+        for (String id : ids) {
+            boolean sel = id.equals(model), moss = Moss.is(id), turbo = !moss && store.turbo(id);
+            LinearLayout card = new LinearLayout(this); card.setGravity(Gravity.CENTER_VERTICAL); card.setPadding(dp(14), dp(12), dp(14), dp(12));
+            GradientDrawable g = bg(sel ? SEL : FIELD, 14); if (sel) g.setStroke(dp(2), ACC); card.setBackground(g);
+            LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+            TextView tn = text(store.name(id), 16, TXT, true); tn.setMaxLines(2); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
+            LinearLayout bs = new LinearLayout(this); bs.setPadding(0, dp(6), 0, 0);
+            List<TextView> b = new ArrayList<>();
+            b.add(badge(moss ? "MOSS" : store.is29(id) ? "2.9B" : "2B", ACC));
+            if (!moss) b.add(badge(turbo ? "Turbo · 4" : "CFG · 20", turbo ? ACC3 : ACC2));
+            if (turbo) b.add(badge(L.f("~%d с", "~%d s", Math.max(3, store.speed(id))), OK));
+            for (TextView t : b) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2); lp.rightMargin = dp(6); bs.addView(t, lp); }
+            col.addView(bs);
+            card.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            if (sel) card.addView(text("✓", 20, ACC, true));
+            card.setOnClickListener(x -> { dlg[0].dismiss(); if (!id.equals(model)) setModel(id); });
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2); cl.bottomMargin = dp(8); list.addView(card, cl);
+        }
+        LinearLayout acts = new LinearLayout(this); acts.setPadding(0, dp(8), 0, 0);
+        String[][] a = {{L.s("Каталог", "Catalog"), "c"}, {"Civitai", "v"}, {L.s("Импорт", "Import"), "i"}};
+        for (String[] x : a) {
+            Button bt = button("＋ " + x[0], FIELD, ACC); bt.setTextSize(13);
+            bt.setOnClickListener(y -> {
+                dlg[0].dismiss();
+                if (x[1].equals("c")) openModels();
+                else if (x[1].equals("v")) startActivity(new Intent(this, CivitaiActivity.class).putExtra("type", "Checkpoint"));
+                else startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 13);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1); if (acts.getChildCount() > 0) lp.leftMargin = dp(6); acts.addView(bt, lp);
+        }
+        v.addView(acts);
+        dlg[0] = dialog(v);
     }
 
     /** The NPU pipeline needs width/height multiples of 16, patch count divisible by 32 and at most 6144 patches (megarun TMAX). */
@@ -1058,8 +1165,8 @@ public class Main extends Base {
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() ? View.GONE : View.VISIBLE); refreshLora(); }
             refreshExtras();
             refreshSampling();
-            state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
-                : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
+            state.setText(working ? msg : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
+                : L.s("Выгружена · загрузится при генерации", "Unloaded · loads when you generate"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
             loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss());
             loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);

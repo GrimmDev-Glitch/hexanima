@@ -107,7 +107,7 @@ public class Info extends Base {
             {"Tag suggestions — Danbooru tag list from DominikDoom/a1111-sd-webui-tagcomplete", ""},
         };
         for (String[] l : lic) { TextView t = text("•  " + l[0], 12, DIM, false); t.setPadding(0, dp(6), 0, 0); c.addView(t); }
-        for (String[] q : new String[][]{{"Qualcomm AI Stack License", "licenses/qualcomm_ai_stack_license.txt"}, {L.s("Уведомления QNN (сторонние компоненты)", "QNN notices (third-party components)"), "licenses/qnn_notice.txt"}, {"Apache License 2.0", "licenses/apache-2.0.txt"}, {L.s("Уведомления MOSS-Image (изменения)", "MOSS-Image notices (changes made)"), "licenses/moss_notice.txt"}}) {
+        for (String[] q : new String[][]{{"Qualcomm AI Stack License", "licenses/qualcomm_ai_stack_license.txt"}, {L.s("Уведомления QNN (сторонние компоненты)", "QNN notices (third-party components)"), "licenses/qnn_notice.txt"}, {"Apache License 2.0", "licenses/apache-2.0.txt"}, {L.s("Уведомления MOSS-Image (изменения)", "MOSS-Image notices (changes made)"), "licenses/moss_notice.txt"}, {L.s("Шрифт Barlow Semi Condensed (SIL OFL 1.1)", "Barlow Semi Condensed font (SIL OFL 1.1)"), "licenses/barlow_ofl.txt"}}) {
             TextView t = text(q[0], 13, ACC, false); t.setPadding(0, dp(8), 0, 0);
             t.setOnClickListener(x -> showAsset(q[0], q[1]));
             c.addView(t);

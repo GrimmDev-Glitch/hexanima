@@ -294,3 +294,26 @@ Upscaling ×2 (CPU, ~80 s)…	Reescalando ×2 (CPU, ~80 s)…
 Compatible: rank %d, %d of %d blocks (%s)	Compatible: rango %d, %d de %d bloques (%s)
 The LoRA has blocks that Anima 2B / 2.9B do not have.	El LoRA tiene bloques que Anima 2B / 2.9B no tienen.
 2.9B model: a 2B LoRA is remapped block by block (the model loads a bit longer)	Modelo 2.9B: el LoRA de 2B se reasigna bloque a bloque (el modelo tarda un poco más en cargar)
+NEGATIVE PROMPT	PROMPT NEGATIVO
+Default	Predeterminado
+SAMPLING	MUESTREO
+LORA FILE	ARCHIVO LORA
+off	desactivado
+queue %d	cola %d
+%d steps · CFG %s · %s	%d pasos · CFG %s · %s
+DiT calls: %d	llamadas al DiT: %d
+CFG > 1: ×2 time	CFG > 1: ×2 de tiempo
+2nd order: ×2 time	2.º orden: ×2 de tiempo
+RealESRGAN on the CPU, ~80 s, up to 512×768	RealESRGAN en la CPU, ~80 s, hasta 512×768
+face_yolov8n: downloads on first use (6 MB)	face_yolov8n: se descarga la primera vez (6 MB)
+A .safetensors file, checked when picked. Library: “LoRAs” above the prompt.	Un archivo .safetensors, se revisa al elegirlo. Biblioteca: «LoRAs» sobre el prompt.
+MOSS-Image on the NPU	MOSS-Image en la NPU
+On the NPU · ready	En la NPU · lista
+Unloaded · loads when you generate	Descargada · se carga al generar
+Filter: name or word…	Filtrar: nombre o palabra…
+Empty: download LoRAs from Civitai.	Vacía: descarga LoRAs de Civitai.
+active: %d	activos: %d
+Catalog	Catálogo
+Import	Importar
+~%d s	~%d s
+Barlow Semi Condensed font (SIL OFL 1.1)	Fuente Barlow Semi Condensed (SIL OFL 1.1)
