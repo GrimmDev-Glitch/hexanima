@@ -7,6 +7,8 @@
 # IDLE=<s>: unload the model after that many idle seconds.
 # env: STEPS (default 4), PREFIX (quality tags), W/H (default 512x768; the NPU blocks are compiled for this size only)
 # env: CFG (default 1 = off; > 1 runs the DiT twice per step), NEG (negative prompt, used with CFG > 1), SAMPLER / SCHED (sd.cpp names, default euler / discrete)
+# env: INIT (init image png for img2img) + STRENGTH (0..1); HIRES=1 + HIRES_UP (Latent, Lanczos, ... or an ESRGAN file in $S/upscalers) HIRES_SCALE or HIRES_W/HIRES_H, HIRES_STEPS HIRES_DENOISE;
+#      AD (ADetailer detector .safetensors) AD_PROMPT AD_ARGS; UPSCALE (ESRGAN model file: the finished picture is upscaled on the CPU afterwards)
 # env A (work dir), S (model dir), BIN (dir with libanimad.so/libsdcli.so... = the app's native lib dir; unset = ./animad and ./sd-cli as root setup)
 A=${A:-/data/local/tmp/anima}; S=${S:-/data/local/tmp/sd}; ROOT=$A/req; SQ=$A/sdq
 if [ -n "$BIN" ]; then NA=libanimad.so NS=libsdcli.so; NH="libmegarun.so libvaerun.so libterun.so"; ANIMAD=$BIN/libanimad.so; SDCLI=$BIN/libsdcli.so; export ANIMAD_HOME=$A ANIMAD_BIN=$BIN LIBS=$BIN:/system/lib64:/vendor/lib64 ANIMAD_NOMLOCK=1; else NA=animad NS=sd-cli; NH="megarun vaerun terun"; ANIMAD=./animad; SDCLI=./sd-cli; LIBS=$A; fi
@@ -50,7 +52,7 @@ fi
 if [ -z "$ANIMA_NOSERVE" ] && ! pidof $NS >/dev/null; then
   rm -rf $SQ; mkdir -p $SQ; chmod 777 $SQ
   cd $S && SD_SERVE=$SQ LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $SDCLI --diffusion-model $DM --llm miaomiao3DHarem_animaLH3D10_txt.safetensors \
-    -p x --sampling-method euler --cfg-scale 1 --steps 4 -W 512 -H 768 ${VAEARG:---taesd taew2_1.safetensors} --mmap -t ${T:-4} -o /sdcard/Download/anima_srv.png < /dev/null > $A/sdcli.log 2>&1 &
+    -p x --sampling-method euler --cfg-scale 1 --steps 4 -W 512 -H 768 ${VAEARG:---taesd taew2_1.safetensors} --hires-upscalers-dir $S/upscalers --mmap -t ${T:-4} -o /sdcard/Download/anima_srv.png < /dev/null > $A/sdcli.log 2>&1 &
   while [ ! -f $SQ/ready ] && [ ! -f $A/cancel ]; do sleep 0.1; done
 fi
 if [ -f $A/cancel ]; then rm -f $A/cancel; exit 1; fi
@@ -64,6 +66,7 @@ ID=r$(date +%s)$$
 OUT=${3:-/sdcard/Download/anima_$ID.png}
 # "plain" (Euler, discrete schedule, no CFG) lets animad run the first steps at half size; anything else gets the exact full-size path
 PLAIN=1; case "${SAMPLER:-euler}/${SCHED:-discrete}/${CFG:-1}" in euler/discrete/1|euler/discrete/1.0) ;; *) PLAIN=0;; esac
+[ -n "$INIT$HIRES$AD" ] && PLAIN=0   # img2img / hires / ADetailer passes start from a partly noised latent
 mkdir -p $ROOT/$ID/vae && chmod -R 777 $ROOT/$ID && echo "${STEPS:-4} $PLAIN" > $ROOT/$ID/start
 V=${V:-1}   # the NPU VAE graph is 512x768; animad tiles larger latents through it
 if [ -z "$ANIMA_NOSERVE" ]; then
@@ -72,6 +75,10 @@ if [ -z "$ANIMA_NOSERVE" ]; then
   printf 'p=%s\ns=%s\nn=%s\no=%s\nd=%s\nw=%s\nh=%s\nv=%s\n' "${PREFIX:-best quality, score_7, score_9, very aesthetic, ultra detailed, high contrast, anime coloring, }$P1" "${2:--1}" "${STEPS:-4}" "$OUT" "$ROOT/$ID" "${W:-512}" "${H:-768}" "$V" > $SQ/job.tmp
   printf 'c=%s\na=%s\nk=%s\n' "${CFG:-1}" "${SAMPLER:-euler}" "${SCHED:-discrete}" >> $SQ/job.tmp
   [ -n "$NEG" ] && printf 'g=%s\n' "$(printf '%s' "$NEG" | tr '\n' ' ')" >> $SQ/job.tmp
+  [ -n "$INIT" ] && printf 'i=%s\nr=%s\n' "$INIT" "${STRENGTH:-0.6}" >> $SQ/job.tmp
+  [ -n "$HIRES" ] && printf 'hz=1\nhu=%s\nhs=%s\nhn=%s\nhd=%s\n' "${HIRES_UP:-Latent}" "${HIRES_SCALE:-1.5}" "${HIRES_STEPS:-4}" "${HIRES_DENOISE:-0.45}" >> $SQ/job.tmp
+  [ -n "$HIRES" ] && [ -n "$HIRES_W" ] && printf 'hw=%s\nhh=%s\n' "$HIRES_W" "$HIRES_H" >> $SQ/job.tmp   # exact size (the NPU blocks need patch counts they can run)
+  [ -n "$AD" ] && printf 'ad=%s\nap=%s\nax=%s\n' "$AD" "$(printf '%s' "$AD_PROMPT" | tr '\n' ' ')" "${AD_ARGS:-confidence=0.3,denoising_strength=0.4}" >> $SQ/job.tmp
   mv $SQ/job.tmp $SQ/job
   while [ ! -f $ROOT/$ID/sd_done ] && [ ! -f $ROOT/$ID/sd_failed ] && [ ! -f $A/cancel ]; do sleep 0.05; done
 else
@@ -84,4 +91,8 @@ fi
 while [ ! -f $ROOT/$ID/finished ] && [ ! -f $A/cancel ]; do sleep 0.1; done
 if [ -f $A/cancel ]; then rm -f $A/cancel; exit 1; fi   # the app stopped the server (Stop button): no picture
 rm -rf $ROOT/$ID; touch $A/last_use
+# AI upscale of the finished picture (ESRGAN on the CPU, a separate short sd-cli run; the NPU model stays loaded)
+if [ -n "$UPSCALE" ] && [ -f "$OUT" ]; then
+  LIBS=$LIBS sh -c "$RUNX" sh $SDCLI -M upscale --upscale-model "$UPSCALE" -i "$OUT" -o "$OUT.up.png" -t ${T:-4} < /dev/null > $A/upscale.log 2>&1 && [ -s "$OUT.up.png" ] && mv -f "$OUT.up.png" "$OUT"
+fi
 echo $OUT

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RAM widget (RamWidget): free memory, the NPU model's state, unload / system cleaner buttons -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_bg">
+    <TextView android:id="@+id/w_ram" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#FFE6EAF2" android:textSize="16sp" android:textStyle="bold" android:text="RAM" />
+    <ProgressBar android:id="@+id/w_bar" style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent" android:layout_height="8dp" android:layout_marginTop="6dp" android:max="100" />
+    <TextView android:id="@+id/w_model" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textColor="#FF8B94A7" android:textSize="12sp" android:text="" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal">
+        <Button android:id="@+id/w_unload" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp"
+            android:textSize="12sp" android:textAllCaps="false" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="Unload model" />
+        <Button android:id="@+id/w_clean" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_marginStart="6dp"
+            android:textSize="12sp" android:textAllCaps="false" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="Cleaner" />
+        <Button android:id="@+id/w_refresh" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="6dp"
+            android:textSize="14sp" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="↻" />
+    </LinearLayout>
+</LinearLayout>

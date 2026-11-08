@@ -408,17 +408,78 @@ int main(int argc, char** argv) {
     std::vector<double> sig(steps + 1);   // sd.cpp flow schedule: s = linspace(1, 0.001), sigma = 3s/(1+2s), final 0
     for (int i = 0; i < steps; i++) { double sv = steps > 1 ? 1.0 - (1.0 - 0.001) * i / (steps - 1) : 1.0; sig[i] = 3 * sv / (1 + 2 * sv); }
     sig[steps] = 0;
+    // decoder requests: sd.cpp (SD_VAE_MODE=extern) writes z<sfx>.bin/.shape and waits for vae_out<sfx>.bin(.done); sfx "", "_1", ... (hires fix and ADetailer decode
+    // more than once per job). Returns false when no request is waiting.
+    int vk = 0;
+    auto vae_poll = [&]() {
+        if (vae.empty() || vd.empty()) return false;
+        const std::string sfx = vk ? "_" + std::to_string(vk) : "";
+        if (access((vd + "/z" + sfx + ".shape").c_str(), F_OK)) return false;
+        vk++;
+        usleep(3000);
+        double tv = now();
+        auto zs = readshape(vd + "/z" + sfx + ".shape");   // ggml order: W, H, C
+        const int Wl = (int)zs[0], Hl = (int)zs[1], TW = 64, TH = 96, CH = 16, OV = 16;   // the NPU VAE graph decodes a 64x96 latent (512x768 px)
+        if (Wl == TW && Hl == TH) {
+            fprintf(vae[0].in, "run %s/z%s.bin %s/vae_out%s.bin\n", vd.c_str(), sfx.c_str(), vd.c_str(), sfx.c_str()); fflush(vae[0].in);
+            std::string r = waitline(vae[0], "done", "error");
+            if (r[0] != 'd') die("vaerun error", r);
+            fprintf(stderr, "animad: vae %.2fs (npu %s)\n", now() - tv, r.c_str() + 5);
+        } else {   // other sizes: overlapping 64x96 tiles through the same graph (latents smaller than a tile are mirror-padded and the result cropped), blended with linear ramps
+            auto zb = readfile(vd + "/z" + sfx + ".bin"); const f32* z0 = (const f32*)zb.data();
+            const int Wq = std::max(Wl, TW), Hq = std::max(Hl, TH);   // padded latent size
+            std::vector<f32> zpad;
+            const f32* z = z0;
+            if (Wq != Wl || Hq != Hl) {
+                zpad.assign((size_t)CH * Hq * Wq, 0.f);
+                auto mir = [](int i, int L) { if (i >= L) i = 2 * L - 2 - i; return std::min(std::max(i, 0), L - 1); };
+                for (int c = 0; c < CH; c++) for (int y = 0; y < Hq; y++) for (int x = 0; x < Wq; x++) zpad[((size_t)c * Hq + y) * Wq + x] = z0[((size_t)c * Hl + mir(y, Hl)) * Wl + mir(x, Wl)];
+                z = zpad.data();
+            }
+            auto starts = [&](int L, int T) { if (L == T) return std::vector<int>{0}; int n = std::max(2, (L - OV + (T - OV) - 1) / (T - OV)); std::vector<int> s; for (int i = 0; i < n; i++) s.push_back((int)lround((double)i * (L - T) / (n - 1))); return s; };
+            std::vector<int> xs = starts(Wq, TW), ys = starts(Hq, TH);
+            const int Wp = Wq * 8, Hp = Hq * 8, PW = TW * 8, PH = TH * 8;
+            std::vector<f32> acc((size_t)3 * Hp * Wp, 0.f), wsum((size_t)Hp * Wp, 0.f), tz((size_t)CH * TH * TW);
+            for (size_t iy = 0; iy < ys.size(); iy++) for (size_t ix = 0; ix < xs.size(); ix++) {
+                const int y0 = ys[iy], x0 = xs[ix];
+                for (int c = 0; c < CH; c++) for (int y = 0; y < TH; y++) memcpy(&tz[((size_t)c * TH + y) * TW], &z[((size_t)c * Hq + y0 + y) * Wq + x0], TW * 4);
+                writefile(vd + "/tz.bin", tz.data(), tz.size() * 4);
+                fprintf(vae[0].in, "run %s/tz.bin %s/tout.bin\n", vd.c_str(), vd.c_str()); fflush(vae[0].in);
+                std::string r = waitline(vae[0], "done", "error");
+                if (r[0] != 'd') die("vaerun error", r);
+                auto ob = readfile(vd + "/tout.bin"); const f32* o = (const f32*)ob.data();
+                auto ramp = [&](int p, int len, int lo, int hi) { f32 w = 1.f; if (lo > 0 && p < lo) w = std::min(w, (p + 1.f) / (lo + 1.f)); if (hi > 0 && p >= len - hi) w = std::min(w, (len - p) / (hi + 1.f)); return w; };
+                const int ol = ix > 0 ? (xs[ix - 1] + TW - x0) * 8 : 0, orr = ix + 1 < xs.size() ? (x0 + TW - xs[ix + 1]) * 8 : 0;
+                const int ot = iy > 0 ? (ys[iy - 1] + TH - y0) * 8 : 0, ob2 = iy + 1 < ys.size() ? (y0 + TH - ys[iy + 1]) * 8 : 0;
+                for (int y = 0; y < PH; y++) {
+                    const f32 wy = ramp(y, PH, ot, ob2);
+                    for (int x = 0; x < PW; x++) {
+                        const f32 w = wy * ramp(x, PW, ol, orr); const size_t pi = (size_t)(y0 * 8 + y) * Wp + x0 * 8 + x;
+                        wsum[pi] += w;
+                        for (int c = 0; c < 3; c++) acc[(size_t)c * Hp * Wp + pi] += w * o[((size_t)c * PH + y) * PW + x];
+                    }
+                }
+            }
+            const int Wo = Wl * 8, Ho = Hl * 8;   // crop to the real size
+            std::vector<f32> outv((size_t)3 * Ho * Wo);
+            for (int c = 0; c < 3; c++) for (int y = 0; y < Ho; y++) for (int x = 0; x < Wo; x++) outv[((size_t)c * Ho + y) * Wo + x] = acc[(size_t)c * Hp * Wp + (size_t)y * Wp + x] / wsum[(size_t)y * Wp + x];
+            writefile(vd + "/vae_out" + sfx + ".bin", outv.data(), outv.size() * 4);
+            fprintf(stderr, "animad: vae tiled %zux%zu tiles %.2fs\n", xs.size(), ys.size(), now() - tv);
+        }
+        writefile(vd + "/vae_out" + sfx + ".bin.done", "", 0);
+        return true;
+    };
     std::vector<f32> nfull, xlow, dhatf;
     std::vector<std::pair<std::vector<char>, std::vector<f32>>> ctxs;   // (ctx+ids+weights bytes, adapter output transposed [1024][512]): the prompt and, with CFG, the negative prompt
     int ctx_on = -1;                                                     // which of them st_ctx.raw holds
-    // serve mode: one request = as many DiT calls as the sampler makes (CFG doubles them, 2nd-order samplers add more); it is over when sd.cpp moves on
-    // to the decoder (z.shape) or finishes. Without serve mode exactly `steps` calls.
+    // serve mode: one request = whatever sd.cpp asks for (DiT calls: CFG doubles them, 2nd-order samplers, hires fix and ADetailer add more; text-encoder
+    // and decoder requests in between) until it writes sd_done / sd_failed. Without serve mode exactly `steps` calls and one decode.
     for (int n = test ? steps : 0; test ? n < steps + 1 : serve || n < steps; n++) {
         std::string sn = std::to_string(n);
         bool over = false;
         while (access((dir + "/ready_" + sn).c_str(), F_OK)) {  // sd.cpp writes it after all inputs of the call are complete
-            if (te_poll()) continue;
-            if (serve && ((!vd.empty() && !access((vd + "/z.shape").c_str(), F_OK)) || !access((dir + "/sd_done").c_str(), F_OK) || !access((dir + "/sd_failed").c_str(), F_OK))) { over = true; break; }
+            if (te_poll() || vae_poll()) continue;
+            if (serve && (!access((dir + "/sd_done").c_str(), F_OK) || !access((dir + "/sd_failed").c_str(), F_OK))) { over = true; break; }   // sd.cpp is done with the job
             usleep(1000);
         }
         if (over) break;
@@ -539,60 +600,7 @@ int main(int argc, char** argv) {
         writefile(dir + "/out_" + sn + ".bin.done", "", 0);
         fprintf(stderr, "animad: step %d t=%.4f total %.2fs (prelude %.2f, npu %.2f, final+io %.2f)\n", n, t, now() - ts, tb - ts, npu / 1000, now() - tb - npu / 1000);
     }
-    if (!vae.empty() && !vd.empty()) {  // sd.cpp (SD_VAE_MODE=extern) writes z.bin/z.shape and waits for vae_out.bin(.done)
-        while (access((vd + "/z.shape").c_str(), F_OK)) usleep(1000);
-        usleep(3000);
-        double tv = now();
-        auto zs = readshape(vd + "/z.shape");   // ggml order: W, H, C
-        const int Wl = (int)zs[0], Hl = (int)zs[1], TW = 64, TH = 96, CH = 16, OV = 16;   // the NPU VAE graph decodes a 64x96 latent (512x768 px)
-        if (Wl == TW && Hl == TH) {
-            fprintf(vae[0].in, "run %s/z.bin %s/vae_out.bin\n", vd.c_str(), vd.c_str()); fflush(vae[0].in);
-            std::string r = waitline(vae[0], "done", "error");
-            if (r[0] != 'd') die("vaerun error", r);
-            fprintf(stderr, "animad: vae %.2fs (npu %s)\n", now() - tv, r.c_str() + 5);
-        } else {   // other sizes: overlapping 64x96 tiles through the same graph (latents smaller than a tile are mirror-padded and the result cropped), blended with linear ramps
-            auto zb = readfile(vd + "/z.bin"); const f32* z0 = (const f32*)zb.data();
-            const int Wq = std::max(Wl, TW), Hq = std::max(Hl, TH);   // padded latent size
-            std::vector<f32> zpad;
-            const f32* z = z0;
-            if (Wq != Wl || Hq != Hl) {
-                zpad.assign((size_t)CH * Hq * Wq, 0.f);
-                auto mir = [](int i, int L) { if (i >= L) i = 2 * L - 2 - i; return std::min(std::max(i, 0), L - 1); };
-                for (int c = 0; c < CH; c++) for (int y = 0; y < Hq; y++) for (int x = 0; x < Wq; x++) zpad[((size_t)c * Hq + y) * Wq + x] = z0[((size_t)c * Hl + mir(y, Hl)) * Wl + mir(x, Wl)];
-                z = zpad.data();
-            }
-            auto starts = [&](int L, int T) { if (L == T) return std::vector<int>{0}; int n = std::max(2, (L - OV + (T - OV) - 1) / (T - OV)); std::vector<int> s; for (int i = 0; i < n; i++) s.push_back((int)lround((double)i * (L - T) / (n - 1))); return s; };
-            std::vector<int> xs = starts(Wq, TW), ys = starts(Hq, TH);
-            const int Wp = Wq * 8, Hp = Hq * 8, PW = TW * 8, PH = TH * 8;
-            std::vector<f32> acc((size_t)3 * Hp * Wp, 0.f), wsum((size_t)Hp * Wp, 0.f), tz((size_t)CH * TH * TW);
-            for (size_t iy = 0; iy < ys.size(); iy++) for (size_t ix = 0; ix < xs.size(); ix++) {
-                const int y0 = ys[iy], x0 = xs[ix];
-                for (int c = 0; c < CH; c++) for (int y = 0; y < TH; y++) memcpy(&tz[((size_t)c * TH + y) * TW], &z[((size_t)c * Hq + y0 + y) * Wq + x0], TW * 4);
-                writefile(vd + "/tz.bin", tz.data(), tz.size() * 4);
-                fprintf(vae[0].in, "run %s/tz.bin %s/tout.bin\n", vd.c_str(), vd.c_str()); fflush(vae[0].in);
-                std::string r = waitline(vae[0], "done", "error");
-                if (r[0] != 'd') die("vaerun error", r);
-                auto ob = readfile(vd + "/tout.bin"); const f32* o = (const f32*)ob.data();
-                auto ramp = [&](int p, int len, int lo, int hi) { f32 w = 1.f; if (lo > 0 && p < lo) w = std::min(w, (p + 1.f) / (lo + 1.f)); if (hi > 0 && p >= len - hi) w = std::min(w, (len - p) / (hi + 1.f)); return w; };
-                const int ol = ix > 0 ? (xs[ix - 1] + TW - x0) * 8 : 0, orr = ix + 1 < xs.size() ? (x0 + TW - xs[ix + 1]) * 8 : 0;
-                const int ot = iy > 0 ? (ys[iy - 1] + TH - y0) * 8 : 0, ob2 = iy + 1 < ys.size() ? (y0 + TH - ys[iy + 1]) * 8 : 0;
-                for (int y = 0; y < PH; y++) {
-                    const f32 wy = ramp(y, PH, ot, ob2);
-                    for (int x = 0; x < PW; x++) {
-                        const f32 w = wy * ramp(x, PW, ol, orr); const size_t pi = (size_t)(y0 * 8 + y) * Wp + x0 * 8 + x;
-                        wsum[pi] += w;
-                        for (int c = 0; c < 3; c++) acc[(size_t)c * Hp * Wp + pi] += w * o[((size_t)c * PH + y) * PW + x];
-                    }
-                }
-            }
-            const int Wo = Wl * 8, Ho = Hl * 8;   // crop to the real size
-            std::vector<f32> outv((size_t)3 * Ho * Wo);
-            for (int c = 0; c < 3; c++) for (int y = 0; y < Ho; y++) for (int x = 0; x < Wo; x++) outv[((size_t)c * Ho + y) * Wo + x] = acc[(size_t)c * Hp * Wp + (size_t)y * Wp + x] / wsum[(size_t)y * Wp + x];
-            writefile(vd + "/vae_out.bin", outv.data(), outv.size() * 4);
-            fprintf(stderr, "animad: vae tiled %zux%zu tiles %.2fs\n", xs.size(), ys.size(), now() - tv);
-        }
-        writefile(vd + "/vae_out.bin.done", "", 0);
-    }
+    if (!serve) while (!vae.empty() && !vd.empty() && !vae_poll()) usleep(1000);
     };
     if (serve) {
         mkdir(dir.c_str(), 0777);

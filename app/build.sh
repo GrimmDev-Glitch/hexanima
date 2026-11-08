@@ -15,4 +15,4 @@ cd out && cp base.apk unsigned.apk && $BT/aapt add unsigned.apk classes.dex >/de
 $BT/zipalign -f 4 out/unsigned.apk out/aligned.apk
 $BT/apksigner sign --ks /sdk/debug.keystore --ks-pass pass:android --out hexanima.apk out/aligned.apk
 rm -rf out; ls -l hexanima.apk' || exit 1
-adb install -r hexanima.apk
+[ -n "$NOINSTALL" ] || adb install -r hexanima.apk   # NOINSTALL=1: build only (installing restarts the app and stops what it is doing)

@@ -239,3 +239,39 @@ CFG above 1: twice as slow, the negative prompt is used.	CFG mayor que 1: el dob
 Clip skip is for SDXL models only (Anima uses Qwen3, not CLIP).	Clip skip es solo para modelos SDXL (Anima usa Qwen3, no CLIP).
 In the prompt: <lora:%s:1.0>	En el prompt: <lora:%s:1.0>
 LoRA not found: %s	LoRA no encontrado: %s
+EXTRAS	EXTRAS
+A second pass at a larger size (slower)	Una segunda pasada a mayor tamaño (más lento)
+SCALE	ESCALA
+Upscale ×4 (AI)	Reescalar ×4 (IA)
+RealESRGAN anime on the CPU after generation; 18 MB on first use	RealESRGAN anime en la CPU tras generar; 18 MB la primera vez
+ADetailer (faces)	ADetailer (caras)
+Finds faces and redraws them in more detail	Encuentra las caras y las vuelve a dibujar con más detalle
+Detector…	Detector…
+INIT IMAGE (img2img)	IMAGEN INICIAL (img2img)
+DENOISE STRENGTH (0..1)	FUERZA DE CAMBIO (0..1)
+Presets	Presets
++ Queue	+ Cola
+Queue is empty	La cola está vacía
+Queued: %d (tap to see)	En cola: %d (toca para ver)
+Queued: %d	En cola: %d
+✓ chosen (fitted to the size)	✓ elegida (se ajusta al tamaño)
+none: normal generation	ninguna: generación normal
+Needs a YOLOv8 detector converted for sd.cpp (.safetensors)	Necesita un detector YOLOv8 convertido para sd.cpp (.safetensors)
+Save the current settings…	Guardar la configuración actual…
+Save a preset	Guardar preset
+Apply	Aplicar
+Queue (tap to remove)	Cola (toca para quitar)
+Hires fix: this size is already the NPU's largest	Hires fix: este tamaño ya es el máximo del NPU
+Downloading the upscaler (18 MB)…	Descargando el reescalador (18 MB)…
+Upscaling ×4…	Reescalando ×4…
+LoRA library (Anima 2B)	Biblioteca de LoRAs (Anima 2B)
+LoRA library (SDXL / Illustrious)	Biblioteca de LoRAs (SDXL / Illustrious)
+Tap: insert into the prompt. Long tap: delete.	Toca: insertar en el prompt. Mantén pulsado: borrar.
+Find on Civitai	Buscar en Civitai
+Civitai API key	Clave API de Civitai
+Show +18	Mostrar +18
+RAM free: %.1f of %.1f GB	RAM libre: %.1f de %.1f GB
+HexAnima model in memory (~4–5 GB)	Modelo de HexAnima en memoria (~4–5 GB)
+HexAnima model unloaded	Modelo de HexAnima descargado
+Unload model	Descargar modelo
+Cleaner	Limpiador

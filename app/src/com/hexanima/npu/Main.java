@@ -27,6 +27,7 @@ import android.view.WindowManager;
 import android.widget.*;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -267,6 +268,7 @@ public class Main extends Base {
         sampBox.addView(ar);
         sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampBox.addView(sampNote);
         root.addView(sampBox);
+        buildExtras(root);
         refreshSampling();
 
         // size: a drop-down button that opens a two-column picker, and the portrait <-> landscape swap
@@ -444,6 +446,8 @@ public class Main extends Base {
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
         if (req == 9 && res == RESULT_OK && d != null && d.getData() != null) { importLora(d.getData()); return; }
+        if (req == 11 && res == RESULT_OK && d != null && d.getData() != null) { importInit(d.getData()); return; }
+        if (req == 12 && res == RESULT_OK && d != null && d.getData() != null) { importAd(d.getData()); return; }
         if (req == 7 && res == RESULT_OK && d != null) {
             prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
             customOpen = false;
@@ -547,6 +551,207 @@ public class Main extends Base {
         int i = Math.max(0, java.util.Arrays.asList(values).indexOf(cur));
         builder().setTitle(title).setSingleChoiceItems(names, i, (d, k) -> { d.dismiss(); cb.on(values[k]); }).show();
     }
+    // ---- extras: hires fix, AI upscale, ADetailer, init image (img2img), presets, queue ----
+    static final String UPSCALER_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth";
+    static final String UPSCALER_SHA = "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da";
+    File upscaler() { return new File(getFilesDir(), "sd/upscalers/RealESRGAN_x4plus_anime_6B.pth"); }
+    File initSrc() { return new File(getFilesDir(), "init_src.png"); }
+    File adDir() { return new File(getFilesDir(), "adetailer"); }
+    LinearLayout extrasBox; TextView initText, adText, queueText; EditText strEdit, hsEdit, hdEdit, hnEdit;
+    final List<JSONObject> queue = new ArrayList<>(); Runnable afterGen;
+
+    Switch sw(LinearLayout parent, String title, String sub, String key, boolean def) {
+        LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(dp(2), dp(8), dp(2), dp(4));
+        LinearLayout t = new LinearLayout(this); t.setOrientation(LinearLayout.VERTICAL);
+        t.addView(text(title, 15, TXT, true)); if (!sub.isEmpty()) { TextView s = text(sub, 12, DIM, false); t.addView(s); }
+        r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        Switch s = new Switch(this); s.setChecked(prefs().getBoolean(key, def)); s.setOnCheckedChangeListener((v, on) -> { prefs().edit().putBoolean(key, on).apply(); refreshExtras(); });
+        r.addView(s); r.setOnClickListener(v -> s.toggle()); parent.addView(r);
+        return s;
+    }
+    EditText smallField(LinearLayout row, String title, String key, String def, boolean decimal) {
+        return numField(row, title, prefs().getString(key, def), decimal, s -> { String v = s.trim().replace(',', '.'); try { Float.parseFloat(v); prefs().edit().putString(key, v).apply(); } catch (NumberFormatException ignored) { } });
+    }
+    void buildExtras(LinearLayout root) {
+        extrasBox = new LinearLayout(this); extrasBox.setOrientation(LinearLayout.VERTICAL);
+        extrasBox.addView(label(L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS")));
+        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setBackground(bg(CARD, 18)); c.setPadding(dp(14), dp(6), dp(14), dp(12));
+        sw(c, "Hires fix", L.s("Второй проход в большем размере (дольше)", "A second pass at a larger size (slower)"), "x_hires", false);
+        LinearLayout hr = new LinearLayout(this);
+        hsEdit = smallField(hr, L.s("МАСШТАБ", "SCALE"), "x_hires_scale", "1.5", true);
+        hdEdit = smallField(hr, "DENOISE", "x_hires_den", "0.45", true);
+        hnEdit = smallField(hr, L.s("ШАГИ", "STEPS"), "x_hires_steps", "4", false);
+        c.addView(hr);
+        sw(c, L.s("Увеличить ×4 (ИИ)", "Upscale ×4 (AI)"), L.s("RealESRGAN anime на процессоре после генерации; 18 МБ при первом использовании", "RealESRGAN anime on the CPU after generation; 18 MB on first use"), "x_up", false);
+        sw(c, L.s("ADetailer (лица)", "ADetailer (faces)"), L.s("Находит лица и перерисовывает их детальнее", "Finds faces and redraws them in more detail"), "x_ad", false);
+        LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL);
+        adText = text("", 12, DIM, false); ar.addView(adText, new LinearLayout.LayoutParams(0, -2, 1));
+        Button adPick = button(L.s("Детектор…", "Detector…"), FIELD, ACC); adPick.setTextSize(12);
+        adPick.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 12));
+        ar.addView(adPick, new LinearLayout.LayoutParams(-2, dp(36))); c.addView(ar);
+        c.addView(label(L.s("ИСХОДНАЯ КАРТИНКА (img2img)", "INIT IMAGE (img2img)")));
+        LinearLayout ir = new LinearLayout(this); ir.setGravity(Gravity.CENTER_VERTICAL);
+        initText = text("", 13, TXT, false); ir.addView(initText, new LinearLayout.LayoutParams(0, -2, 1));
+        Button ip = button(L.s("Выбрать", "Choose"), FIELD, ACC); ip.setTextSize(12);
+        ip.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), 11));
+        ir.addView(ip, new LinearLayout.LayoutParams(-2, dp(36)));
+        Button ix = button("✕", FIELD, TXT); ix.setOnClickListener(v -> { initSrc().delete(); refreshExtras(); });
+        LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(dp(40), dp(36)); xl.leftMargin = dp(6); ir.addView(ix, xl);
+        c.addView(ir);
+        LinearLayout sr = new LinearLayout(this); strEdit = smallField(sr, L.s("СИЛА ИЗМЕНЕНИЯ (0..1)", "DENOISE STRENGTH (0..1)"), "x_strength", "0.6", true); c.addView(sr);
+        LinearLayout pr = new LinearLayout(this); pr.setPadding(0, dp(10), 0, 0);
+        Button presets = button(L.s("Пресеты", "Presets"), FIELD, ACC); presets.setTextSize(13); presets.setOnClickListener(v -> presets());
+        pr.addView(presets, new LinearLayout.LayoutParams(0, dp(40), 1));
+        Button qa = button(L.s("+ В очередь", "+ Queue"), FIELD, ACC); qa.setTextSize(13); qa.setOnClickListener(v -> enqueue());
+        LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(0, dp(40), 1); ql.leftMargin = dp(8); pr.addView(qa, ql);
+        Button qr = button("▶", FIELD, ACC); qr.setOnClickListener(v -> runQueue());
+        LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(dp(48), dp(40)); rl.leftMargin = dp(8); pr.addView(qr, rl);
+        c.addView(pr);
+        queueText = text("", 12, DIM, false); queueText.setPadding(dp(2), dp(6), 0, 0); queueText.setOnClickListener(v -> showQueue()); c.addView(queueText);
+        extrasBox.addView(c);
+        root.addView(extrasBox);
+        try { JSONArray a = new JSONArray(prefs().getString("queue", "[]")); for (int i = 0; i < a.length(); i++) queue.add(a.getJSONObject(i)); } catch (Exception ignored) { }
+        refreshExtras();
+    }
+    File adModel() { File[] fs = adDir().listFiles(); if (fs != null) for (File f : fs) if (f.getName().endsWith(".safetensors")) return f; return null; }
+    void refreshExtras() {
+        if (extrasBox == null) return;
+        extrasBox.setVisibility(isMoss() || model.isEmpty() ? View.GONE : View.VISIBLE);
+        initText.setText(initSrc().exists() ? L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)") : L.s("нет: обычная генерация", "none: normal generation"));
+        File ad = adModel();
+        adText.setText(ad != null ? "✓ " + ad.getName() : L.s("Нужен детектор YOLOv8, сконвертированный для sd.cpp (.safetensors)", "Needs a YOLOv8 detector converted for sd.cpp (.safetensors)"));
+        queueText.setText(queue.isEmpty() ? L.s("Очередь пуста", "Queue is empty") : L.f("В очереди: %d (нажмите, чтобы посмотреть)", "Queued: %d (tap to see)", queue.size()));
+    }
+    float pf(String key, float def) { try { return Float.parseFloat(prefs().getString(key, String.valueOf(def))); } catch (Exception e) { return def; } }
+    /** hires target: about scale × the size, sides multiples of 64 (SDXL) or 16 with a patch count the NPU blocks run (multiple of 32, at most 6144) */
+    int[] hiresSize(int w, int h, boolean sdxl) {
+        double s = Math.max(1.0, Math.min(3.0, pf("x_hires_scale", 1.5f)));
+        for (; s > 1.0; s -= 0.05) {
+            int q = sdxl ? 64 : 16, w2 = (int) Math.round(w * s / q) * q, h2 = (int) Math.round(h * s / q) * q;
+            if (sdxl) { if ((long) w2 * h2 <= 1536L * 1536) return new int[]{w2, h2}; }
+            else if (sizeError(w2, h2) == null) return new int[]{w2, h2};
+        }
+        return null;
+    }
+    /** writes the init image fitted (scale + center crop) to w x h; null if none */
+    File initFor(int w, int h) {
+        if (!initSrc().exists()) return null;
+        try {
+            Bitmap b = BitmapFactory.decodeFile(initSrc().getPath()); if (b == null) return null;
+            float s = Math.max(w / (float) b.getWidth(), h / (float) b.getHeight());
+            Bitmap sc = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * s), Math.round(b.getHeight() * s), true);
+            Bitmap cr = Bitmap.createBitmap(sc, (sc.getWidth() - w) / 2, (sc.getHeight() - h) / 2, w, h);
+            File out = new File(getFilesDir(), "init_" + w + "x" + h + ".png");
+            try (FileOutputStream o = new FileOutputStream(out)) { cr.compress(Bitmap.CompressFormat.PNG, 100, o); }
+            return out;
+        } catch (Exception e) { return null; }
+    }
+    /** the upscaler model, downloaded once (null and a toast on failure) */
+    File ensureUpscaler(long t0) {
+        File u = upscaler(); if (u.exists()) return u;
+        setProgressUi(1, L.s("Загрузка модели увеличения (18 МБ)…", "Downloading the upscaler (18 MB)…"), t0);
+        try { Models.fetch(UPSCALER_URL, u, -1, UPSCALER_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); return u; }
+        catch (Exception e) { ui.post(() -> Toast.makeText(this, "RealESRGAN: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+    }
+    /** anima.sh environment for the extras that are on */
+    String extrasEnv(int w, int h, long t0) {
+        StringBuilder e = new StringBuilder();
+        if (prefs().getBoolean("x_hires", false)) {
+            int[] hs = hiresSize(w, h, false);
+            if (hs != null) e.append("HIRES=1 HIRES_W=").append(hs[0]).append(" HIRES_H=").append(hs[1]).append(" HIRES_DENOISE=").append(pf("x_hires_den", .45f)).append(" HIRES_STEPS=").append((int) pf("x_hires_steps", 4)).append(" ");
+            else ui.post(() -> Toast.makeText(this, L.s("Hires fix: этот размер уже максимальный для NPU", "Hires fix: this size is already the NPU's largest"), Toast.LENGTH_LONG).show());
+        }
+        if (prefs().getBoolean("x_up", false)) { File u = ensureUpscaler(t0); if (u != null) e.append("UPSCALE=").append(q(u.getPath())).append(" "); }
+        if (prefs().getBoolean("x_ad", false) && adModel() != null) e.append("AD=").append(q(adModel().getPath())).append(" ");
+        File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
+        return e.toString();
+    }
+    /** sd-cli arguments for the same extras on the SDXL path; the upscale runs afterwards (upscaleAfter) */
+    String extrasArgs(int w, int h) {
+        StringBuilder a = new StringBuilder();
+        if (prefs().getBoolean("x_hires", false)) { int[] hs = hiresSize(w, h, true); if (hs != null) a.append(" --hires --hires-upscaler Latent --hires-width ").append(hs[0]).append(" --hires-height ").append(hs[1]).append(" --hires-denoising-strength ").append(pf("x_hires_den", .45f)).append(" --hires-steps ").append((int) pf("x_hires_steps", 12)); }
+        if (prefs().getBoolean("x_ad", false) && adModel() != null) a.append(" --ad-model ").append(q(adModel().getPath()));
+        File init = initFor(w, h); if (init != null) a.append(" --init-img ").append(q(init.getPath())).append(" --strength ").append(pf("x_strength", .6f));
+        return a.toString();
+    }
+    void importInit(Uri uri) {
+        ex2.submit(() -> {
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                Bitmap b = BitmapFactory.decodeStream(in); if (b == null) throw new IOException("not an image");
+                try (FileOutputStream o = new FileOutputStream(initSrc())) { b.compress(Bitmap.CompressFormat.PNG, 100, o); }
+            } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show()); }
+            ui.post(this::refreshExtras);
+        });
+    }
+    void importAd(Uri uri) {
+        ex2.submit(() -> {
+            try { adDir().mkdirs(); File[] old = adDir().listFiles(); if (old != null) for (File f : old) f.delete();
+                try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(new File(adDir(), "detector.safetensors"))) { byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); }
+            } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show()); }
+            ui.post(this::refreshExtras);
+        });
+    }
+    // presets: named snapshots of the sampling fields, the negative prompt, the quality tags and the extras (per model family)
+    static final String[] PRESET_KEYS = {"steps", "cfg", "sampler", "sched", "neg"};
+    void presets() {
+        JSONObject all; try { all = new JSONObject(prefs().getString("presets_" + (isSdxl() ? "sdxl" : "anima"), "{}")); } catch (Exception e) { all = new JSONObject(); }
+        final JSONObject ps = all;
+        List<String> names = new ArrayList<>(); for (Iterator<String> it = ps.keys(); it.hasNext(); ) names.add(it.next()); java.util.Collections.sort(names);
+        String[] items = new String[names.size() + 1]; items[0] = "＋  " + L.s("Сохранить текущие настройки…", "Save the current settings…");
+        for (int i = 0; i < names.size(); i++) items[i + 1] = names.get(i);
+        builder().setTitle(L.s("Пресеты", "Presets")).setItems(items, (d, i) -> {
+            if (i == 0) {
+                EditText nm = field(L.s("Название", "Name"));
+                builder().setTitle(L.s("Сохранить пресет", "Save a preset")).setView(nm).setPositiveButton("OK", (d2, k) -> {
+                    try {
+                        JSONObject p = new JSONObject();
+                        for (String key : PRESET_KEYS) { String fk = Settings.key(this, key); if (prefs().getAll().containsKey(fk)) p.put(key, String.valueOf(prefs().getAll().get(fk))); }
+                        p.put("prefix", Settings.rawPrefix(this));
+                        for (String x : new String[]{"x_hires", "x_up", "x_ad"}) p.put(x, prefs().getBoolean(x, false));
+                        for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) p.put(x, prefs().getString(x, ""));
+                        String n = nm.getText().toString().trim(); if (n.isEmpty()) n = "preset " + (ps.length() + 1);
+                        ps.put(n, p); prefs().edit().putString("presets_" + (isSdxl() ? "sdxl" : "anima"), ps.toString()).apply();
+                    } catch (Exception ignored) { }
+                }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+            } else {
+                String n = names.get(i - 1);
+                builder().setTitle(n).setItems(new String[]{L.s("Применить", "Apply"), L.s("Удалить", "Delete")}, (d3, k) -> {
+                    if (k == 1) { ps.remove(n); prefs().edit().putString("presets_" + (isSdxl() ? "sdxl" : "anima"), ps.toString()).apply(); return; }
+                    JSONObject p = ps.optJSONObject(n); if (p == null) return;
+                    SharedPreferences.Editor e = prefs().edit();
+                    for (String key : PRESET_KEYS) if (p.has(key)) { String fk = Settings.key(this, key); if (key.equals("steps")) e.putInt(fk, p.optInt(key)); else e.putString(fk, p.optString(key)); }
+                    if (p.has("prefix")) e.putString("prefix", p.optString("prefix"));
+                    for (String x : new String[]{"x_hires", "x_up", "x_ad"}) if (p.has(x)) e.putBoolean(x, p.optBoolean(x));
+                    for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) if (p.has(x) && !p.optString(x).isEmpty()) e.putString(x, p.optString(x));
+                    e.apply();
+                    recreate();   // every field shows the preset
+                }).show();
+            }
+        }).show();
+    }
+    // queue: prompt + seed + size + count are captured now; the settings are the ones in effect when the queue runs
+    void enqueue() {
+        String pr = prompt.getText().toString().trim(); if (pr.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
+        try { queue.add(new JSONObject().put("p", pr).put("s", seed.getText().toString().trim()).put("w", resW).put("h", resH).put("n", count).put("m", model)); } catch (Exception ignored) { }
+        saveQueue(); Toast.makeText(this, L.f("В очереди: %d", "Queued: %d", queue.size()), Toast.LENGTH_SHORT).show();
+    }
+    void saveQueue() { prefs().edit().putString("queue", new JSONArray(queue).toString()).apply(); refreshExtras(); }
+    void showQueue() {
+        if (queue.isEmpty()) return;
+        String[] it = new String[queue.size()]; for (int i = 0; i < it.length; i++) { JSONObject o = queue.get(i); it[i] = (i + 1) + ". " + o.optString("p").replace('\n', ' ') + "  (" + o.optInt("w") + "×" + o.optInt("h") + " ×" + o.optInt("n") + ")"; }
+        builder().setTitle(L.s("Очередь (нажмите, чтобы убрать)", "Queue (tap to remove)")).setItems(it, (d, i) -> { queue.remove(i); saveQueue(); })
+            .setPositiveButton(L.s("Очистить", "Clear"), (d, i) -> { queue.clear(); saveQueue(); }).setNegativeButton(L.s("Закрыть", "Close"), null).show();
+    }
+    /** runs the queued items one after another through the normal Generate path */
+    void runQueue() {
+        if (busy || queue.isEmpty()) { if (queue.isEmpty()) Toast.makeText(this, L.s("Очередь пуста", "Queue is empty"), Toast.LENGTH_SHORT).show(); return; }
+        JSONObject o = queue.remove(0); saveQueue();
+        String m = o.optString("m"); if (!m.isEmpty() && ids.contains(m) && !m.equals(model)) setModel(m);
+        prompt.setText(o.optString("p")); seed.setText(o.optString("s", "-1")); count = Math.max(1, o.optInt("n", 1)); setRes(o.optInt("w", resW), o.optInt("h", resH));
+        afterGen = () -> { if (!queue.isEmpty() && !cancelled) ui.postDelayed(this::runQueue, 500); };
+        generate(false);
+    }
+
     TextView tokText;
     /** rough token count of prompt + quality tags (Danbooru-style text: ~3.6 characters per token; <lora:...> tags are removed before encoding).
      *  Anima: the NPU text encoder and Anima itself take 512 tokens. SDXL: sd.cpp splits long prompts into 75-token CLIP chunks, so there is no hard limit. */
@@ -802,6 +1007,7 @@ public class Main extends Base {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isSdxl() ? View.GONE : View.VISIBLE); refreshLora(); }   // SDXL: LoRAs come from the prompt tags
+            refreshExtras();
             refreshSampling();
             state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
                 : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
@@ -976,6 +1182,7 @@ public class Main extends Base {
                 else status.setText(L.f("Готово за %.1f с", "Done in %.1f s", sec));
                 setModelUi(loaded, false, "");
                 if (okAny && !visible) notifyDone(app, nb, pr, total);
+                Runnable next = afterGen; afterGen = null; if (next != null && okAny && !wasCancelled) next.run();   // the queue goes on
             });
         });
     }
@@ -1012,7 +1219,7 @@ public class Main extends Base {
         });
         poll.start();
         final String samp = "CFG=" + q(Settings.cfg(this)) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (Settings.cfgOn(this) ? " NEG=" + q(Settings.negative(this)) : "");
-        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
+        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
         done[0] = true;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
@@ -1070,10 +1277,17 @@ public class Main extends Base {
         String p = pr.replace('\n', ' '), neg = Settings.negative(this).replace('\n', ' ');
         su("cd " + q(dir.getPath()) + " && rm -f last.png && " + LIBS + "\"$BIN/libsdcli.so\" -m " + q(gg.getPath()) + " --taesd " + q(Sdxl.taesd(home).getPath()) + " --lora-model-dir " + q(Sdxl.loras(home).getPath())
             + " -p " + q(p) + " -n " + q(neg) + " --cfg-scale " + Settings.cfg(this) + " --sampling-method " + Settings.sampler(this) + " --scheduler " + Settings.scheduler(this)
-            + " --steps " + steps + " --clip-skip " + Settings.clipSkip(this) + " -W " + w + " -H " + h + " -s " + seedUsed + " -t " + Sdxl.THREADS + " -o last.png < /dev/null > " + q(log.getPath()) + " 2>&1", false);
+            + " --steps " + steps + " --clip-skip " + Settings.clipSkip(this) + " -W " + w + " -H " + h + " -s " + seedUsed + " -t " + Sdxl.THREADS + extrasArgs(w, h) + " -o last.png < /dev/null > " + q(log.getPath()) + " 2>&1", false);
         done[0] = true;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
+        if (prefs().getBoolean("x_up", false) && out.exists()) {   // AI upscale ×4 afterwards (CPU)
+            File u = ensureUpscaler(t0);
+            if (u != null) {
+                setProgressUi(97, L.s("Увеличение ×4…", "Upscaling ×4…"), t0);
+                su("cd " + q(dir.getPath()) + " && " + LIBS + "\"$BIN/libsdcli.so\" -M upscale --upscale-model " + q(u.getPath()) + " -i last.png -o up.png -t " + Sdxl.THREADS + " < /dev/null >> " + q(log.getPath()) + " 2>&1 && [ -s up.png ] && mv -f up.png last.png", false);
+            }
+        }
         byte[] png = new byte[0];
         try { png = Models.readBytes(out); } catch (Exception ignored) { }
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) { ui.post(() -> Toast.makeText(this, L.s("SDXL: ошибка (лог files/sdxl/sdxl.log)", "SDXL: failed (log files/sdxl/sdxl.log)"), Toast.LENGTH_LONG).show()); return null; }

@@ -1,5 +1,5 @@
 diff --git a/examples/cli/main.cpp b/examples/cli/main.cpp
-index ee1e56f..31251ee 100644
+index ee1e56f..4668004 100644
 --- a/examples/cli/main.cpp
 +++ b/examples/cli/main.cpp
 @@ -1,3 +1,8 @@
@@ -11,13 +11,15 @@ index ee1e56f..31251ee 100644
  #include <stdio.h>
  #include <string.h>
  #include <time.h>
-@@ -914,6 +919,66 @@ int main(int argc, const char* argv[]) {
+@@ -914,6 +919,82 @@ int main(int argc, const char* argv[]) {
              img_gen_params = gen_params.to_sd_img_gen_params_t();
          }
  
 +        // Persistent mode (env SD_SERVE=<dir>): keep the context loaded and serve jobs. A client writes <dir>/job.tmp then renames it to <dir>/job
 +        // with lines "p=<prompt>", "s=<seed>", "n=<steps>", "o=<output>", "d=<npu request dir>", "w=<width>", "h=<height>" (or "quit"); we answer with <d>/sd_done.
 +        // Optional: "c=<cfg scale>", "g=<negative prompt>", "a=<sampler>", "k=<scheduler>" (sd.cpp names, e.g. dpm++2m_sde / sgm_uniform); missing = the start-up values.
++        // img2img: "i=<init image png>", "r=<strength>". Hires fix: "hz=1", "hu=<upscaler: Latent, Lanczos, ... or a model in --hires-upscalers-dir>", "hs=<scale>" or "hw=" / "hh=" (target size), "hn=<steps>", "hd=<denoise>".
++        // ADetailer: "ad=<detector .safetensors>", "ap=<detail prompt>", "ax=<extra ad args>".
 +        if (const char* serve_dir_c = std::getenv("SD_SERVE"); serve_dir_c && cli_params.mode == IMG_GEN) {
 +            const std::string sdir = serve_dir_c;
 +            const auto gen_defaults = gen_params;
@@ -50,6 +52,19 @@ index ee1e56f..31251ee 100644
 +                if (job.count("c")) gen_params.sample_params.guidance.txt_cfg = (float)atof(job["c"].c_str());
 +                if (job.count("a")) { auto m = str_to_sample_method(job["a"].c_str()); if (m != SAMPLE_METHOD_COUNT) gen_params.sample_params.sample_method = m; }
 +                if (job.count("k")) { auto k = str_to_scheduler(job["k"].c_str()); if (k != SCHEDULER_COUNT) gen_params.sample_params.scheduler = k; }
++                gen_params.init_image = SDImageOwner(); gen_params.strength = gen_defaults.strength;
++                if (job.count("i") && !job["i"].empty() && !load_sd_image_from_file(gen_params.init_image.put(), job["i"].c_str(), 0, 0, 0)) LOG_ERROR("serve: cannot load init image %s", job["i"].c_str());
++                if (job.count("r")) gen_params.strength = (float)atof(job["r"].c_str());
++                gen_params.hires_enabled = job.count("hz") && job["hz"] == "1";
++                gen_params.hires_upscaler = job.count("hu") ? job["hu"] : gen_defaults.hires_upscaler;
++                gen_params.hires_scale = job.count("hs") ? (float)atof(job["hs"].c_str()) : gen_defaults.hires_scale;
++                gen_params.hires_steps = job.count("hn") ? atoi(job["hn"].c_str()) : gen_defaults.hires_steps;
++                gen_params.hires_denoising_strength = job.count("hd") ? (float)atof(job["hd"].c_str()) : gen_defaults.hires_denoising_strength;
++                gen_params.hires_width = job.count("hw") ? atoi(job["hw"].c_str()) : gen_defaults.hires_width;   // exact target: the NPU path needs sizes it can run
++                gen_params.hires_height = job.count("hh") ? atoi(job["hh"].c_str()) : gen_defaults.hires_height;
++                gen_params.ad_model_path = job.count("ad") ? job["ad"] : gen_defaults.ad_model_path;
++                gen_params.ad_prompt = job.count("ap") ? job["ap"] : gen_defaults.ad_prompt;
++                gen_params.extra_ad_args = job.count("ax") ? job["ax"] : gen_defaults.extra_ad_args;
 +                gen_params.prompt = job["p"];
 +                if (job.count("s")) gen_params.seed = atoll(job["s"].c_str());
 +                if (job.count("n")) gen_params.sample_params.sample_steps = atoi(job["n"].c_str());
@@ -67,7 +82,8 @@ index ee1e56f..31251ee 100644
 +                    }
 +                    SDImageVec jres;
 +                    jres.adopt(generated_images, n_res);
-+                    ok = jres && save_results(cli_params, ctx_params, gen_params, jres.data(), n_res, nullptr);
++                    if (jres && !gen_params.ad_model_path.empty()) ok = apply_adetailer(sd_ctx.get(), sd_ctx_params, ctx_params, gen_params, img_gen_params, IMG_GEN, jres, n_res);
++                    ok = ok && jres && save_results(cli_params, ctx_params, gen_params, jres.data(), n_res, nullptr);
 +                }
 +                FILE* df = fopen((d + (ok ? "/sd_done" : "/sd_failed")).c_str(), "wb");
 +                if (df) fclose(df);
