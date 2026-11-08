@@ -26,9 +26,9 @@ public class Info extends Base {
         {"Где хранятся картинки", "Where pictures are stored",
          "Только внутри приложения. В галерею телефона (Pictures/Anima) картинка попадает после «Скачать». Удалённое уходит в корзину и хранится 30 дней.",
          "Only inside the app. A picture goes to the phone gallery (Pictures/Anima) after Download. Deleted pictures go to the trash and stay there for 30 days."},
-        {"Почему нет негативного промпта", "Why there is no negative prompt",
-         "Turbo-модели работают без CFG (scale 1): негативный промпт при этом ничего не меняет, поэтому поля для него нет. Нежелательное лучше просто не писать в описании.",
-         "Turbo models run without CFG (scale 1), so a negative prompt would change nothing and there is no field for it. Simply leave unwanted things out of the prompt."},
+        {"Негативный промпт и CFG", "Negative prompt and CFG",
+         "Turbo-модели рассчитаны на CFG 1: негативный промпт при этом ничего не меняет. Обычные модели используют CFG 3-5 и негативный промпт (Сэмплинг под описанием); картинка тогда считается примерно вдвое дольше.",
+         "Turbo models are made for CFG 1, where a negative prompt changes nothing. Non-turbo models use CFG 3-5 and the negative prompt (Sampling, under the prompt); each picture then takes about twice as long."},
         {"Теги качества и подсказки", "Quality tags and suggestions",
          "Перед описанием автоматически добавляются теги качества (их можно изменить в настройках). В поле описания при вводе появляются подсказки тегов Danbooru, а кнопка «Шаблоны» хранит сохранённые и недавние описания.",
          "Quality tags are added before your prompt automatically (change them in Settings). While you type, Danbooru tag suggestions appear, and the Templates button keeps saved and recent prompts."},
@@ -85,8 +85,13 @@ public class Info extends Base {
         Button log = button(L.s("Отправить лог", "Send the log"), FIELD, ACC); log.setTextSize(13);
         log.setOnClickListener(x -> sendLog());
         c.addView(log, new LinearLayout.LayoutParams(-1, dp(42)));
+        TextView cr = text(L.s("HexAnima создал ayanoby: NPU-ядра, сервер, приложение и модели для NPU — всё основное это его работа. Эта сборка — форк для Snapdragon 8 Gen 2 (GrimmDev-Glitch) с LoRA, Civitai и другими дополнениями. Спасибо, ayanoby!",
+            "HexAnima was created by ayanoby: the NPU kernels, the server, the app and the NPU model packs are their work. This build is a fork for the Snapdragon 8 Gen 2 (GrimmDev-Glitch) with LoRAs, Civitai and other additions. Thank you, ayanoby!"), 13, TXT, false);
+        cr.setPadding(0, dp(4), 0, dp(10)); cr.setLineSpacing(0, 1.15f); c.addView(cr, 3);
         TextView lh = text(L.s("Авторы и ссылки", "Authors and links"), 14, TXT, true); lh.setPadding(0, dp(14), 0, dp(2)); c.addView(lh);
         String[][] links = {
+            {"HexAnima — ayanoby (original author)", "https://github.com/ayanoby/hexanima"},
+            {"Snapdragon 8 Gen 2 fork — GrimmDev-Glitch", "https://github.com/GrimmDev-Glitch/hexanima"},
             {"MiaoMiao 3D Harem (MIAOKA)", "https://civitai.red/models/431957/miaomiao-3d-harem"},
             {"MiaoMiao Harem (MIAOKA)", "https://civitai.red/models/934764/miaomiao-harem"},
             {"MiaoMiao RealSkin (MIAOKA)", "https://civitai.red/models/2026594/miaomiao-realskin"},

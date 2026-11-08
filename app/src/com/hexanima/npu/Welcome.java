@@ -29,9 +29,11 @@ public class Welcome extends Base {
         c2.addView(text(L.s("Что важно знать", "Good to know"), 16, TXT, true));
         String[] tips = {
             L.s("Скорость: около 7 секунд на картинку 512×768 (модель 2B) и 12 секунд (2.9B).", "Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B)."),
-            L.s("Всегда 4 шага и нет негативного промпта: так устроены turbo-модели.", "Always 4 steps and no negative prompt: that is how turbo models work."),
+            L.s("Turbo-модели: 4 шага и CFG 1. Обычные модели: 20+ шагов и негативный промпт (Сэмплинг).", "Turbo models: 4 steps and CFG 1. Other models: 20+ steps and a negative prompt (Sampling)."),
             L.s("Картинки хранятся только в приложении, в галерею они попадают после «Скачать».", "Pictures stay inside the app and reach the gallery only after Download."),
         };
+        TextView credit = text(L.s("HexAnima — проект ayanoby (github.com/ayanoby/hexanima). Эта сборка — форк для Snapdragon 8 Gen 2.", "HexAnima is a project by ayanoby (github.com/ayanoby/hexanima). This build is a fork for the Snapdragon 8 Gen 2."), 13, ACC, false);
+        credit.setPadding(0, dp(4), 0, dp(4)); c2.addView(credit);
         for (String t : tips) { TextView v = text("•  " + t, 14, DIM, false); v.setPadding(0, dp(8), 0, 0); v.setLineSpacing(0, 1.1f); c2.addView(v); }
 
         Button go = button(L.s("Скачать модель", "Get a model"), ACC, ON_ACC); go.setTextSize(16);
