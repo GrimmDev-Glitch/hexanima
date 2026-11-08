@@ -54,7 +54,15 @@ public class Settings extends Base {
     static String negative(Context c) { return prefs(c).getString(key(c, "neg"), turbo(c) ? "" : NEG_DEFAULT); }
     static boolean twoCalls(String sampler) { return sampler.equals("heun") || sampler.equals("dpm2") || sampler.equals("dpm++2s_a") || sampler.equals("res_2s"); }
     /** DiT calls per picture (progress estimate): CFG and 2nd-order samplers double them */
-    static int calls(Context c) { return steps(c) * (cfgOn(c) ? 2 : 1) * (twoCalls(sampler(c)) ? 2 : 1); }
+    static int calls(Context c) { int s = steps(c); return (s + (cfgOn(c) ? cfgSteps(s, cfgCut(c)) : 0)) * (twoCalls(sampler(c)) ? 2 : 1); }
+    /** CFG only on the first cut % of the steps (100 = every step, the default): the later steps skip the negative-prompt pass. They only refine
+     *  details, so the picture stays nearly the same and those steps take half the time. */
+    // measured on Anima base, 20 steps, CFG 3.5, 3 seeds (hands + face close-up): no deformities at any cutoff; at 60 % small details go
+    // (earrings, eye sharpness), so the setting offers 100 / 80 / 70 and the comparison grid also shows 60. Time: -10 / -14 / -19 %.
+    static final int[] CFG_CUTS = {100, 80, 70, 60};
+    static final int[] CFG_CUT_CHOICES = {100, 80, 70};
+    static int cfgCut(Context c) { return prefs(c).getInt("cfg_cut", 100); }
+    static int cfgSteps(int steps, int cut) { return cut >= 100 ? steps : (int) Math.ceil(steps * cut / 100.0); }
     static boolean defaultSampling(Context c) { return steps(c) == 4 && !cfgOn(c) && sampler(c).equals("euler") && scheduler(c).equals("discrete"); }
 
     EditText prefixEdit, keyEdit;

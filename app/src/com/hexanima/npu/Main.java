@@ -67,7 +67,7 @@ public class Main extends Base {
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
     Fold sampFold, loraFold, extFold;
-    LinearLayout sampBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn; TextView sampNote;
+    LinearLayout sampBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn; TextView sampNote;
     LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ProgressBar bar, ramBar;
     ImageView img;
@@ -279,6 +279,14 @@ public class Main extends Base {
         });
         LinearLayout.LayoutParams srl = new LinearLayout.LayoutParams(dp(48), dp(44)); srl.leftMargin = dp(8); ar.addView(sreset, srl);
         sampFold.body.addView(ar);
+        cutBtn = button("", CARD, TXT); cutBtn.setAllCaps(false);
+        cutBtn.setOnClickListener(v -> {
+            String[] names = new String[Settings.CFG_CUT_CHOICES.length];
+            for (int i = 0; i < names.length; i++) names[i] = Settings.CFG_CUT_CHOICES[i] >= 100 ? L.s("На всех шагах (обычно)", "On every step (normal)") : L.f("На первых %d %% шагов", "On the first %d %% of the steps", Settings.CFG_CUT_CHOICES[i]);
+            int cur = 0; for (int i = 0; i < Settings.CFG_CUT_CHOICES.length; i++) if (Settings.CFG_CUT_CHOICES[i] == Settings.cfgCut(this)) cur = i;
+            builder().setTitle(L.s("CFG только в начале", "CFG only at the start")).setSingleChoiceItems(names, cur, (d, i) -> { d.dismiss(); prefs().edit().putInt("cfg_cut", Settings.CFG_CUT_CHOICES[i]).apply(); refreshSampling(); }).show();
+        });
+        LinearLayout.LayoutParams cbl = new LinearLayout.LayoutParams(-1, dp(44)); cbl.topMargin = dp(8); sampFold.body.addView(cutBtn, cbl);
         sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampFold.body.addView(sampNote);
         root.addView(sampBox);
         buildExtras(root);
@@ -1169,10 +1177,13 @@ public class Main extends Base {
         if (!sampFill) { sampFill = true; stepsEdit.setText(String.valueOf(Settings.steps(this))); cfgEdit.setText(Settings.cfg(this)); negEdit.setText(Settings.negative(this)); }   // setText re-enters here with sampFill set
         samplerBtn.setText(Settings.samplerName(Settings.sampler(this)) + "  ▾");
         schedBtn.setText(Settings.schedulerName(Settings.scheduler(this)) + "  ▾");
+        int cut = Settings.cfgCut(this);
+        cutBtn.setText((cut >= 100 ? L.s("CFG: на всех шагах", "CFG: on every step") : L.f("CFG: первые %d %% шагов", "CFG: first %d %% of the steps", cut)) + "  ▾");
+        cutBtn.setVisibility(Settings.cfgOn(this) ? View.VISIBLE : View.GONE);
         sampBox.setVisibility(!isMoss() && !isQwen() && !model.isEmpty() ? View.VISIBLE : View.GONE);
         // one short line; ↺ restores the per-model defaults
         String n = (Settings.turbo(this) ? "Turbo  ·  " : "") + L.f("вызовов DiT: %d", "DiT calls: %d", Settings.calls(this));
-        if (Settings.cfgOn(this)) n += "  ·  " + L.s("CFG > 1: ×2 время", "CFG > 1: ×2 time");
+        if (Settings.cfgOn(this)) n += "  ·  " + (cut >= 100 ? L.s("CFG > 1: ×2 время", "CFG > 1: ×2 time") : L.f("CFG > 1: ×2 время на %d шагах", "CFG > 1: ×2 time on %d steps", Settings.cfgSteps(Settings.steps(this), cut)));
         if (Settings.twoCalls(Settings.sampler(this))) n += "  ·  " + L.s("2-й порядок: ×2 время", "2nd order: ×2 time");
         sampNote.setText(n);
         sampFold.sum.setText(L.f("%d шагов · CFG %s · %s", "%d steps · CFG %s · %s", Settings.steps(this), Settings.cfg(this), Settings.samplerName(Settings.sampler(this))));
@@ -1587,13 +1598,13 @@ public class Main extends Base {
                 curIdx = i;
                 if (i > 0 && tooHot() && !waitCool(t0)) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
-                if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i];
+                if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
                 final File f = runOne(pr, seedS, w, h, t0);
-                cfgOv = null; stepsOv = 0;
+                cfgOv = null; stepsOv = 0; cutOv = 0;
                 if (f == null) break;
                 made++;
                 final Bitmap bm = BitmapFactory.decodeFile(f.getPath());
-                if (gk != 0 && bm != null) { gridBms.add(bm); gridLabels.add(gk == 1 ? "seed " + seedS : gk == 2 ? "CFG " + GRID_CFG[i] : L.f("%d шагов", "%d steps", GRID_STEPS[i])); }
+                if (gk != 0 && bm != null) { gridBms.add(bm); gridLabels.add(gk == 1 ? "seed " + seedS : gk == 2 ? "CFG " + GRID_CFG[i] : gk == 4 ? L.f("CFG на %d %% шагов", "CFG on %d %% of the steps", Settings.CFG_CUTS[i]) : L.f("%d шагов", "%d steps", GRID_STEPS[i])); }
                 lastBm = bm;
                 ui.post(() -> {
                     lastFile = f; img.setImageBitmap(bm); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
@@ -1636,13 +1647,14 @@ public class Main extends Base {
     // ---- comparison grid ----
     static final String[] GRID_CFG = {"1", "3", "5", "7"};
     static final int[] GRID_STEPS = {4, 8, 12, 20};
-    int gridKind;          // 0 off, 1 seeds, 2 CFG, 3 steps (set for one generate() call)
-    String cfgOv; int stepsOv;
+    int gridKind;          // 0 off, 1 seeds, 2 CFG, 3 steps, 4 CFG cutoff (set for one generate() call)
+    String cfgOv; int stepsOv, cutOv;
+    int cutNow() { return cutOv > 0 ? cutOv : Settings.cfgCut(this); }
     String cfgNow() { return cfgOv != null ? cfgOv : Settings.cfg(this); }
     boolean cfgOnNow() { try { return Float.parseFloat(cfgNow()) > 1.001f; } catch (NumberFormatException e) { return false; } }
     void compare() {
         if (busy || isMoss() || model.isEmpty()) return;
-        String[] k = {L.s("4 сида", "4 seeds"), "CFG  1 · 3 · 5 · 7", L.s("Шаги  4 · 8 · 12 · 20", "Steps  4 · 8 · 12 · 20")};
+        String[] k = {L.s("4 сида", "4 seeds"), "CFG  1 · 3 · 5 · 7", L.s("Шаги  4 · 8 · 12 · 20", "Steps  4 · 8 · 12 · 20"), L.s("CFG на 100 · 80 · 70 · 60 % шагов", "CFG on 100 · 80 · 70 · 60 % of the steps")};
         builder().setTitle(L.s("Сравнить (сетка 2×2)", "Compare (2×2 grid)")).setItems(k, (d, i) -> { gridKind = i + 1; generate(false); }).show();
     }
     /** the four pictures side by side with a label under each, saved like any other picture */
@@ -1680,7 +1692,7 @@ public class Main extends Base {
         final boolean[] done = {false};
         final long[] tStep1 = {0}; remainS = -1;
         final int[] base = count();
-        final int steps = stepsOv > 0 ? stepsOv : Settings.steps(this), calls = Math.max(1, Settings.calls(this) * steps / Math.max(1, Settings.steps(this)));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
+        final int steps = stepsOv > 0 ? stepsOv : Settings.steps(this), calls = Math.max(1, (steps + (cfgOnNow() ? Settings.cfgSteps(steps, cutNow()) : 0)) * (Settings.twoCalls(Settings.sampler(this)) ? 2 : 1));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
@@ -1696,7 +1708,7 @@ public class Main extends Base {
             }
         });
         poll.start();
-        final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) : "");
+        final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) + " CFG_CUT=" + cutNow() : "");
         su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }

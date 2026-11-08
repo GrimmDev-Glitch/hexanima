@@ -1,5 +1,5 @@
 diff --git a/examples/cli/main.cpp b/examples/cli/main.cpp
-index ee1e56f..95c5318 100644
+index ee1e56f..08c18fe 100644
 --- a/examples/cli/main.cpp
 +++ b/examples/cli/main.cpp
 @@ -1,3 +1,8 @@
@@ -21,13 +21,13 @@ index ee1e56f..95c5318 100644
          }
      } else {
          int fps = cli_params->preview_method == PREVIEW_PROJ ? cli_params->preview_fps / 4 : cli_params->preview_fps;
-@@ -914,6 +922,90 @@ int main(int argc, const char* argv[]) {
+@@ -914,6 +922,91 @@ int main(int argc, const char* argv[]) {
              img_gen_params = gen_params.to_sd_img_gen_params_t();
          }
  
 +        // Persistent mode (env SD_SERVE=<dir>): keep the context loaded and serve jobs. A client writes <dir>/job.tmp then renames it to <dir>/job
 +        // with lines "p=<prompt>", "s=<seed>", "n=<steps>", "o=<output>", "d=<npu request dir>", "w=<width>", "h=<height>" (or "quit"); we answer with <d>/sd_done.
-+        // Optional: "c=<cfg scale>", "g=<negative prompt>", "a=<sampler>", "k=<scheduler>" (sd.cpp names, e.g. dpm++2m_sde / sgm_uniform); missing = the start-up values.
++        // Optional: "c=<cfg scale>", "cs=<CFG only on the first cs % of the steps>", "g=<negative prompt>", "a=<sampler>", "k=<scheduler>" (sd.cpp names, e.g. dpm++2m_sde / sgm_uniform); missing = the start-up values.
 +        // img2img: "i=<init image png>", "r=<strength>", inpainting mask "m=<png>". Hires fix: "hz=1", "hu=<upscaler: Latent, Lanczos, ... or a model in --hires-upscalers-dir>", "hs=<scale>" or "hw=" / "hh=" (target size), "hn=<steps>", "hd=<denoise>".
 +        // ADetailer: "ad=<detector .safetensors>", "ap=<detail prompt>", "ax=<extra ad args>". Live preview: "pv=vae|proj", "pp=<png>", "pi=<every n steps>".
 +        if (const char* serve_dir_c = std::getenv("SD_SERVE"); serve_dir_c && cli_params.mode == IMG_GEN) {
@@ -61,6 +61,7 @@ index ee1e56f..95c5318 100644
 +                gen_params.sample_params = gen_defaults.sample_params;
 +                gen_params.negative_prompt = job.count("g") ? job["g"] : gen_defaults.negative_prompt;
 +                if (job.count("c")) gen_params.sample_params.guidance.txt_cfg = (float)atof(job["c"].c_str());
++                if (job.count("cs")) setenv("SD_CFG_PCT", job["cs"].c_str(), 1); else unsetenv("SD_CFG_PCT");   // CFG only on the first cs % of the steps
 +                if (job.count("a")) { auto m = str_to_sample_method(job["a"].c_str()); if (m != SAMPLE_METHOD_COUNT) gen_params.sample_params.sample_method = m; }
 +                if (job.count("k")) { auto k = str_to_scheduler(job["k"].c_str()); if (k != SCHEDULER_COUNT) gen_params.sample_params.scheduler = k; }
 +                gen_params.init_image = SDImageOwner(); gen_params.strength = gen_defaults.strength;
@@ -112,6 +113,23 @@ index ee1e56f..95c5318 100644
          if (cli_params.mode == IMG_GEN) {
              sd_image_t* generated_images = nullptr;
              if (!generate_image(sd_ctx.get(), &img_gen_params, &generated_images, &num_results)) {
+diff --git a/src/pipeline/diffusion_engine.cpp b/src/pipeline/diffusion_engine.cpp
+index 6a1ff35..6c6f8fb 100644
+--- a/src/pipeline/diffusion_engine.cpp
++++ b/src/pipeline/diffusion_engine.cpp
+@@ -2716,6 +2716,12 @@ sd::Tensor<float> StableDiffusionGGML::sample(const std::shared_ptr<DiffusionMod
+         float effective_guidance_scale = guidance_schedule.empty()
+                                              ? cfg_scale
+                                              : guidance_schedule[guidance_schedule.size() - 1 - step];
++        // HexAnima: SD_CFG_PCT=<percent> keeps CFG on the first <percent> of the steps only; later steps run with scale 1, which skips the
++        // unconditioned (negative prompt) pass below. Those steps only refine details, so the picture stays nearly the same.
++        if (const char* cfg_pct = std::getenv("SD_CFG_PCT")) {
++            const float pct = (float)atof(cfg_pct);
++            if (pct > 0.f && pct < 100.f && std::abs(step) > (int)std::ceil(pct / 100.f * (float)steps)) effective_guidance_scale = 1.0f;
++        }
+ 
+         float image_guidance_scale = img_cfg_scale;
+ 
 --- a/src/model/diffusion/anima.hpp
 +++ b/src/model/diffusion/anima.hpp
 @@ -857,6 +857,7 @@

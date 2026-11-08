@@ -82,6 +82,8 @@ if [ -z "$ANIMA_NOSERVE" ]; then
   printf 'p=%s\ns=%s\nn=%s\no=%s\nd=%s\nw=%s\nh=%s\nv=%s\n' "${PREFIX:-best quality, score_7, score_9, very aesthetic, ultra detailed, high contrast, anime coloring, }$P1" "${2:--1}" "${STEPS:-4}" "$OUT" "$ROOT/$ID" "${W:-512}" "${H:-768}" "$V" > $SQ/job.tmp
   printf 'c=%s\na=%s\nk=%s\n' "${CFG:-1}" "${SAMPLER:-euler}" "${SCHED:-discrete}" >> $SQ/job.tmp
   [ -n "$NEG" ] && printf 'g=%s\n' "$(printf '%s' "$NEG" | tr '\n' ' ')" >> $SQ/job.tmp
+  # CFG_CUT=<percent>: CFG only on the first <percent> of the steps, the later ones skip the negative-prompt pass (sd.cpp SD_CFG_PCT)
+  [ -n "$CFG_CUT" ] && [ "$CFG_CUT" -lt 100 ] && printf 'cs=%s\n' "$CFG_CUT" >> $SQ/job.tmp
   [ -n "$INIT" ] && printf 'i=%s\nr=%s\n' "$INIT" "${STRENGTH:-0.6}" >> $SQ/job.tmp
   [ -n "$INIT" ] && [ -n "$MASK" ] && printf 'm=%s\n' "$MASK" >> $SQ/job.tmp   # inpainting: only the white part of the mask is redrawn
   [ -n "$HIRES" ] && printf 'hz=1\nhu=%s\nhs=%s\nhn=%s\nhd=%s\n' "${HIRES_UP:-Latent}" "${HIRES_SCALE:-1.5}" "${HIRES_STEPS:-4}" "${HIRES_DENOISE:-0.45}" >> $SQ/job.tmp
