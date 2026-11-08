@@ -173,3 +173,72 @@
 172	Protokoll senden
 173	Autoren und Links
 174	Lizenzen der Komponenten
+175	, experimentell
+176	Chip %s: unterstützt (%s)
+177	Zu groß: höchstens 6144 Patches (z. B. 1536×1024)
+178	Kompatibel: Rang %d, %d von 42 Blöcken
+179	Hoher Rang: Beim Zusammenführen mit dem Turbo-Adapter können feine Details verloren gehen
+180	Der Textencoder-Teil wird nicht angewendet
+181	Einige zusätzliche Tensoren werden übersprungen
+182	Diese LoRA ist für ein anderes Modell (FLUX, SDXL o. Ä.) und passt nicht zu MOSS-Image.
+183	Diese Datei sieht nicht wie eine MOSS-Image-LoRA aus: Die erwarteten Schichten (layers.N.proj.*) fehlen.
+184	Die Datei enthält nur LoRA-Gewichte für den Textencoder. Diese werden noch nicht unterstützt.
+185	Die Schichtgrößen passen nicht zu MOSS-Image (%s). Wahrscheinlich ist es eine LoRA für eine andere Version des Modells.
+186	Der Rang ist zu groß (%s). Unterstützt: 1 bis 128.
+187	Die LoRA enthält Blöcke, die MOSS-Image nicht hat (%s).
+188	Nicht unterstütztes Gewichtsformat: Es werden F32, F16 oder BF16 benötigt.
+189	Die Datei kann nicht gelesen werden (%s). Benötigt wird eine .safetensors-Datei.
+190	Prüfung fehlgeschlagen: %s %s
+191	Zu groß: höchstens 4608 Patches (z. B. 1152×1024)
+192	LORA  ·  optional
+193	keine
+194	Wählen
+195	Stärke
+196	FOTO BEARBEITEN  ·  optional
+197	Foto %d×%d. Der Prompt sagt, was geändert werden soll, z. B. „mach den Himmel zu einem Sonnenuntergang“.
+198	Wähle ein Foto, um es per Prompt zu ändern. Ohne Foto zeichnet das Modell einfach ein Bild.
+199	Das Foto kann nicht geöffnet werden: %s
+200	Eine .safetensors-Datei für MOSS-Image: Sie wird sofort nach der Auswahl geprüft
+201	Datei wird geprüft…
+202	die Datei ist größer als 1 GB
+203	Datei kann nicht gelesen werden: %s
+204	LoRA „%s“ passt nicht
+205	Qwen-Image: Textencoder, DiT und VAE laufen auf der NPU; die Gewichte werden für jedes Bild vom Speicher gestreamt
+206	MOSS-Image: Textencoder, DiT und VAE laufen auf der NPU; die Gewichte werden für jedes Bild vom Speicher gestreamt
+207	Tokenisierung…
+208	LoRA wird vorbereitet… %d/%d
+209	LoRA konnte nicht vorbereitet werden: %s
+210	Text wird vorbereitet…
+211	Text wird auf der NPU kodiert…
+212	Generierung fehlgeschlagen: %s (Protokoll files/moss/moss.log)
+213	Foto wird vorbereitet…
+214	Foto und Ergebnis zusammen sind zu groß: Wähle eine kleinere Größe
+215	Schritt 1/4 (Foto wird gelesen)
+216	Foto wird auf der NPU analysiert…
+217	Generierung fehlgeschlagen: %s (Protokoll files/qwen/qwen.log)
+218	Qualitäts-Tags vor dem Prompt (Anima-Modelle)
+219	Chip %s · unterstützt (%s)
+220	Dieses Telefon hat %.1f GB RAM: Für dieses Modell werden 12 GB empfohlen. Trotzdem herunterladen?
+221	QNN-Hinweise (Komponenten von Drittanbietern)
+222	Qwen-Image-Hinweise (vorgenommene Änderungen)
+223	MOSS-Image-Hinweise (vorgenommene Änderungen)
+224	Schließen
+225	Qualitäts-Tags: nur Anima
+226	Die Qualitäts-Tags aus den Einstellungen werden nur Prompts für Anima-Modelle hinzugefügt. MOSS-Image bekommt sie nicht, und die Einstellung ist ausgeblendet, solange MOSS-Image gewählt ist.
+227	MOSS-Image
+228	MOSS-Image 5B (Apache-2.0) ist ein zweites, größeres Modell: Beschreibe Bilder in ganzen Sätzen, nicht mit Tags. Textencoder, Transformer und Decoder laufen alle auf der NPU. Es braucht etwa 14 GB Speicher und wurde auf einem Telefon mit 12 GB RAM getestet. Die Gewichte werden für jedes Bild vom Speicher gestreamt: etwa 30 s für 512×768, etwa 80 s für 1 Mpx. Es gibt nichts vorzuladen.
+229	MOSS-Image-Größen
+230	Jede Größe funktioniert: Beide Seiten sind Vielfache von 16, mindestens 256, höchstens 6144 Patches (Breite/16 × Höhe/16), z. B. 1536×1024. Der 4-Schritt-Adapter wurde mit etwa 1 Mpx trainiert (1024×1024, 832×1216…), kleinere Größen funktionieren aber auch. Größen ohne fertigen Decoder werden in Kacheln dekodiert, daher kann sich der Farbton leicht verschieben.
+231	LoRA für MOSS-Image
+232	Wähle eine eigene .safetensors-Datei für MOSS-Image (LoRAs für FLUX, SDXL und andere Modelle passen nicht). Sie wird sofort nach der Auswahl geprüft, und wenn sie nicht passt, nennt die App den Grund. Stärke 1,00 ist die Einstellung des Autors: niedriger ist schwächer, höher ist stärker. Das erste Bild mit einer neuen LoRA oder Stärke braucht etwa 15 s zur Vorbereitung (temporäre Dateien von etwa 300 MB). Für die Nutzung einer LoRA gilt die Lizenz ihres Autors.
+233	Qwen-Image 2.1
+234	Qwen-Image 2.1 Turbo (Qwen-Team) mit dem 4-Schritt-Lightning-Adapter (LightX2V): zeichnet lesbaren Text in Bildern und folgt langen Prompts in ganzen Sätzen. Textencoder, ViT, Transformer und VAE laufen alle auf der NPU; es braucht etwa 14 GB Speicher, empfohlen wird ein Telefon mit 12 GB RAM. Nur nicht-kommerzielle Nutzung (Qwen Research License).
+235	Fotos bearbeiten
+236	Wähle im Block „Foto bearbeiten“ ein Foto und schreibe, was geändert werden soll: „mach den Himmel zu einem Sonnenuntergang“, „entferne die Person rechts“. Das Ergebnis entsteht aus deinem Foto und dem Prompt; die Ausgabegröße folgt dem Seitenverhältnis des Fotos, und das Foto selbst wird auf etwa 0,4 Mpx verkleinert. Wenn der erste Versuch nicht passt, probiere einen anderen Seed. Ohne Foto zeichnet das Modell von Grund auf. Das Bearbeiten dauert etwa 1,3-mal so lange wie das normale Generieren.
+237	Qwen-Image-Größen
+238	Beide Seiten sind Vielfache von 16, die Patch-Anzahl (Breite/16 × Höhe/16) ist durch 32 teilbar und höchstens 4608, z. B. 1024×1024 oder 768×1152. Beim Bearbeiten müssen Foto und Ergebnis zusammen unter etwa 6800 Patches bleiben.
+239	MOSS-Image-Lizenzen
+240	MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen-Team), der rapid-moss-Adapter (darask0, lodestones), der kleine FLUX.2-Decoder (Black Forest Labs) und die Unsloth-Quantisierungen stehen alle unter der Apache License 2.0. Die Dateien sind für die NPU konvertierte Kopien; die Änderungen sind in den Hinweisen unten aufgeführt. Die Lizenztexte stehen ganz unten unter „Lizenzen der Komponenten“.
+241	Speicherschonmodus (langsamer)
+242	Die Gewichte des Modells werden für jedes Bild vom Speicher gelesen, statt im RAM zu bleiben. Nötig bei Telefonen mit 8 GB RAM, bei 12 GB nicht.
+243	  ·  App %.1f GB

@@ -173,3 +173,72 @@
 172	Gửi nhật ký
 173	Tác giả và liên kết
 174	Giấy phép thành phần
+175	, thử nghiệm
+176	Chip %s: được hỗ trợ (%s)
+177	Quá lớn: tối đa 6144 patch (vd. 1536×1024)
+178	Tương thích: rank %d, %d trên 42 khối
+179	Rank cao: một số chi tiết nhỏ có thể mất khi gộp với adapter turbo
+180	Phần text encoder không được áp dụng
+181	Một số tensor bổ sung bị bỏ qua
+182	LoRA này dành cho model khác (FLUX, SDXL hoặc tương tự). Nó không phù hợp với MOSS-Image.
+183	Tệp này không giống LoRA của MOSS-Image: thiếu các lớp cần có (layers.N.proj.*).
+184	Tệp chỉ có trọng số LoRA của text encoder. Loại này chưa được hỗ trợ.
+185	Kích thước lớp không khớp với MOSS-Image (%s). Có thể đây là LoRA cho phiên bản khác của model.
+186	Rank quá lớn (%s). Hỗ trợ: từ 1 đến 128.
+187	LoRA có các khối mà MOSS-Image không có (%s).
+188	Định dạng trọng số không được hỗ trợ: cần F32, F16 hoặc BF16.
+189	Không đọc được tệp (%s). Cần tệp .safetensors.
+190	Kiểm tra thất bại: %s %s
+191	Quá lớn: tối đa 4608 patch (vd. 1152×1024)
+192	LORA  ·  tùy chọn
+193	không có
+194	Chọn
+195	Cường độ
+196	SỬA ẢNH  ·  tùy chọn
+197	Ảnh %d×%d. Prompt nói cần đổi gì, vd. "đổi bầu trời thành hoàng hôn".
+198	Chọn một ảnh để sửa theo prompt. Không có ảnh thì model chỉ vẽ một bức tranh.
+199	Không mở được ảnh: %s
+200	Tệp .safetensors cho MOSS-Image: được kiểm tra ngay khi bạn chọn
+201	Đang kiểm tra tệp…
+202	tệp lớn hơn 1 GB
+203	Không đọc được tệp: %s
+204	LoRA "%s" không phù hợp
+205	Qwen-Image: text encoder, DiT và VAE chạy trên NPU; trọng số được đọc từ bộ nhớ cho mỗi ảnh
+206	MOSS-Image: text encoder, DiT và VAE chạy trên NPU; trọng số được đọc từ bộ nhớ cho mỗi ảnh
+207	Đang tách token…
+208	Đang chuẩn bị LoRA… %d/%d
+209	Không chuẩn bị được LoRA: %s
+210	Đang chuẩn bị văn bản…
+211	Đang mã hóa văn bản trên NPU…
+212	Tạo ảnh thất bại: %s (nhật ký files/moss/moss.log)
+213	Đang chuẩn bị ảnh…
+214	Ảnh và kết quả cộng lại quá lớn: hãy chọn kích thước nhỏ hơn
+215	Bước 1/4 (đang đọc ảnh)
+216	Đang phân tích ảnh trên NPU…
+217	Tạo ảnh thất bại: %s (nhật ký files/qwen/qwen.log)
+218	Tag chất lượng đặt trước prompt (model Anima)
+219	Chip %s · được hỗ trợ (%s)
+220	Điện thoại này có %.1f GB RAM: model này nên dùng 12 GB. Vẫn tải xuống?
+221	Thông báo QNN (thành phần của bên thứ ba)
+222	Thông báo Qwen-Image (các thay đổi đã thực hiện)
+223	Thông báo MOSS-Image (các thay đổi đã thực hiện)
+224	Đóng
+225	Tag chất lượng: chỉ Anima
+226	Tag chất lượng trong Cài đặt chỉ được thêm vào prompt của model Anima. MOSS-Image không nhận chúng, và tùy chọn này bị ẩn khi MOSS-Image đang được chọn.
+227	MOSS-Image
+228	MOSS-Image 5B (Apache-2.0) là model thứ hai, lớn hơn: hãy mô tả ảnh bằng câu thường, không dùng tag. Text encoder, transformer và decoder đều chạy trên NPU. Cần khoảng 14 GB bộ nhớ và đã được thử trên điện thoại 12 GB RAM. Trọng số được đọc từ bộ nhớ cho mỗi ảnh: khoảng 30 giây cho 512×768, khoảng 80 giây cho 1 Mpx. Không có gì cần tải trước.
+229	Kích thước MOSS-Image
+230	Kích thước nào cũng được: cả hai cạnh là bội số của 16, tối thiểu 256, tối đa 6144 patch (rộng/16 × cao/16), ví dụ 1536×1024. Adapter 4 bước được huấn luyện ở khoảng 1 Mpx (1024×1024, 832×1216…), nhưng kích thước nhỏ hơn cũng chạy được. Kích thước chưa có decoder dựng sẵn được giải mã theo từng ô, nên tông màu có thể lệch nhẹ.
+231	LoRA cho MOSS-Image
+232	Chọn tệp .safetensors của riêng bạn làm cho MOSS-Image (LoRA cho FLUX, SDXL và model khác không phù hợp). Tệp được kiểm tra ngay khi chọn, và nếu không phù hợp ứng dụng sẽ nêu lý do. Cường độ 1,00 là thiết lập của tác giả: thấp hơn thì yếu hơn, cao hơn thì mạnh hơn. Ảnh đầu tiên với LoRA hoặc cường độ mới mất khoảng 15 giây để chuẩn bị (tệp tạm khoảng 300 MB). Việc dùng LoRA tuân theo giấy phép của tác giả.
+233	Qwen-Image 2.1
+234	Qwen-Image 2.1 Turbo (nhóm Qwen) với adapter Lightning 4 bước (LightX2V): vẽ chữ đọc được trong ảnh và làm theo các prompt dài viết bằng câu thường. Text encoder, ViT, transformer và VAE đều chạy trên NPU; cần khoảng 14 GB bộ nhớ và nên dùng điện thoại 12 GB RAM. Chỉ dùng phi thương mại (Qwen Research License).
+235	Sửa ảnh
+236	Chọn một ảnh trong khối Sửa ảnh và viết cần đổi gì: "đổi bầu trời thành hoàng hôn", "xóa người bên phải". Kết quả được tạo từ ảnh của bạn và prompt; kích thước đầu ra theo tỉ lệ ảnh, và ảnh được thu nhỏ còn khoảng 0,4 Mpx. Nếu lần đầu chưa như ý, hãy thử seed khác. Không có ảnh thì model vẽ từ đầu. Sửa ảnh mất khoảng gấp 1,3 lần thời gian tạo ảnh thường.
+237	Kích thước Qwen-Image
+238	Cả hai cạnh là bội số của 16, số patch (rộng/16 × cao/16) chia hết cho 32 và tối đa 4608, ví dụ 1024×1024 hoặc 768×1152. Khi sửa ảnh, ảnh và kết quả cộng lại phải trong khoảng 6800 patch.
+239	Giấy phép MOSS-Image
+240	MOSS-Image (OpenMOSS), Qwen3.5-9B (nhóm Qwen), adapter rapid-moss (darask0, lodestones), decoder nhỏ FLUX.2 (Black Forest Labs) và các bản lượng tử hóa của Unsloth đều theo Apache License 2.0. Các tệp là bản sao đã chuyển đổi cho NPU; các thay đổi được liệt kê trong phần thông báo bên dưới. Văn bản giấy phép nằm ở cuối, trong Giấy phép thành phần.
+241	Chế độ tiết kiệm bộ nhớ (chậm hơn)
+242	Trọng số của model được đọc từ bộ nhớ cho mỗi ảnh thay vì giữ trong RAM. Cần cho điện thoại 8 GB RAM, không cần với 12 GB.
+243	  ·  ứng dụng %.1f GB

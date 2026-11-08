@@ -346,6 +346,7 @@ int main(int argc, char** argv) {
         bool grp = !access((ph + "/q4/blk6.bin").c_str(), F_OK) && !getenv("ANIMAD_NOGROUPS");
         if (hmx) {   // ANIMAD_HMXG="9,9,10" = blocks per megarun process (big token counts need a bigger activation buffer per process, so fewer weight buffers fit)
             std::vector<int> cnt = {10, 10, 8}; if (nblk == 40) cnt = {10, 10, 10, 10};
+            if (getenv("MEGA_STREAM")) cnt = {nblk};   // low-memory mode: the blocks are streamed through two buffers, so one worker holds them all (a worker per ~10 blocks only existed to stay under the DSP's mapping limit)
             if (const char* g = getenv("ANIMAD_HMXG")) { cnt.clear(); for (const char* p = g; *p;) { cnt.push_back(atoi(p)); while (*p && *p != ',') p++; if (*p) p++; } }
             int f0 = 0; for (int c : cnt) { ch.push_back(spawn_mega(ph, f0, c, hd)); f0 += c; }
         }   // one DSP process maps at most ~13 of the 126 MB weight buffers

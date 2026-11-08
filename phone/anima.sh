@@ -26,11 +26,12 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
-if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "${MODEL:-2}" ]; then   # loaded server holds another model: restart it
+KEY=${MODEL:-2}${MEGA_STREAM:+s}   # the low-memory (streaming) mode is part of the key: switching it restarts the server
+if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$KEY" ]; then   # loaded server holds another model (or runs in the other memory mode): restart it
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi
 if ! pidof $NA >/dev/null; then
-  echo ${MODEL:-2} > $A/model
+  echo $KEY > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
   cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
   while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done

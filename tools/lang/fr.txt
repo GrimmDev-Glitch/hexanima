@@ -173,3 +173,72 @@
 172	Envoyer le journal
 173	Auteurs et liens
 174	Licences des composants
+175	, expérimental
+176	Puce %s : prise en charge (%s)
+177	Trop grand : 6144 patchs au maximum (p. ex. 1536×1024)
+178	Compatible : rang %d, %d blocs sur 42
+179	Rang élevé : certains détails fins peuvent être perdus lors de la fusion avec l'adaptateur turbo
+180	La partie encodeur de texte n'est pas appliquée
+181	Certains tenseurs supplémentaires sont ignorés
+182	Ce LoRA est conçu pour un autre modèle (FLUX, SDXL ou similaire). Il ne convient pas à MOSS-Image.
+183	Ce fichier ne ressemble pas à un LoRA MOSS-Image : les couches attendues (layers.N.proj.*) sont absentes.
+184	Le fichier ne contient que des poids LoRA de l'encodeur de texte. Ils ne sont pas encore pris en charge.
+185	Les tailles de couches ne correspondent pas à MOSS-Image (%s). C'est probablement un LoRA pour une autre version du modèle.
+186	Le rang est trop grand (%s). Pris en charge : de 1 à 128.
+187	Le LoRA contient des blocs que MOSS-Image n'a pas (%s).
+188	Format de poids non pris en charge : F32, F16 ou BF16 requis.
+189	Impossible de lire le fichier (%s). Un fichier .safetensors est nécessaire.
+190	Échec de la vérification : %s %s
+191	Trop grand : 4608 patchs au maximum (p. ex. 1152×1024)
+192	LORA  ·  facultatif
+193	aucun
+194	Choisir
+195	Intensité
+196	MODIFIER UNE PHOTO  ·  facultatif
+197	Photo %d×%d. Le prompt dit quoi changer, p. ex. « fais du ciel un coucher de soleil ».
+198	Choisissez une photo pour la modifier avec le prompt. Sans photo, le modèle dessine simplement une image.
+199	Impossible d'ouvrir la photo : %s
+200	Un fichier .safetensors pour MOSS-Image : il est vérifié dès que vous le choisissez
+201	Vérification du fichier…
+202	le fichier dépasse 1 Go
+203	Impossible de lire le fichier : %s
+204	Le LoRA « %s » ne convient pas
+205	Qwen-Image : l'encodeur de texte, le DiT et le VAE tournent sur le NPU ; les poids sont lus depuis le stockage pour chaque image
+206	MOSS-Image : l'encodeur de texte, le DiT et le VAE tournent sur le NPU ; les poids sont lus depuis le stockage pour chaque image
+207	Tokenisation…
+208	Préparation du LoRA… %d/%d
+209	Impossible de préparer le LoRA : %s
+210	Préparation du texte…
+211	Encodage du texte sur le NPU…
+212	Échec de la génération : %s (journal files/moss/moss.log)
+213	Préparation de la photo…
+214	La photo et le résultat réunis sont trop grands : choisissez une taille plus petite
+215	Étape 1/4 (lecture de la photo)
+216	Analyse de la photo sur le NPU…
+217	Échec de la génération : %s (journal files/qwen/qwen.log)
+218	Tags de qualité avant le prompt (modèles Anima)
+219	Puce %s · prise en charge (%s)
+220	Ce téléphone a %.1f Go de RAM : 12 Go sont recommandés pour ce modèle. Télécharger quand même ?
+221	Mentions QNN (composants tiers)
+222	Mentions Qwen-Image (modifications apportées)
+223	Mentions MOSS-Image (modifications apportées)
+224	Fermer
+225	Tags de qualité : Anima uniquement
+226	Les tags de qualité des Réglages ne sont ajoutés qu'aux prompts des modèles Anima. MOSS-Image n'en reçoit pas, et le réglage est masqué tant que MOSS-Image est sélectionné.
+227	MOSS-Image
+228	MOSS-Image 5B (Apache-2.0) est un second modèle, plus grand : décrivez les images en phrases normales, pas en tags. L'encodeur de texte, le transformer et le décodeur tournent tous sur le NPU. Il demande environ 14 Go de stockage et a été testé sur un téléphone avec 12 Go de RAM. Ses poids sont lus depuis le stockage pour chaque image : environ 30 s pour 512×768, environ 80 s pour 1 Mpx. Il n'y a rien à précharger.
+229	Tailles MOSS-Image
+230	Toute taille convient : les deux côtés sont des multiples de 16, d'au moins 256, avec 6144 patchs au maximum (largeur/16 × hauteur/16), par exemple 1536×1024. L'adaptateur 4 étapes a été entraîné à environ 1 Mpx (1024×1024, 832×1216…), mais les tailles plus petites fonctionnent aussi. Les tailles sans décodeur prêt sont décodées par tuiles, la teinte peut donc varier légèrement.
+231	LoRA pour MOSS-Image
+232	Choisissez votre propre fichier .safetensors conçu pour MOSS-Image (les LoRA pour FLUX, SDXL et d'autres modèles ne conviennent pas). Il est vérifié dès que vous le choisissez, et s'il ne convient pas, l'appli dit pourquoi. Intensité 1,00 = réglage de l'auteur : moins est plus faible, plus est plus fort. La première image avec un nouveau LoRA ou une nouvelle intensité passe environ 15 s à le préparer (fichiers temporaires d'environ 300 Mo). L'usage d'un LoRA est soumis à la licence de son auteur.
+233	Qwen-Image 2.1
+234	Qwen-Image 2.1 Turbo (équipe Qwen) avec l'adaptateur Lightning 4 étapes (LightX2V) : dessine du texte lisible dans les images et suit de longs prompts écrits en phrases normales. L'encodeur de texte, le ViT, le transformer et le VAE tournent tous sur le NPU ; il demande environ 14 Go de stockage et un téléphone avec 12 Go de RAM est recommandé. Usage non commercial uniquement (Qwen Research License).
+235	Édition de photos
+236	Choisissez une photo dans le bloc Modifier une photo et écrivez ce qu'il faut changer : « fais du ciel un coucher de soleil », « enlève la personne à droite ». Le résultat est construit à partir de votre photo et du prompt ; la taille de sortie suit la forme de la photo, et la photo elle-même est réduite à environ 0,4 Mpx. Si le premier essai ne convient pas, essayez une autre graine. Sans photo, le modèle dessine à partir de zéro. L'édition prend environ 1,3 fois plus de temps que la génération simple.
+237	Tailles Qwen-Image
+238	Les deux côtés sont des multiples de 16, le nombre de patchs (largeur/16 × hauteur/16) est divisible par 32 et d'au plus 4608, par exemple 1024×1024 ou 768×1152. En édition, la photo et le résultat réunis doivent rester sous environ 6800 patchs.
+239	Licences MOSS-Image
+240	MOSS-Image (OpenMOSS), Qwen3.5-9B (équipe Qwen), l'adaptateur rapid-moss (darask0, lodestones), le petit décodeur FLUX.2 (Black Forest Labs) et les quantifications Unsloth sont tous sous Apache License 2.0. Les fichiers sont des copies converties pour le NPU ; les modifications sont listées dans les mentions ci-dessous. Les textes des licences sont tout en bas, sous Licences des composants.
+241	Mode économie de mémoire (plus lent)
+242	Les poids du modèle sont lus depuis le stockage pour chaque image au lieu de rester en RAM. Utile sur les téléphones à 8 Go de RAM, inutile avec 12 Go.
+243	  ·  appli %.1f Go

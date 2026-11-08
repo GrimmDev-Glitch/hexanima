@@ -173,39 +173,72 @@ Chip %s · Android %s	Yonga %s · Android %s
 Send the log	Günlüğü gönder
 Authors and links	Yapımcılar ve bağlantılar
 Component licenses	Bileşen lisansları
+, experimental	, deneysel
+Chip %s: supported (%s)	Yonga %s: destekleniyor (%s)
+Too large: at most 6144 patches (e.g. 1536×1024)	Çok büyük: en fazla 6144 yama (ör. 1536×1024)
+Compatible: rank %d, %d of 42 blocks	Uyumlu: rank %d, 42 bloktan %d
+High rank: some fine detail may be lost when it is merged with the turbo adapter	Yüksek rank: turbo adaptörle birleştirilirken bazı ince ayrıntılar kaybolabilir
+The text-encoder part is not applied	Metin kodlayıcı kısmı uygulanmaz
+Some extra tensors are skipped	Bazı ek tensörler atlanır
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	Bu LoRA başka bir model için (FLUX, SDXL veya benzeri). MOSS-Image'a uymaz.
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	Bu dosya bir MOSS-Image LoRA'sına benzemiyor: beklenen katmanlar (layers.N.proj.*) yok.
+The file only has text-encoder LoRA weights. Those are not supported yet.	Dosyada yalnızca metin kodlayıcı LoRA ağırlıkları var. Bunlar henüz desteklenmiyor.
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	Katman boyutları MOSS-Image ile uyuşmuyor (%s). Büyük olasılıkla modelin başka bir sürümü için bir LoRA.
+The rank is too large (%s). Supported: 1 to 128.	Rank çok büyük (%s). Desteklenen: 1 ile 128 arası.
+The LoRA has blocks that MOSS-Image does not have (%s).	LoRA'da MOSS-Image'da olmayan bloklar var (%s).
+Unsupported weight format: F32, F16 or BF16 are needed.	Desteklenmeyen ağırlık biçimi: F32, F16 veya BF16 gerekir.
+Cannot read the file (%s). A .safetensors file is needed.	Dosya okunamıyor (%s). Bir .safetensors dosyası gerekir.
+Check failed: %s %s	Kontrol başarısız: %s %s
+Too large: at most 4608 patches (e.g. 1152×1024)	Çok büyük: en fazla 4608 yama (ör. 1152×1024)
 LORA  ·  optional	LORA  ·  isteğe bağlı
 none	yok
 Choose	Seç
 Strength	Güç
-A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image için bir .safetensors dosyası: seçer seçmez denetlenir
-Checking the file…	Dosya denetleniyor…
+EDIT A PHOTO  ·  optional	FOTOĞRAF DÜZENLE  ·  isteğe bağlı
+Photo %d×%d. The prompt says what to change, e.g. "make the sky a sunset".	Fotoğraf %d×%d. Prompt neyin değişeceğini söyler, ör. "gökyüzünü gün batımı yap".
+Pick a photo to change it by the prompt. Without one the model just draws a picture.	Prompt ile değiştirmek için bir fotoğraf seç. Fotoğraf olmadan model sadece bir resim çizer.
+Cannot open the photo: %s	Fotoğraf açılamıyor: %s
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image için bir .safetensors dosyası: seçer seçmez kontrol edilir
+Checking the file…	Dosya kontrol ediliyor…
+the file is larger than 1 GB	dosya 1 GB'tan büyük
 Cannot read the file: %s	Dosya okunamıyor: %s
-the file is larger than 1 GB	dosya 1 GB’tan büyük
-LoRA "%s" does not fit	LoRA “%s” uyumlu değil
-Compatible: rank %d, %d of 42 blocks	Uyumlu: rank %d, 42 bloktan %d
-High rank: some fine detail may be lost when it is merged with the turbo adapter	Yüksek rank: turbo adaptörle birleştirilirken bazı ince ayrıntılar kaybolabilir
-The text-encoder part is not applied	Metin kodlayıcı kısmı uygulanmaz
-Some extra tensors are skipped	Bazı fazla tensörler atlandı
-This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	Bu LoRA başka bir model (FLUX, SDXL veya benzeri) içindir. MOSS-Image ile uyumlu değil.
-This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	Bu dosya bir MOSS-Image LoRA’sına benzemiyor: beklenen katmanlar (layers.N.proj.*) yok.
-The file only has text-encoder LoRA weights. Those are not supported yet.	Dosyada yalnızca metin kodlayıcı LoRA ağırlıkları var. Bunlar henüz desteklenmiyor.
-Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	Katman boyutları MOSS-Image ile uyuşmuyor (%s). Muhtemelen modelin başka bir sürümü için bir LoRA.
-The rank is too large (%s). Supported: 1 to 128.	Rank çok büyük (%s). Desteklenen: 1 ile 128 arası.
-The LoRA has blocks that MOSS-Image does not have (%s).	LoRA’da MOSS-Image’de bulunmayan bloklar var (%s).
-Unsupported weight format: F32, F16 or BF16 are needed.	Desteklenmeyen ağırlık biçimi: F32, F16 veya BF16 gerekir.
-Cannot read the file (%s). A .safetensors file is needed.	Dosya okunamıyor (%s). Bir .safetensors dosyası gerekir.
-Check failed: %s %s	Denetim başarısız: %s %s
+LoRA "%s" does not fit	"%s" LoRA'sı uymuyor
+Qwen-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	Qwen-Image: metin kodlayıcı, DiT ve VAE NPU'da çalışır; ağırlıklar her resim için depolamadan akıtılır
+MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	MOSS-Image: metin kodlayıcı, DiT ve VAE NPU'da çalışır; ağırlıklar her resim için depolamadan akıtılır
+Tokenising…	Tokenleştiriliyor…
 Preparing the LoRA… %d/%d	LoRA hazırlanıyor… %d/%d
 Could not prepare the LoRA: %s	LoRA hazırlanamadı: %s
-Quality tags: Anima only	Kalite etiketleri: yalnızca Anima
-The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	Ayarlar’daki kalite etiketleri yalnızca Anima modellerinin açıklamalarına eklenir. MOSS-Image bunları almaz ve MOSS-Image seçiliyken bu ayar gizlenir.
-MOSS-Image	MOSS-Image
-MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B (Apache-2.0) ikinci, daha büyük bir modeldir: resimleri etiketlerle değil, düz cümlelerle anlatın. Metin kodlayıcı, transformer ve çözücünün hepsi NPU üzerinde çalışır. Yaklaşık 14 GB depolama gerekir ve 12 GB RAM’li bir telefonda denenmiştir. Ağırlıklar her resim için depolamadan okunur: 512×768 için yaklaşık 30 sn, 1 Mpx için yaklaşık 80 sn. Önceden yüklenecek bir şey yok.
-MOSS-Image sizes	MOSS-Image boyutları
-Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	Her boyut çalışır: iki kenar da 16’nın katı, en az 256 ve en fazla 6144 yama (genişlik/16 × yükseklik/16) olmalı, örneğin 1536×1024. 4 adımlı adaptör yaklaşık 1 Mpx ile (1024×1024, 832×1216…) eğitildi, ancak daha küçük boyutlar da çalışır. Hazır çözücüsü olmayan boyutlar karolar halinde çözülür, bu yüzden ton hafifçe kayabilir.
-LoRA for MOSS-Image	MOSS-Image için LoRA
-Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image için hazırlanmış kendi .safetensors dosyanızı seçin (FLUX, SDXL ve diğer modellerin LoRA’ları uymaz). Dosya seçer seçmez denetlenir; uymazsa uygulama nedenini söyler. 1,00 gücü yazarın ayarıdır: düşürürseniz etki zayıflar, artırırsanız güçlenir. Yeni bir LoRA veya güçle ilk resim, hazırlık için yaklaşık 15 sn harcar (yaklaşık 300 MB geçici dosya). Bir LoRA’nın kullanımı yazarının lisansına tabidir.
-MOSS-Image licenses	MOSS-Image lisansları
-MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen ekibi), rapid-moss adaptörü (darask0, lodestones), FLUX.2 small çözücüsü (Black Forest Labs) ve Unsloth nicemlemelerinin hepsi Apache License 2.0 altındadır. Dosyalar NPU için dönüştürülmüş kopyalardır; yapılan değişiklikler aşağıdaki bildirimlerde listelenmiştir. Lisans metinleri en altta, Bileşen lisansları bölümündedir.
+Preparing the text…	Metin hazırlanıyor…
+Encoding the text on the NPU…	Metin NPU'da kodlanıyor…
+Generation failed: %s (log files/moss/moss.log)	Üretim başarısız: %s (günlük files/moss/moss.log)
+Preparing the photo…	Fotoğraf hazırlanıyor…
+The photo and the result together are too large: pick a smaller size	Fotoğraf ve sonuç birlikte çok büyük: daha küçük bir boyut seç
+Step 1/4 (reading the photo)	Adım 1/4 (fotoğraf okunuyor)
+Analysing the photo on the NPU…	Fotoğraf NPU'da analiz ediliyor…
+Generation failed: %s (log files/qwen/qwen.log)	Üretim başarısız: %s (günlük files/qwen/qwen.log)
+Quality tags before the prompt (Anima models)	Prompt'tan önce kalite etiketleri (Anima modelleri)
+Chip %s · supported (%s)	Yonga %s · destekleniyor (%s)
+This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?	Bu telefonda %.1f GB RAM var: bu model için 12 GB önerilir. Yine de indirilsin mi?
+QNN notices (third-party components)	QNN bildirimleri (üçüncü taraf bileşenler)
+Qwen-Image notices (changes made)	Qwen-Image bildirimleri (yapılan değişiklikler)
 MOSS-Image notices (changes made)	MOSS-Image bildirimleri (yapılan değişiklikler)
-Quality tags before the prompt (Anima models)	Açıklamadan önce kalite etiketleri (Anima)
+Close	Kapat
+Quality tags: Anima only	Kalite etiketleri: yalnızca Anima
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	Ayarlar'daki kalite etiketleri yalnızca Anima modellerinin prompt'larına eklenir. MOSS-Image bunları almaz ve MOSS-Image seçiliyken ayar gizlenir.
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B (Apache-2.0) ikinci, daha büyük bir modeldir: resimleri etiketlerle değil, düz cümlelerle anlat. Metin kodlayıcı, transformer ve çözücü NPU'da çalışır. Yaklaşık 14 GB depolama gerektirir ve 12 GB RAM'li bir telefonda test edildi. Ağırlıkları her resim için depolamadan akıtılır: 512×768 için yaklaşık 30 sn, 1 Mpx için yaklaşık 80 sn. Önceden yüklenecek bir şey yok.
+MOSS-Image sizes	MOSS-Image boyutları
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	Her boyut olur: iki kenar da 16'nın katı, en az 256, en fazla 6144 yama (genişlik/16 × yükseklik/16), örneğin 1536×1024. 4 adımlı adaptör yaklaşık 1 Mpx'te eğitildi (1024×1024, 832×1216…), ama daha küçük boyutlar da çalışır. Hazır çözücüsü olmayan boyutlar karolar halinde çözülür, bu yüzden ton hafifçe kayabilir.
+LoRA for MOSS-Image	MOSS-Image için LoRA
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image için hazırlanmış kendi .safetensors dosyanı seç (FLUX, SDXL ve diğer modellerin LoRA'ları uymaz). Seçer seçmez kontrol edilir ve uymuyorsa uygulama nedenini söyler. Güç 1,00 yazarın ayarıdır: düşük daha zayıf, yüksek daha güçlüdür. Yeni bir LoRA veya güçle ilk resim hazırlık için yaklaşık 15 sn harcar (yaklaşık 300 MB geçici dosya). LoRA kullanımı yazarının lisansına tabidir.
+Qwen-Image 2.1	Qwen-Image 2.1
+Qwen-Image 2.1 Turbo (Qwen team) with the 4-step Lightning adapter (LightX2V): draws legible text in pictures and follows long prompts written as plain sentences. The text encoder, the ViT, the transformer and the VAE all run on the NPU; it needs about 14 GB of storage and a phone with 12 GB of RAM is recommended. Non-commercial use only (Qwen Research License).	Qwen-Image 2.1 Turbo (Qwen ekibi), 4 adımlı Lightning adaptörüyle (LightX2V): resimlerde okunaklı metin çizer ve düz cümlelerle yazılmış uzun prompt'ları izler. Metin kodlayıcı, ViT, transformer ve VAE NPU'da çalışır; yaklaşık 14 GB depolama gerektirir ve 12 GB RAM'li bir telefon önerilir. Yalnızca ticari olmayan kullanım (Qwen Research License).
+Editing photos	Fotoğraf düzenleme
+Pick a photo in the Edit a photo block and write what to change: "make the sky a sunset", "remove the person on the right". The result is built from your photo and the prompt; the output size follows the photo's shape and the photo itself is reduced to about 0.4 Mpx. If the first try is not what you wanted, try another seed. Without a photo the model draws from scratch. Editing takes about 1.3 times as long as plain generation.	Fotoğraf düzenle bloğunda bir fotoğraf seç ve neyin değişeceğini yaz: "gökyüzünü gün batımı yap", "sağdaki kişiyi kaldır". Sonuç fotoğrafından ve prompt'tan üretilir; çıktı boyutu fotoğrafın oranını izler ve fotoğraf yaklaşık 0,4 Mpx'e küçültülür. İlk deneme istediğin gibi değilse başka bir seed dene. Fotoğraf yoksa model sıfırdan çizer. Düzenleme, normal üretimden yaklaşık 1,3 kat uzun sürer.
+Qwen-Image sizes	Qwen-Image boyutları
+Both sides are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 4608, for example 1024×1024 or 768×1152. When editing, the photo and the result together must stay within about 6800 patches.	İki kenar da 16'nın katı, yama sayısı (genişlik/16 × yükseklik/16) 32'ye bölünebilir ve en fazla 4608 olmalı, örneğin 1024×1024 veya 768×1152. Düzenlerken fotoğraf ve sonuç birlikte yaklaşık 6800 yamayı aşmamalı.
+MOSS-Image licenses	MOSS-Image lisansları
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen ekibi), rapid-moss adaptörü (darask0, lodestones), FLUX.2 küçük çözücüsü (Black Forest Labs) ve Unsloth nicemlemelerinin hepsi Apache License 2.0 altındadır. Dosyalar NPU için dönüştürülmüş kopyalardır; değişiklikler aşağıdaki bildirimlerde listelenmiştir. Lisans metinleri en altta, Bileşen lisansları bölümündedir.
+Low-memory mode (slower)	Düşük bellek modu (daha yavaş)
+The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB.	Modelin ağırlıkları RAM'de kalmak yerine her resim için depolamadan okunur. 8 GB RAM'li telefonlarda gerekir, 12 GB'ta gerekmez.
+  ·  app %.1f GB	  ·  uygulama %.1f GB

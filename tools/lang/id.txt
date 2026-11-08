@@ -173,3 +173,72 @@
 172	Kirim log
 173	Pembuat dan tautan
 174	Lisensi komponen
+175	, eksperimental
+176	Chip %s: didukung (%s)
+177	Terlalu besar: maksimal 6144 patch (mis. 1536×1024)
+178	Kompatibel: rank %d, %d dari 42 blok
+179	Rank tinggi: sebagian detail halus bisa hilang saat digabung dengan adaptor turbo
+180	Bagian text encoder tidak diterapkan
+181	Beberapa tensor tambahan dilewati
+182	LoRA ini untuk model lain (FLUX, SDXL, atau sejenisnya). Tidak cocok untuk MOSS-Image.
+183	File ini tidak tampak seperti LoRA MOSS-Image: layer yang diharapkan (layers.N.proj.*) tidak ada.
+184	File ini hanya berisi bobot LoRA text encoder. Itu belum didukung.
+185	Ukuran layer tidak cocok dengan MOSS-Image (%s). Kemungkinan LoRA untuk versi model lain.
+186	Rank terlalu besar (%s). Yang didukung: 1 sampai 128.
+187	LoRA memiliki blok yang tidak ada di MOSS-Image (%s).
+188	Format bobot tidak didukung: perlu F32, F16, atau BF16.
+189	File tidak bisa dibaca (%s). Diperlukan file .safetensors.
+190	Pemeriksaan gagal: %s %s
+191	Terlalu besar: maksimal 4608 patch (mis. 1152×1024)
+192	LORA  ·  opsional
+193	tidak ada
+194	Pilih
+195	Kekuatan
+196	EDIT FOTO  ·  opsional
+197	Foto %d×%d. Prompt menyebutkan apa yang diubah, mis. "ubah langit jadi matahari terbenam".
+198	Pilih foto untuk diubah dengan prompt. Tanpa foto, model hanya menggambar sebuah gambar.
+199	Foto tidak bisa dibuka: %s
+200	File .safetensors untuk MOSS-Image: langsung diperiksa begitu dipilih
+201	Memeriksa file…
+202	file lebih besar dari 1 GB
+203	File tidak bisa dibaca: %s
+204	LoRA "%s" tidak cocok
+205	Qwen-Image: text encoder, DiT, dan VAE berjalan di NPU; bobot dialirkan dari penyimpanan untuk setiap gambar
+206	MOSS-Image: text encoder, DiT, dan VAE berjalan di NPU; bobot dialirkan dari penyimpanan untuk setiap gambar
+207	Tokenisasi…
+208	Menyiapkan LoRA… %d/%d
+209	LoRA tidak bisa disiapkan: %s
+210	Menyiapkan teks…
+211	Meng-encode teks di NPU…
+212	Pembuatan gagal: %s (log files/moss/moss.log)
+213	Menyiapkan foto…
+214	Foto dan hasilnya bersama-sama terlalu besar: pilih ukuran lebih kecil
+215	Langkah 1/4 (membaca foto)
+216	Menganalisis foto di NPU…
+217	Pembuatan gagal: %s (log files/qwen/qwen.log)
+218	Tag kualitas sebelum prompt (model Anima)
+219	Chip %s · didukung (%s)
+220	Ponsel ini punya RAM %.1f GB: 12 GB disarankan untuk model ini. Tetap unduh?
+221	Pemberitahuan QNN (komponen pihak ketiga)
+222	Pemberitahuan Qwen-Image (perubahan yang dibuat)
+223	Pemberitahuan MOSS-Image (perubahan yang dibuat)
+224	Tutup
+225	Tag kualitas: hanya Anima
+226	Tag kualitas dari Pengaturan hanya ditambahkan ke prompt untuk model Anima. MOSS-Image tidak mendapatkannya, dan pengaturan itu disembunyikan selama MOSS-Image dipilih.
+227	MOSS-Image
+228	MOSS-Image 5B (Apache-2.0) adalah model kedua yang lebih besar: deskripsikan gambar dengan kalimat biasa, bukan tag. Text encoder, transformer, dan decoder semuanya berjalan di NPU. Butuh sekitar 14 GB penyimpanan dan diuji di ponsel dengan RAM 12 GB. Bobotnya dialirkan dari penyimpanan untuk setiap gambar: sekitar 30 dtk untuk 512×768, sekitar 80 dtk untuk 1 Mpx. Tidak ada yang perlu dimuat sebelumnya.
+229	Ukuran MOSS-Image
+230	Ukuran apa pun bisa: kedua sisi kelipatan 16, minimal 256, maksimal 6144 patch (lebar/16 × tinggi/16), misalnya 1536×1024. Adaptor 4 langkah dilatih pada sekitar 1 Mpx (1024×1024, 832×1216…), tetapi ukuran lebih kecil juga bisa. Ukuran tanpa decoder siap pakai didekode per ubin, jadi nada warna bisa sedikit bergeser.
+231	LoRA untuk MOSS-Image
+232	Pilih file .safetensors milikmu yang dibuat untuk MOSS-Image (LoRA untuk FLUX, SDXL, dan model lain tidak cocok). File langsung diperiksa begitu dipilih, dan jika tidak cocok aplikasi menjelaskan alasannya. Kekuatan 1,00 adalah pengaturan pembuatnya: lebih rendah lebih lemah, lebih tinggi lebih kuat. Gambar pertama dengan LoRA atau kekuatan baru memakan sekitar 15 dtk untuk persiapan (file sementara sekitar 300 MB). Penggunaan LoRA tunduk pada lisensi pembuatnya.
+233	Qwen-Image 2.1
+234	Qwen-Image 2.1 Turbo (tim Qwen) dengan adaptor Lightning 4 langkah (LightX2V): menggambar teks yang terbaca di dalam gambar dan mengikuti prompt panjang berupa kalimat biasa. Text encoder, ViT, transformer, dan VAE semuanya berjalan di NPU; butuh sekitar 14 GB penyimpanan dan disarankan ponsel dengan RAM 12 GB. Hanya untuk penggunaan non-komersial (Qwen Research License).
+235	Mengedit foto
+236	Pilih foto di blok Edit foto dan tulis apa yang diubah: "ubah langit jadi matahari terbenam", "hapus orang di sebelah kanan". Hasilnya dibuat dari fotomu dan prompt; ukuran keluaran mengikuti bentuk foto, dan fotonya sendiri diperkecil menjadi sekitar 0,4 Mpx. Jika percobaan pertama belum sesuai, coba seed lain. Tanpa foto, model menggambar dari nol. Mengedit memakan waktu sekitar 1,3 kali lebih lama daripada pembuatan biasa.
+237	Ukuran Qwen-Image
+238	Kedua sisi kelipatan 16, jumlah patch (lebar/16 × tinggi/16) habis dibagi 32 dan maksimal 4608, misalnya 1024×1024 atau 768×1152. Saat mengedit, foto dan hasilnya bersama-sama harus tetap dalam sekitar 6800 patch.
+239	Lisensi MOSS-Image
+240	MOSS-Image (OpenMOSS), Qwen3.5-9B (tim Qwen), adaptor rapid-moss (darask0, lodestones), decoder kecil FLUX.2 (Black Forest Labs), dan kuantisasi Unsloth semuanya berlisensi Apache License 2.0. File-file itu adalah salinan yang dikonversi untuk NPU; perubahannya tercantum di pemberitahuan di bawah. Teks lisensi ada di bagian bawah, di Lisensi komponen.
+241	Mode hemat memori (lebih lambat)
+242	Bobot model dibaca dari penyimpanan untuk setiap gambar, bukan disimpan di RAM. Diperlukan di ponsel dengan RAM 8 GB, tidak perlu di 12 GB.
+243	  ·  aplikasi %.1f GB

@@ -173,39 +173,72 @@ Chip %s · Android %s	チップ %s · Android %s
 Send the log	ログを送信
 Authors and links	作者とリンク
 Component licenses	コンポーネントのライセンス
-LORA  ·  optional	LoRA  ·  任意
+, experimental	、実験的
+Chip %s: supported (%s)	チップ %s: 対応 (%s)
+Too large: at most 6144 patches (e.g. 1536×1024)	大きすぎます: 最大 6144 パッチ（例: 1536×1024）
+Compatible: rank %d, %d of 42 blocks	互換性あり: ランク %d、42 ブロック中 %d
+High rank: some fine detail may be lost when it is merged with the turbo adapter	高ランク: ターボアダプターとマージすると細かいディテールが失われることがあります
+The text-encoder part is not applied	テキストエンコーダー部分は適用されません
+Some extra tensors are skipped	一部の追加テンソルはスキップされます
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	この LoRA は別のモデル（FLUX、SDXL など）用です。MOSS-Image には合いません。
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	このファイルは MOSS-Image の LoRA ではないようです: 必要なレイヤー (layers.N.proj.*) がありません。
+The file only has text-encoder LoRA weights. Those are not supported yet.	このファイルにはテキストエンコーダーの LoRA 重みしかありません。これはまだ非対応です。
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	レイヤーのサイズが MOSS-Image と一致しません (%s)。モデルの別バージョン用の LoRA と思われます。
+The rank is too large (%s). Supported: 1 to 128.	ランクが大きすぎます (%s)。対応範囲: 1〜128。
+The LoRA has blocks that MOSS-Image does not have (%s).	この LoRA には MOSS-Image にないブロックがあります (%s)。
+Unsupported weight format: F32, F16 or BF16 are needed.	非対応の重み形式です: F32、F16、BF16 のいずれかが必要です。
+Cannot read the file (%s). A .safetensors file is needed.	ファイルを読めません (%s)。.safetensors ファイルが必要です。
+Check failed: %s %s	チェックに失敗しました: %s %s
+Too large: at most 4608 patches (e.g. 1152×1024)	大きすぎます: 最大 4608 パッチ（例: 1152×1024）
+LORA  ·  optional	LORA  ·  任意
 none	なし
 Choose	選択
 Strength	強度
-A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image 用の .safetensors ファイル：選択するとすぐにチェックされます
+EDIT A PHOTO  ·  optional	写真を編集  ·  任意
+Photo %d×%d. The prompt says what to change, e.g. "make the sky a sunset".	写真 %d×%d。プロンプトで変更内容を指示します。例:「空を夕焼けにして」。
+Pick a photo to change it by the prompt. Without one the model just draws a picture.	写真を選ぶと、プロンプトに従って変更します。写真がない場合、モデルは普通に絵を描きます。
+Cannot open the photo: %s	写真を開けません: %s
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image 用の .safetensors ファイル: 選ぶとすぐにチェックされます
 Checking the file…	ファイルを確認中…
-Cannot read the file: %s	ファイルを読み込めません：%s
 the file is larger than 1 GB	ファイルが 1 GB を超えています
-LoRA "%s" does not fit	LoRA「%s」は使えません
-Compatible: rank %d, %d of 42 blocks	互換あり：ランク %d、42 ブロック中 %d
-High rank: some fine detail may be lost when it is merged with the turbo adapter	ランクが高い：turbo アダプターと統合する際に細部が失われる可能性があります
-The text-encoder part is not applied	テキストエンコーダー部分は適用されません
-Some extra tensors are skipped	余分なテンソルの一部をスキップしました
-This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	この LoRA は別のモデル（FLUX、SDXL など）用です。MOSS-Image には使えません。
-This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	このファイルは MOSS-Image の LoRA ではないようです：必要なレイヤー（layers.N.proj.*）がありません。
-The file only has text-encoder LoRA weights. Those are not supported yet.	ファイルにはテキストエンコーダーの LoRA の重みしかありません。未対応です。
-Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	レイヤーのサイズが MOSS-Image と一致しません（%s）。モデルの別バージョン用の LoRA の可能性があります。
-The rank is too large (%s). Supported: 1 to 128.	ランクが大きすぎます（%s）。対応範囲：1〜128。
-The LoRA has blocks that MOSS-Image does not have (%s).	この LoRA には MOSS-Image に存在しないブロックがあります（%s）。
-Unsupported weight format: F32, F16 or BF16 are needed.	未対応の重み形式です：F32、F16、BF16 が必要です。
-Cannot read the file (%s). A .safetensors file is needed.	ファイルを読み込めません（%s）。.safetensors ファイルが必要です。
-Check failed: %s %s	チェック失敗：%s %s
+Cannot read the file: %s	ファイルを読めません: %s
+LoRA "%s" does not fit	LoRA「%s」は合いません
+Qwen-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	Qwen-Image: テキストエンコーダー、DiT、VAE は NPU で動作し、重みは 1 枚ごとにストレージから読み込まれます
+MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	MOSS-Image: テキストエンコーダー、DiT、VAE は NPU で動作し、重みは 1 枚ごとにストレージから読み込まれます
+Tokenising…	トークン化中…
 Preparing the LoRA… %d/%d	LoRA を準備中… %d/%d
-Could not prepare the LoRA: %s	LoRA を準備できませんでした：%s
-Quality tags: Anima only	品質タグ：Anima のみ
-The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	設定の品質タグは Anima モデルのプロンプトにだけ追加されます。MOSS-Image には追加されず、MOSS-Image を選択中は設定にも表示されません。
+Could not prepare the LoRA: %s	LoRA を準備できませんでした: %s
+Preparing the text…	テキストを準備中…
+Encoding the text on the NPU…	NPU でテキストをエンコード中…
+Generation failed: %s (log files/moss/moss.log)	生成に失敗しました: %s（ログ files/moss/moss.log）
+Preparing the photo…	写真を準備中…
+The photo and the result together are too large: pick a smaller size	写真と結果の合計が大きすぎます: 小さいサイズを選んでください
+Step 1/4 (reading the photo)	ステップ 1/4（写真を読み取り中）
+Analysing the photo on the NPU…	NPU で写真を解析中…
+Generation failed: %s (log files/qwen/qwen.log)	生成に失敗しました: %s（ログ files/qwen/qwen.log）
+Quality tags before the prompt (Anima models)	プロンプトの前の品質タグ（Anima モデル）
+Chip %s · supported (%s)	チップ %s · 対応 (%s)
+This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?	この端末の RAM は %.1f GB です: このモデルには 12 GB を推奨します。それでもダウンロードしますか?
+QNN notices (third-party components)	QNN の通知（サードパーティ製コンポーネント）
+Qwen-Image notices (changes made)	Qwen-Image の通知（行った変更）
+MOSS-Image notices (changes made)	MOSS-Image の通知（行った変更）
+Close	閉じる
+Quality tags: Anima only	品質タグ: Anima のみ
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	設定の品質タグは Anima モデルのプロンプトにのみ追加されます。MOSS-Image には追加されず、MOSS-Image の選択中はこの設定は非表示になります。
 MOSS-Image	MOSS-Image
-MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B（Apache-2.0）は 2 つ目の、より大きなモデルです。タグではなく普通の文章で絵を説明してください。テキストエンコーダー、トランスフォーマー、デコーダーはすべて NPU で動きます。ストレージは約 14 GB 必要で、RAM 12 GB のスマートフォンで動作確認しています。重みは 1 枚ごとにストレージから読み込まれます：512×768 で約 30 秒、100 万画素で約 80 秒。事前の読み込みは不要です。
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B（Apache-2.0）は 2 つ目の、より大きなモデルです: タグではなく普通の文章で絵を説明してください。テキストエンコーダー、トランスフォーマー、デコーダーはすべて NPU で動作します。約 14 GB のストレージが必要で、RAM 12 GB の端末でテストされています。重みは 1 枚ごとにストレージから読み込まれます: 512×768 で約 30 秒、1 Mpx で約 80 秒。事前に読み込むものはありません。
 MOSS-Image sizes	MOSS-Image のサイズ
-Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	どのサイズでも使えます：両辺は 16 の倍数で、256 以上、パッチ数（幅/16 × 高さ/16）は 6144 以下です（例：1536×1024）。4 ステップのアダプターは約 100 万画素（1024×1024、832×1216…）で学習されていますが、小さいサイズでも動作します。専用デコーダーのないサイズはタイル分割でデコードするため、色調がわずかにずれることがあります。
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	どのサイズも使えます: 両辺は 16 の倍数で 256 以上、パッチ数（幅/16 × 高さ/16）は最大 6144、例: 1536×1024。4 ステップアダプターは約 1 Mpx（1024×1024、832×1216…）で学習されましたが、小さいサイズでも動作します。用意済みデコーダーのないサイズはタイル単位でデコードされるため、色調がわずかに変わることがあります。
 LoRA for MOSS-Image	MOSS-Image 用 LoRA
-Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image 用に作られた .safetensors ファイルを選べます（FLUX、SDXL など他のモデル用の LoRA は使えません）。選択するとすぐにチェックされ、合わない場合は理由が表示されます。強度 1.00 は作者の設定で、下げると効果が弱く、上げると強くなります。新しい LoRA や強度での最初の 1 枚は、準備に約 15 秒かかります（一時ファイル約 300 MB）。LoRA の利用は作者のライセンスに従います。
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image 用に作られた自分の .safetensors ファイルを選んでください（FLUX、SDXL などの LoRA は合いません）。選んだ時点でチェックされ、合わない場合は理由が表示されます。強度 1.00 は作者の設定です: 低いと弱く、高いと強くなります。新しい LoRA や強度での最初の 1 枚は、準備に約 15 秒かかります（約 300 MB の一時ファイル）。LoRA の使用は作者のライセンスに従います。
+Qwen-Image 2.1	Qwen-Image 2.1
+Qwen-Image 2.1 Turbo (Qwen team) with the 4-step Lightning adapter (LightX2V): draws legible text in pictures and follows long prompts written as plain sentences. The text encoder, the ViT, the transformer and the VAE all run on the NPU; it needs about 14 GB of storage and a phone with 12 GB of RAM is recommended. Non-commercial use only (Qwen Research License).	Qwen-Image 2.1 Turbo（Qwen チーム）と 4 ステップの Lightning アダプター（LightX2V）: 画像内の読める文字を描き、普通の文章で書かれた長いプロンプトに従います。テキストエンコーダー、ViT、トランスフォーマー、VAE はすべて NPU で動作します。約 14 GB のストレージが必要で、RAM 12 GB の端末を推奨します。非商用利用のみ（Qwen Research License）。
+Editing photos	写真の編集
+Pick a photo in the Edit a photo block and write what to change: "make the sky a sunset", "remove the person on the right". The result is built from your photo and the prompt; the output size follows the photo's shape and the photo itself is reduced to about 0.4 Mpx. If the first try is not what you wanted, try another seed. Without a photo the model draws from scratch. Editing takes about 1.3 times as long as plain generation.	「写真を編集」ブロックで写真を選び、変更内容を書いてください:「空を夕焼けにして」「右の人を消して」。結果はあなたの写真とプロンプトから作られます。出力サイズは写真の形に合わせ、写真自体は約 0.4 Mpx に縮小されます。最初の結果が思い通りでなければ、別のシードを試してください。写真がない場合、モデルはゼロから描きます。編集は通常の生成の約 1.3 倍かかります。
+Qwen-Image sizes	Qwen-Image のサイズ
+Both sides are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 4608, for example 1024×1024 or 768×1152. When editing, the photo and the result together must stay within about 6800 patches.	両辺は 16 の倍数で、パッチ数（幅/16 × 高さ/16）は 32 で割り切れ、最大 4608 です。例: 1024×1024 や 768×1152。編集時は、写真と結果の合計が約 6800 パッチ以内である必要があります。
 MOSS-Image licenses	MOSS-Image のライセンス
-MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image（OpenMOSS）、Qwen3.5-9B（Qwen チーム）、rapid-moss アダプター（darask0、lodestones）、FLUX.2 small デコーダー（Black Forest Labs）、Unsloth の量子化はすべて Apache License 2.0 です。ファイルは NPU 向けに変換したコピーで、変更点は下の通知に記載しています。ライセンス全文は下部の「コンポーネントのライセンス」にあります。
-MOSS-Image notices (changes made)	MOSS-Image の通知（変更点）
-Quality tags before the prompt (Anima models)	プロンプトの前に付ける品質タグ (Anima)
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image（OpenMOSS）、Qwen3.5-9B（Qwen チーム）、rapid-moss アダプター（darask0、lodestones）、FLUX.2 small デコーダー（Black Forest Labs）、Unsloth の量子化はすべて Apache License 2.0 です。ファイルは NPU 向けに変換されたコピーで、変更点は下の通知に記載されています。ライセンス本文は一番下の「コンポーネントのライセンス」にあります。
+Low-memory mode (slower)	省メモリモード（遅くなります）
+The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB.	モデルの重みは RAM に常駐させず、1 枚ごとにストレージから読み込みます。RAM 8 GB の端末で必要で、12 GB では不要です。
+  ·  app %.1f GB	  ·  アプリ %.1f GB

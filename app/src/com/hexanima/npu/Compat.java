@@ -24,6 +24,33 @@ final class Compat {
     static void allowChip(Context c) { c.getSharedPreferences("anima", 0).edit().putBoolean("chip_override", true).apply(); }
 
     static double ramGb(Context c) { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.totalMem / 1073741824.0; }
+    /** RAM taken by the app and its helper processes (same uid): PSS of every process + the dma-buf buffers they hold (pinned model weights; counted once per buffer) */
+    static double appRamGb() {
+        long kb = 0; java.util.HashSet<String> seen = new java.util.HashSet<>(); int uid = android.os.Process.myUid();
+        java.io.File[] ps = new java.io.File("/proc").listFiles();
+        if (ps == null) return 0;
+        for (java.io.File d : ps) {
+            if (!d.getName().matches("\\d+")) continue;
+            try {
+                if (android.system.Os.stat(d.getPath()).st_uid != uid) continue;
+                try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(new java.io.File(d, "smaps_rollup")))) {
+                    for (String l; (l = r.readLine()) != null; ) if (l.startsWith("Pss:")) { kb += Long.parseLong(l.replaceAll("[^0-9]", "")); break; }
+                } catch (Exception ignored) { }
+                java.io.File[] fds = new java.io.File(d, "fd").listFiles();
+                if (fds != null) for (java.io.File f : fds) {
+                    try {
+                        if (!android.system.Os.readlink(f.getPath()).contains("dmabuf")) continue;
+                        long sz = 0; String ino = null;
+                        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(new java.io.File(d, "fdinfo/" + f.getName())))) {
+                            for (String l; (l = r.readLine()) != null; ) { if (l.startsWith("size:")) sz = Long.parseLong(l.replaceAll("[^0-9]", "")); else if (l.startsWith("ino:")) ino = l.substring(4).trim(); }
+                        }
+                        if (ino != null && seen.add(ino)) kb += sz / 1024;
+                    } catch (Exception ignored) { }
+                }
+            } catch (Exception ignored) { }
+        }
+        return kb / 1048576.0;
+    }
     static double freeGb(Context c) { return c.getFilesDir().getUsableSpace() / 1e9; }
 
     /** [chip, ram, storage] each as {ok?"1":"0", text} */

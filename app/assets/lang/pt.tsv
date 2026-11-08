@@ -173,39 +173,72 @@ Chip %s · Android %s	Chip %s · Android %s
 Send the log	Enviar o log
 Authors and links	Autores e links
 Component licenses	Licenças dos componentes
+, experimental	, experimental
+Chip %s: supported (%s)	Chip %s: compatível (%s)
+Too large: at most 6144 patches (e.g. 1536×1024)	Grande demais: no máximo 6144 patches (p. ex. 1536×1024)
+Compatible: rank %d, %d of 42 blocks	Compatível: rank %d, %d de 42 blocos
+High rank: some fine detail may be lost when it is merged with the turbo adapter	Rank alto: ao mesclar com o adaptador turbo, podem se perder detalhes finos
+The text-encoder part is not applied	A parte do codificador de texto não é aplicada
+Some extra tensors are skipped	Alguns tensores extras são ignorados
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	Este LoRA é de outro modelo (FLUX, SDXL ou similar). Não serve para o MOSS-Image.
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	Este arquivo não parece um LoRA do MOSS-Image: faltam as camadas esperadas (layers.N.proj.*).
+The file only has text-encoder LoRA weights. Those are not supported yet.	O arquivo só tem pesos LoRA do codificador de texto. Ainda não são suportados.
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	Os tamanhos das camadas não correspondem ao MOSS-Image (%s). Provavelmente é um LoRA de outra versão do modelo.
+The rank is too large (%s). Supported: 1 to 128.	O rank é grande demais (%s). Suportado: de 1 a 128.
+The LoRA has blocks that MOSS-Image does not have (%s).	O LoRA tem blocos que o MOSS-Image não tem (%s).
+Unsupported weight format: F32, F16 or BF16 are needed.	Formato de pesos não suportado: é preciso F32, F16 ou BF16.
+Cannot read the file (%s). A .safetensors file is needed.	Não foi possível ler o arquivo (%s). É preciso um arquivo .safetensors.
+Check failed: %s %s	Falha na verificação: %s %s
+Too large: at most 4608 patches (e.g. 1152×1024)	Grande demais: no máximo 4608 patches (p. ex. 1152×1024)
 LORA  ·  optional	LORA  ·  opcional
-none	nenhuma
+none	nenhum
 Choose	Escolher
 Strength	Intensidade
+EDIT A PHOTO  ·  optional	EDITAR UMA FOTO  ·  opcional
+Photo %d×%d. The prompt says what to change, e.g. "make the sky a sunset".	Foto %d×%d. O prompt diz o que mudar, p. ex. "deixe o céu como um pôr do sol".
+Pick a photo to change it by the prompt. Without one the model just draws a picture.	Escolha uma foto para alterá-la pelo prompt. Sem foto, o modelo apenas desenha uma imagem.
+Cannot open the photo: %s	Não foi possível abrir a foto: %s
 A .safetensors file for MOSS-Image: it is checked as soon as you pick it	Um arquivo .safetensors para o MOSS-Image: é verificado assim que você o escolhe
 Checking the file…	Verificando o arquivo…
-Cannot read the file: %s	Não foi possível ler o arquivo: %s
 the file is larger than 1 GB	o arquivo tem mais de 1 GB
-LoRA "%s" does not fit	A LoRA “%s” não é compatível
-Compatible: rank %d, %d of 42 blocks	Compatível: rank %d, %d de 42 blocos
-High rank: some fine detail may be lost when it is merged with the turbo adapter	Rank alto: ao mesclar com o adaptador turbo, parte dos detalhes finos pode ser perdida
-The text-encoder part is not applied	A parte do codificador de texto não é aplicada
-Some extra tensors are skipped	Alguns tensores extras foram ignorados
-This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	Esta LoRA é de outro modelo (FLUX, SDXL ou similar). Ela não é compatível com o MOSS-Image.
-This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	Este arquivo não parece uma LoRA do MOSS-Image: faltam as camadas esperadas (layers.N.proj.*).
-The file only has text-encoder LoRA weights. Those are not supported yet.	O arquivo só tem pesos LoRA do codificador de texto. Ainda não são suportados.
-Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	Os tamanhos das camadas não correspondem ao MOSS-Image (%s). Provavelmente é uma LoRA de outra versão do modelo.
-The rank is too large (%s). Supported: 1 to 128.	O rank é grande demais (%s). Suportado: de 1 a 128.
-The LoRA has blocks that MOSS-Image does not have (%s).	A LoRA tem blocos que o MOSS-Image não possui (%s).
-Unsupported weight format: F32, F16 or BF16 are needed.	Formato de pesos não suportado: é necessário F32, F16 ou BF16.
-Cannot read the file (%s). A .safetensors file is needed.	Não foi possível ler o arquivo (%s). É necessário um arquivo .safetensors.
-Check failed: %s %s	Falha na verificação: %s %s
-Preparing the LoRA… %d/%d	Preparando a LoRA… %d/%d
-Could not prepare the LoRA: %s	Não foi possível preparar a LoRA: %s
-Quality tags: Anima only	Tags de qualidade: só Anima
-The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	As tags de qualidade das Configurações são adicionadas apenas aos prompts dos modelos Anima. O MOSS-Image não as recebe, e a opção fica oculta enquanto o MOSS-Image está selecionado.
-MOSS-Image	MOSS-Image
-MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	O MOSS-Image 5B (Apache-2.0) é um segundo modelo, maior: descreva as imagens com frases normais, não com tags. O codificador de texto, o transformer e o decodificador rodam na NPU. Ele precisa de cerca de 14 GB de armazenamento e foi testado em um celular com 12 GB de RAM. Os pesos são lidos do armazenamento a cada imagem: cerca de 30 s para 512×768 e cerca de 80 s para 1 Mpx. Não há nada para pré-carregar.
-MOSS-Image sizes	Tamanhos do MOSS-Image
-Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	Qualquer tamanho funciona: os dois lados são múltiplos de 16, no mínimo 256 e no máximo 6144 patches (largura/16 × altura/16), por exemplo 1536×1024. O adaptador de 4 passos foi treinado com cerca de 1 Mpx (1024×1024, 832×1216…), mas tamanhos menores também funcionam. Tamanhos sem decodificador pronto são decodificados em blocos, então o tom pode mudar um pouco.
-LoRA for MOSS-Image	LoRA para o MOSS-Image
-Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	Escolha seu próprio arquivo .safetensors feito para o MOSS-Image (LoRAs de FLUX, SDXL e outros modelos não servem). Ele é verificado assim que você o escolhe e, se não servir, o app explica o motivo. A intensidade 1,00 é a do autor: menos é mais fraco, mais é mais forte. A primeira imagem com uma LoRA ou intensidade nova leva cerca de 15 s para preparar (arquivos temporários de cerca de 300 MB). O uso de uma LoRA está sujeito à licença do seu autor.
-MOSS-Image licenses	Licenças do MOSS-Image
-MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (equipe Qwen), o adaptador rapid-moss (darask0, lodestones), o decodificador FLUX.2 small (Black Forest Labs) e as quantizações da Unsloth estão todos sob a Apache License 2.0. Os arquivos são cópias convertidas para a NPU; as alterações estão listadas nos avisos abaixo. Os textos das licenças ficam no final, em Licenças dos componentes.
+Cannot read the file: %s	Não foi possível ler o arquivo: %s
+LoRA "%s" does not fit	O LoRA "%s" não serve
+Qwen-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	Qwen-Image: o codificador de texto, o DiT e o VAE rodam na NPU; os pesos são lidos do armazenamento a cada imagem
+MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture	MOSS-Image: o codificador de texto, o DiT e o VAE rodam na NPU; os pesos são lidos do armazenamento a cada imagem
+Tokenising…	Tokenizando…
+Preparing the LoRA… %d/%d	Preparando o LoRA… %d/%d
+Could not prepare the LoRA: %s	Não foi possível preparar o LoRA: %s
+Preparing the text…	Preparando o texto…
+Encoding the text on the NPU…	Codificando o texto na NPU…
+Generation failed: %s (log files/moss/moss.log)	Falha na geração: %s (log files/moss/moss.log)
+Preparing the photo…	Preparando a foto…
+The photo and the result together are too large: pick a smaller size	A foto e o resultado juntos são grandes demais: escolha um tamanho menor
+Step 1/4 (reading the photo)	Passo 1/4 (lendo a foto)
+Analysing the photo on the NPU…	Analisando a foto na NPU…
+Generation failed: %s (log files/qwen/qwen.log)	Falha na geração: %s (log files/qwen/qwen.log)
+Quality tags before the prompt (Anima models)	Tags de qualidade antes do prompt (modelos Anima)
+Chip %s · supported (%s)	Chip %s · compatível (%s)
+This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?	Este telefone tem %.1f GB de RAM: 12 GB são recomendados para este modelo. Baixar mesmo assim?
+QNN notices (third-party components)	Avisos do QNN (componentes de terceiros)
+Qwen-Image notices (changes made)	Avisos do Qwen-Image (alterações feitas)
 MOSS-Image notices (changes made)	Avisos do MOSS-Image (alterações feitas)
-Quality tags before the prompt (Anima models)	Tags de qualidade antes da descrição (Anima)
+Close	Fechar
+Quality tags: Anima only	Tags de qualidade: só Anima
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	As tags de qualidade das Configurações são adicionadas apenas aos prompts dos modelos Anima. O MOSS-Image não as recebe, e a opção fica oculta enquanto o MOSS-Image estiver selecionado.
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	O MOSS-Image 5B (Apache-2.0) é um segundo modelo, maior: descreva as imagens em frases normais, não em tags. O codificador de texto, o transformer e o decodificador rodam na NPU. Precisa de cerca de 14 GB de armazenamento e foi testado num telefone com 12 GB de RAM. Os pesos são lidos do armazenamento a cada imagem: cerca de 30 s para 512×768, cerca de 80 s para 1 Mpx. Não há nada para pré-carregar.
+MOSS-Image sizes	Tamanhos do MOSS-Image
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	Qualquer tamanho serve: os dois lados são múltiplos de 16, de pelo menos 256, com no máximo 6144 patches (largura/16 × altura/16), por exemplo 1536×1024. O adaptador de 4 passos foi treinado com cerca de 1 Mpx (1024×1024, 832×1216…), mas tamanhos menores também funcionam. Tamanhos sem decodificador pronto são decodificados em blocos, então o tom pode variar um pouco.
+LoRA for MOSS-Image	LoRA para o MOSS-Image
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	Escolha seu próprio arquivo .safetensors feito para o MOSS-Image (LoRAs de FLUX, SDXL e outros modelos não servem). Ele é verificado assim que você o escolhe e, se não servir, o app diz o motivo. Intensidade 1,00 é o ajuste do autor: menos é mais fraco, mais é mais forte. A primeira imagem com um novo LoRA ou intensidade leva cerca de 15 s para prepará-lo (arquivos temporários de cerca de 300 MB). O uso de um LoRA está sujeito à licença do seu autor.
+Qwen-Image 2.1	Qwen-Image 2.1
+Qwen-Image 2.1 Turbo (Qwen team) with the 4-step Lightning adapter (LightX2V): draws legible text in pictures and follows long prompts written as plain sentences. The text encoder, the ViT, the transformer and the VAE all run on the NPU; it needs about 14 GB of storage and a phone with 12 GB of RAM is recommended. Non-commercial use only (Qwen Research License).	Qwen-Image 2.1 Turbo (equipe Qwen) com o adaptador Lightning de 4 passos (LightX2V): desenha texto legível nas imagens e segue prompts longos escritos em frases normais. O codificador de texto, o ViT, o transformer e o VAE rodam na NPU; precisa de cerca de 14 GB de armazenamento e recomenda-se um telefone com 12 GB de RAM. Apenas uso não comercial (Qwen Research License).
+Editing photos	Edição de fotos
+Pick a photo in the Edit a photo block and write what to change: "make the sky a sunset", "remove the person on the right". The result is built from your photo and the prompt; the output size follows the photo's shape and the photo itself is reduced to about 0.4 Mpx. If the first try is not what you wanted, try another seed. Without a photo the model draws from scratch. Editing takes about 1.3 times as long as plain generation.	Escolha uma foto no bloco Editar uma foto e escreva o que mudar: "deixe o céu como um pôr do sol", "remova a pessoa à direita". O resultado é feito a partir da sua foto e do prompt; o tamanho de saída segue o formato da foto, e a foto é reduzida para cerca de 0,4 Mpx. Se a primeira tentativa não for o que queria, tente outra seed. Sem foto, o modelo desenha do zero. Editar leva cerca de 1,3 vez o tempo de uma geração simples.
+Qwen-Image sizes	Tamanhos do Qwen-Image
+Both sides are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 4608, for example 1024×1024 or 768×1152. When editing, the photo and the result together must stay within about 6800 patches.	Os dois lados são múltiplos de 16, o número de patches (largura/16 × altura/16) é divisível por 32 e no máximo 4608, por exemplo 1024×1024 ou 768×1152. Ao editar, a foto e o resultado juntos devem ficar em até cerca de 6800 patches.
+MOSS-Image licenses	Licenças do MOSS-Image
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (equipe Qwen), o adaptador rapid-moss (darask0, lodestones), o decodificador pequeno do FLUX.2 (Black Forest Labs) e as quantizações da Unsloth estão todos sob a Apache License 2.0. Os arquivos são cópias convertidas para a NPU; as alterações estão listadas nos avisos abaixo. Os textos das licenças estão no fim, em Licenças dos componentes.
+Low-memory mode (slower)	Modo de pouca memória (mais lento)
+The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB.	Os pesos do modelo são lidos do armazenamento a cada imagem em vez de ficarem na RAM. Necessário em telefones com 8 GB de RAM, não em 12 GB.
+  ·  app %.1f GB	  ·  app %.1f GB

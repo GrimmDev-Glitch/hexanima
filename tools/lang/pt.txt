@@ -173,3 +173,72 @@
 172	Enviar o log
 173	Autores e links
 174	Licenças dos componentes
+175	, experimental
+176	Chip %s: compatível (%s)
+177	Grande demais: no máximo 6144 patches (p. ex. 1536×1024)
+178	Compatível: rank %d, %d de 42 blocos
+179	Rank alto: ao mesclar com o adaptador turbo, podem se perder detalhes finos
+180	A parte do codificador de texto não é aplicada
+181	Alguns tensores extras são ignorados
+182	Este LoRA é de outro modelo (FLUX, SDXL ou similar). Não serve para o MOSS-Image.
+183	Este arquivo não parece um LoRA do MOSS-Image: faltam as camadas esperadas (layers.N.proj.*).
+184	O arquivo só tem pesos LoRA do codificador de texto. Ainda não são suportados.
+185	Os tamanhos das camadas não correspondem ao MOSS-Image (%s). Provavelmente é um LoRA de outra versão do modelo.
+186	O rank é grande demais (%s). Suportado: de 1 a 128.
+187	O LoRA tem blocos que o MOSS-Image não tem (%s).
+188	Formato de pesos não suportado: é preciso F32, F16 ou BF16.
+189	Não foi possível ler o arquivo (%s). É preciso um arquivo .safetensors.
+190	Falha na verificação: %s %s
+191	Grande demais: no máximo 4608 patches (p. ex. 1152×1024)
+192	LORA  ·  opcional
+193	nenhum
+194	Escolher
+195	Intensidade
+196	EDITAR UMA FOTO  ·  opcional
+197	Foto %d×%d. O prompt diz o que mudar, p. ex. "deixe o céu como um pôr do sol".
+198	Escolha uma foto para alterá-la pelo prompt. Sem foto, o modelo apenas desenha uma imagem.
+199	Não foi possível abrir a foto: %s
+200	Um arquivo .safetensors para o MOSS-Image: é verificado assim que você o escolhe
+201	Verificando o arquivo…
+202	o arquivo tem mais de 1 GB
+203	Não foi possível ler o arquivo: %s
+204	O LoRA "%s" não serve
+205	Qwen-Image: o codificador de texto, o DiT e o VAE rodam na NPU; os pesos são lidos do armazenamento a cada imagem
+206	MOSS-Image: o codificador de texto, o DiT e o VAE rodam na NPU; os pesos são lidos do armazenamento a cada imagem
+207	Tokenizando…
+208	Preparando o LoRA… %d/%d
+209	Não foi possível preparar o LoRA: %s
+210	Preparando o texto…
+211	Codificando o texto na NPU…
+212	Falha na geração: %s (log files/moss/moss.log)
+213	Preparando a foto…
+214	A foto e o resultado juntos são grandes demais: escolha um tamanho menor
+215	Passo 1/4 (lendo a foto)
+216	Analisando a foto na NPU…
+217	Falha na geração: %s (log files/qwen/qwen.log)
+218	Tags de qualidade antes do prompt (modelos Anima)
+219	Chip %s · compatível (%s)
+220	Este telefone tem %.1f GB de RAM: 12 GB são recomendados para este modelo. Baixar mesmo assim?
+221	Avisos do QNN (componentes de terceiros)
+222	Avisos do Qwen-Image (alterações feitas)
+223	Avisos do MOSS-Image (alterações feitas)
+224	Fechar
+225	Tags de qualidade: só Anima
+226	As tags de qualidade das Configurações são adicionadas apenas aos prompts dos modelos Anima. O MOSS-Image não as recebe, e a opção fica oculta enquanto o MOSS-Image estiver selecionado.
+227	MOSS-Image
+228	O MOSS-Image 5B (Apache-2.0) é um segundo modelo, maior: descreva as imagens em frases normais, não em tags. O codificador de texto, o transformer e o decodificador rodam na NPU. Precisa de cerca de 14 GB de armazenamento e foi testado num telefone com 12 GB de RAM. Os pesos são lidos do armazenamento a cada imagem: cerca de 30 s para 512×768, cerca de 80 s para 1 Mpx. Não há nada para pré-carregar.
+229	Tamanhos do MOSS-Image
+230	Qualquer tamanho serve: os dois lados são múltiplos de 16, de pelo menos 256, com no máximo 6144 patches (largura/16 × altura/16), por exemplo 1536×1024. O adaptador de 4 passos foi treinado com cerca de 1 Mpx (1024×1024, 832×1216…), mas tamanhos menores também funcionam. Tamanhos sem decodificador pronto são decodificados em blocos, então o tom pode variar um pouco.
+231	LoRA para o MOSS-Image
+232	Escolha seu próprio arquivo .safetensors feito para o MOSS-Image (LoRAs de FLUX, SDXL e outros modelos não servem). Ele é verificado assim que você o escolhe e, se não servir, o app diz o motivo. Intensidade 1,00 é o ajuste do autor: menos é mais fraco, mais é mais forte. A primeira imagem com um novo LoRA ou intensidade leva cerca de 15 s para prepará-lo (arquivos temporários de cerca de 300 MB). O uso de um LoRA está sujeito à licença do seu autor.
+233	Qwen-Image 2.1
+234	Qwen-Image 2.1 Turbo (equipe Qwen) com o adaptador Lightning de 4 passos (LightX2V): desenha texto legível nas imagens e segue prompts longos escritos em frases normais. O codificador de texto, o ViT, o transformer e o VAE rodam na NPU; precisa de cerca de 14 GB de armazenamento e recomenda-se um telefone com 12 GB de RAM. Apenas uso não comercial (Qwen Research License).
+235	Edição de fotos
+236	Escolha uma foto no bloco Editar uma foto e escreva o que mudar: "deixe o céu como um pôr do sol", "remova a pessoa à direita". O resultado é feito a partir da sua foto e do prompt; o tamanho de saída segue o formato da foto, e a foto é reduzida para cerca de 0,4 Mpx. Se a primeira tentativa não for o que queria, tente outra seed. Sem foto, o modelo desenha do zero. Editar leva cerca de 1,3 vez o tempo de uma geração simples.
+237	Tamanhos do Qwen-Image
+238	Os dois lados são múltiplos de 16, o número de patches (largura/16 × altura/16) é divisível por 32 e no máximo 4608, por exemplo 1024×1024 ou 768×1152. Ao editar, a foto e o resultado juntos devem ficar em até cerca de 6800 patches.
+239	Licenças do MOSS-Image
+240	MOSS-Image (OpenMOSS), Qwen3.5-9B (equipe Qwen), o adaptador rapid-moss (darask0, lodestones), o decodificador pequeno do FLUX.2 (Black Forest Labs) e as quantizações da Unsloth estão todos sob a Apache License 2.0. Os arquivos são cópias convertidas para a NPU; as alterações estão listadas nos avisos abaixo. Os textos das licenças estão no fim, em Licenças dos componentes.
+241	Modo de pouca memória (mais lento)
+242	Os pesos do modelo são lidos do armazenamento a cada imagem em vez de ficarem na RAM. Necessário em telefones com 8 GB de RAM, não em 12 GB.
+243	  ·  app %.1f GB

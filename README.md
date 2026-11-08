@@ -15,6 +15,9 @@ A 512x768 picture takes about **7 s** with the 2B models and **12 s** with the 2
 It can also run **MOSS-Image 5B** (OpenMOSS, Apache-2.0), a larger model that you prompt with plain sentences. Its text encoder (Qwen3.5-9B), the transformer and the decoder all run on the NPU:
 about 30 s for 512x768 and about 80 s for 1 Mpx; any size with sides that are multiples of 16 (up to 6144 patches). It is an optional ~14 GB download.
 
+And **Qwen-Image 2.1 Turbo** (Qwen team, with the 4-step Lightning adapter by LightX2V): it draws legible text inside pictures, follows long prompts, and **edits your photos by a prompt** ("make the sky a sunset"). The text encoder (Qwen3-VL-8B), its vision tower, the 20B transformer and the VAE all run on the NPU.
+About 40 s for 512x768, about 40-50 s for an edit (768x512 from a 512x512 photo); the weights (~14 GB, optional download) are streamed from storage for every picture. **Non-commercial use only** (Qwen Research License), see below.
+
 ## Features
 
 - Fully offline after the models are downloaded; nothing leaves the phone.
@@ -22,7 +25,9 @@ about 30 s for 512x768 and about 80 s for 1 Mpx; any size with sides that are mu
 - Size picker with portrait / landscape / square presets (all multiples of 16) and custom sizes, seed, batch of several pictures, stop button.
 - History with favourites, trash, multi-select, share and save; settings are stored in the PNG, so any picture can be reopened with its prompt and seed.
 - Prompt tag suggestions (Danbooru tags), templates, quality-tag prefix (Anima models only; MOSS-Image takes plain sentences and gets no tags).
+- Photo editing with Qwen-Image: pick a photo, write what to change; the result keeps the photo's shape (the photo is reduced to about 0.4 Mpx).
 - Your own LoRA for MOSS-Image: pick a `.safetensors` file, the app checks it at once (layer names, shapes, rank, data type) and says why if it does not fit; a strength slider (0-2). The LoRA is folded with the built-in 4-step adapter on the phone (about 15 s the first time) and never leaves the device.
+- Low-memory mode for the Anima models (on by default below ~9.5 GB of RAM, in Settings): the DiT blocks are streamed from storage through two buffers instead of being pinned in RAM; about 2.5 GB less RAM for the 2.9B models, +1 s per 512x768 picture on a 12 GB phone.
 - Live RAM meter, thermal / battery warnings, the model unloads itself when idle.
 - Light / dark / system themes, notifications, 13 languages (English, Russian, Chinese, Japanese, Korean, Spanish, Portuguese, German, French, Indonesian, Turkish, Vietnamese, Hindi).
 
@@ -99,7 +104,7 @@ Limits worth knowing: MOSS-Image only does text-to-image (no editing or image in
 - **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): not supported. Versions 1.2.0 and 1.2.1 had experimental support, withdrawn in 1.2.2: on a tester's Galaxy S25 the NPU matrix unit is sometimes silently unavailable after an interrupted run (garbage pictures) and large sizes come out as noise. A proper port is not planned in the short term.
 - Other chips (Snapdragon 8 Gen 2 / 8 Gen 3, SM8550 / SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
-- RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per Anima model; MOSS-Image needs about 14 GB (and ~300 MB more while a user LoRA is in use). MOSS-Image was tested on a 12 GB phone only.
+- RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with 8 GB are supported through the low-memory mode (reported crash: issue #1); the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per Anima model; MOSS-Image needs about 14 GB (and ~300 MB more while a user LoRA is in use) and Qwen-Image about 14 GB. MOSS-Image and Qwen-Image were tested on a 12 GB phone only.
 
 ## Install
 
@@ -107,18 +112,19 @@ Limits worth knowing: MOSS-Image only does text-to-image (no editing or image in
 2. Open the app and pick a model in **Models**. The files are downloaded from Hugging Face (`ayanoby/anima-npu-packs`) the first time.
 3. Type a prompt (Danbooru-style tags work best), press **Generate**.
 
-MOSS-Image is a separate download in the same manager (it lives in its own Hugging Face repository with its own `LICENSE` and `NOTICE.md`).
+MOSS-Image and Qwen-Image are separate downloads in the same manager (each lives in its own Hugging Face repository with its own `LICENSE` and `NOTICE.md`).
 
 Tips: the models are distilled for 4 steps and use no negative prompt; see **Info** in the app for the other notes.
 
 ## Disclaimer
 
-**HexAnima is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to CircleStone Labs, NVIDIA, Qualcomm, Alibaba (Qwen), OpenMOSS, Unsloth, Black Forest Labs or the authors of the models it can download.**
+**HexAnima is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to CircleStone Labs, NVIDIA, Qualcomm, Alibaba (Qwen), LightX2V, OpenMOSS, Unsloth, Black Forest Labs or the authors of the models it can download.**
 "Anima" and "Cosmos" refer to third-party models, "NVIDIA" and "Qualcomm", "Snapdragon", "Hexagon" are trademarks of their respective owners.
 They are used only to describe what the software works with.
 The models (MiaoMiao Harem / 3D Harem / RealSkin by MIAOKA, based on Anima by CircleStone Labs and NVIDIA Cosmos) stay under their authors' licenses: non-commercial use only.
 The models are made with a turbo (distillation) LoRA merged in: Anima Turbo v1.1 Lora by somedoby for the 2B models and TURBO for ANIMA (V4-29B) by n_Arno for the 2.9B models (both on Civitai). See `THIRD_PARTY.md`.
 MOSS-Image, Qwen3.5-9B, the rapid-moss 4-step adapter (darask0, on lodestones' 8-step DMD), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth GGUF quantisations are all under the **Apache License 2.0**; the MOSS-Image pack holds converted copies (the changes are listed in its `NOTICE.md`, also shown in the app under Info -> Licenses).
+Built with Qwen. **Qwen-Image 2.1 Turbo and the Lightning v2-RL adapter (LightX2V; its repository declares no license of its own, so it is treated as a derivative of the Qwen Materials) are under the Qwen Research License Agreement: non-commercial use only**, no redistribution of the model under another name, and the licence text travels with the files. Qwen3-VL-8B (Qwen team) and the Unsloth GGUF quantisations are Apache-2.0. The Qwen-Image pack holds converted copies (changes in its `NOTICE.md`, also in the app under Info -> Licenses). Qwen is a trademark of its owner, used only to name the model.
 LoRA files that you load yourself stay under their authors' licenses; check them before you share pictures made with them.
 A model author can ask for removal of their model from the download catalog: open a discussion in the Community tab of the model packs repository.
 

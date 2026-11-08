@@ -73,4 +73,19 @@ public class QwenTok {
 
     /** MOSS-Image prompt: the Qwen3.5 chat template with the thinking generation prompt (like transformers' apply_chat_template(enable_thinking=True)) */
     public int[] encodePrompt(String prompt) { return encode("<|im_start|>user\n" + prompt + "<|im_end|>\n<|im_start|>assistant\n<think>\n"); }
+
+    /** Qwen-Image-2.1 prompt: system message + user + assistant generation prompt (an empty prompt becomes " "). The first {@link #dropQwenImage()} tokens (the system message) are dropped from the encoder output. */
+    public int[] encodeQwenImage(String prompt) {
+        return encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n<|im_start|>user\n" + (prompt == null || prompt.isEmpty() ? " " : prompt) + "<|im_end|>\n<|im_start|>assistant\n");
+    }
+    public int dropQwenImage() { return encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n").length; }
+
+    /** Qwen-Image-2.1 editing prompt: the image placeholder (expanded to nPads image slots) in the user turn, then the prompt */
+    public int[] encodeQwenEdit(String prompt, int nPads) {
+        int[] a = encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n<|im_start|>user\n<image1><|vision_start|><|image_pad|><|vision_end|>" + (prompt == null || prompt.isEmpty() ? " " : prompt) + "<|im_end|>\n<|im_start|>assistant\n");
+        int pad = special.get("<|image_pad|>"), k = -1; for (int i = 0; i < a.length; i++) if (a[i] == pad) { k = i; break; }
+        if (k < 0) return a;
+        int[] r = new int[a.length - 1 + nPads]; System.arraycopy(a, 0, r, 0, k); for (int i = 0; i < nPads; i++) r[k + i] = pad; System.arraycopy(a, k + 1, r, k + nPads, a.length - k - 1);
+        return r;
+    }
 }
