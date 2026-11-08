@@ -474,7 +474,7 @@ public class Main extends Base {
     File loraDir() { return isMoss() ? MossLora.dir(getFilesDir()) : AnimaLora.dir(getFilesDir()); }
     String loraId() { return prefs().getString(lp() + "lora_id", ""); }
     /** Anima LoRAs fit the 2B models only; the 2.9B ones hold q8 weights (and another base) */
-    boolean loraFitsModel() { return isMoss() || !model.contains("29"); }
+    boolean loraFitsModel() { return isMoss() || !store.is29(model); }
     boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && loraStr() > 0 && loraFitsModel(); }
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();

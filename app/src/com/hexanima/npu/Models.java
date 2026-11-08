@@ -58,6 +58,8 @@ final class Models {
     // ---- state ----------------------------------------------------------------------------------
     File modelDir(String id) { return Moss.is(id) ? Moss.dir(home) : new File(anima, "m_" + id); }
     File doneMark(File dir) { return new File(dir, ".installed"); }
+    /** a 40-block (2.9B, q8) model: told by its block files, not its id (imported ids like "cv2945208" contain "29" too) */
+    boolean is29(String id) { return !Moss.is(id) && !Sdxl.is(id) && new File(modelDir(id), "blk39.bin").exists(); }
     boolean modelInstalled(String id) { if (Moss.is(id)) return Moss.installed(home) && id.equals(mossId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
     /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */
     static String commonDir() { String a = Compat.dspArch(); return a.isEmpty() || a.equals("v69") ? "common" : "common_" + a; }
@@ -78,7 +80,7 @@ final class Models {
     String name(String id) { if (Sdxl.is(id)) return Sdxl.name(home, id) + "  ·  SDXL (CPU)"; try { return new JSONObject(read(new File(modelDir(id), "meta.json"))).getString("name"); } catch (Exception e) { return id; } }
 
     /** seconds per picture at 512x768 (from the catalog at install time; models installed before that get the measured value of their size class) */
-    int speed(String id) { try { int v = new JSONObject(read(new File(modelDir(id), "meta.json"))).optInt("speed", 0); if (v > 0) return v; } catch (Exception e) { } return id.contains("29") ? 12 : 7; }
+    int speed(String id) { try { int v = new JSONObject(read(new File(modelDir(id), "meta.json"))).optInt("speed", 0); if (v > 0) return v; } catch (Exception e) { } return is29(id) ? 12 : 7; }
 
     static byte[] readBytes(File f) throws IOException {
         try (FileInputStream in = new FileInputStream(f)) { byte[] b = new byte[(int) f.length()]; int o = 0; for (int n; o < b.length && (n = in.read(b, o, b.length - o)) > 0; ) o += n; return b; }
