@@ -63,14 +63,23 @@ public class Main extends Base {
     ImageButton dlBtn, shareBtn, favBtn, againBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
-    LinearLayout loraBox; TextView loraName, loraInfo, strText; SeekBar strBar; Button loraPick, loraDrop;
+    LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
+    LinearLayout sampBox; EditText negEdit, stepsEdit, cfgEdit, clipEdit; Button samplerBtn, schedBtn; TextView sampNote;
     ProgressBar bar, ramBar;
     ImageView img;
     File lastFile;
     boolean customOpen;
 
+    /** LoRAs called from the current prompt with <lora:name:weight> (file*weight items), set by runOne */
+    List<String> tagLoras = new ArrayList<>();
     String mp() {
-        String lora = !isMoss() && loraOn() ? "LORA=" + q(loraSrc().getPath()) + " LORA_S=" + String.format(java.util.Locale.US, "%.2f", strBar.getProgress() * 0.05f) + " " : "";   // part of the loaded model: anima.sh reloads when it changes
+        // the selected LoRA and the prompt's <lora:...> ones are part of the loaded model: anima.sh reloads it when the list changes
+        List<String> ls = new ArrayList<>();
+        if (!isMoss() && loraFitsModel()) {
+            if (loraOn()) ls.add(loraSrc().getPath() + "*" + String.format(java.util.Locale.US, "%.2f", loraStr()));
+            for (String t : tagLoras) if (!ls.contains(t)) ls.add(t);
+        }
+        String lora = ls.isEmpty() ? "" : "LORA=" + q(String.join("|", ls)) + " ";
         return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora;
     }
 
@@ -222,6 +231,36 @@ public class Main extends Base {
         root.addView(prompt, new LinearLayout.LayoutParams(-1, -2));
         loadTags();
 
+        // sampling, right under the prompt (Anima models; stored in the same prefs as before): negative prompt, steps, CFG, clip skip, sampler, scheduler
+        sampBox = new LinearLayout(this); sampBox.setOrientation(LinearLayout.VERTICAL);
+        sampBox.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ  ·  при CFG больше 1", "NEGATIVE PROMPT  ·  with CFG above 1")));
+        negEdit = field("lowres, worst quality, bad anatomy…");
+        negEdit.setText(Settings.negative(this)); negEdit.setMinLines(2); negEdit.setGravity(Gravity.TOP); negEdit.setBackground(bg(CARD, 14));
+        negEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        negEdit.addTextChangedListener(watch(s -> prefs().edit().putString("neg", s).apply()));
+        sampBox.addView(negEdit);
+        LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL);
+        stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt("steps", v).apply(); } catch (NumberFormatException e) { } });
+        cfgEdit = numField(nr, "CFG", Settings.cfg(this), true, s -> { try { float v = Float.parseFloat(s.trim().replace(',', '.')); if (v >= 1 && v <= 30) prefs().edit().putString("cfg", s.trim().replace(',', '.')).apply(); } catch (NumberFormatException e) { } });
+        clipEdit = numField(nr, "CLIP SKIP", String.valueOf(prefs().getInt("clipskip", 1)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 12) prefs().edit().putInt("clipskip", v).apply(); } catch (NumberFormatException e) { } });
+        sampBox.addView(nr);
+        LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL); ar.setPadding(0, dp(8), 0, 0);
+        samplerBtn = button("", CARD, TXT); samplerBtn.setAllCaps(false);
+        samplerBtn.setOnClickListener(v -> pickFrom(L.s("Сэмплер", "Sampler"), Settings.SAMPLERS, Settings.SAMPLER_NAMES, Settings.sampler(this), x -> { prefs().edit().putString("sampler", x).apply(); refreshSampling(); }));
+        ar.addView(samplerBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
+        schedBtn = button("", CARD, TXT); schedBtn.setAllCaps(false);
+        schedBtn.setOnClickListener(v -> pickFrom(L.s("Планировщик", "Scheduler"), Settings.SCHEDULERS, Settings.SCHEDULER_NAMES, Settings.scheduler(this), x -> { prefs().edit().putString("sched", x).apply(); refreshSampling(); }));
+        LinearLayout.LayoutParams scl = new LinearLayout.LayoutParams(0, dp(44), 1); scl.leftMargin = dp(8); ar.addView(schedBtn, scl);
+        Button sreset = button("↺", CARD, TXT); sreset.setOnClickListener(v -> {
+            prefs().edit().putInt("steps", 4).putString("cfg", "1").putString("sampler", "euler").putString("sched", "discrete").apply();
+            stepsEdit.setText("4"); cfgEdit.setText("1"); refreshSampling();
+        });
+        LinearLayout.LayoutParams srl = new LinearLayout.LayoutParams(dp(48), dp(44)); srl.leftMargin = dp(8); ar.addView(sreset, srl);
+        sampBox.addView(ar);
+        sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampBox.addView(sampNote);
+        root.addView(sampBox);
+        refreshSampling();
+
         // size: a drop-down button that opens a two-column picker, and the portrait <-> landscape swap
         root.addView(label(L.s("РАЗМЕР", "SIZE")));
         LinearLayout sizeRow = new LinearLayout(this);
@@ -287,13 +326,17 @@ public class Main extends Base {
         sr2.addView(text(L.s("Сила", "Strength"), 14, TXT, false));
         strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
         sr2.addView(strBar, new LinearLayout.LayoutParams(0, -2, 1));
-        strText = text("", 14, TXT, true); strText.setMinWidth(dp(44)); strText.setGravity(Gravity.END); sr2.addView(strText);
+        strText = field("1.00"); strText.setTextSize(14); strText.setMinWidth(dp(64)); strText.setGravity(Gravity.CENTER); strText.setBackground(bg(CARD, 12));
+        strText.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        strText.setOnEditorActionListener((v, a, e) -> { applyStrText(); return false; });
+        strText.setOnFocusChangeListener((v, f) -> { if (!f) applyStrText(); });
+        LinearLayout.LayoutParams stl = new LinearLayout.LayoutParams(-2, -2); stl.leftMargin = dp(8); sr2.addView(strText, stl);
         strBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar b, int p, boolean u) { strText.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); if (u) prefs().edit().putFloat(lp() + "lora_str", p * 0.05f).apply(); }
+            public void onProgressChanged(SeekBar b, int p, boolean u) { if (u) { strText.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); prefs().edit().putFloat(lp() + "lora_str", p * 0.05f).apply(); } }
             public void onStartTrackingTouch(SeekBar b) { }
             public void onStopTrackingTouch(SeekBar b) { }
         });
-        strText.setText(String.format(java.util.Locale.US, "%.2f", strBar.getProgress() * 0.05f));
+        strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
         loraBox.addView(sr2);
         root.addView(loraBox);
         refreshLora();
@@ -414,12 +457,12 @@ public class Main extends Base {
     // ---- user LoRA: MOSS-Image (MossLora, folded with its turbo adapter) or Anima 2B (AnimaLora, folded into the block weights at load); one LoRA per family ----
     /** prefs prefix of the selected model's family */
     String lp() { return isMoss() ? "moss_" : "anima_"; }
-    File loraSrc() { return isMoss() ? MossLora.src(getFilesDir()) : AnimaLora.src(getFilesDir()); }
+    File loraSrc() { return isMoss() ? MossLora.src(getFilesDir()) : new File(AnimaLora.dir(getFilesDir()), prefs().getString("anima_lora_file", "user.safetensors")); }
     File loraDir() { return isMoss() ? MossLora.dir(getFilesDir()) : AnimaLora.dir(getFilesDir()); }
     String loraId() { return prefs().getString(lp() + "lora_id", ""); }
     /** Anima LoRAs fit the 2B models only; the 2.9B ones hold q8 weights (and another base) */
     boolean loraFitsModel() { return isMoss() || !model.contains("29"); }
-    boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && strBar.getProgress() > 0 && loraFitsModel(); }
+    boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && loraStr() > 0 && loraFitsModel(); }
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
         loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
@@ -429,8 +472,54 @@ public class Main extends Base {
         if (has && !loraFitsModel()) info = L.s("Не применяется к моделям 2.9B: LoRA для Anima 2B", "Not applied to the 2.9B models: it is a LoRA for Anima 2B");
         loraInfo.setText(info);
         loraInfo.setTextColor(has ? (loraFitsModel() ? OK : WARN) : DIM);
-        loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f);
-        strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
+        loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f); strText.setEnabled(has);
+        strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20));
+        if (!strText.hasFocus()) strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
+    }
+    float loraStr() { return prefs().getFloat(lp() + "lora_str", 1f); }
+    /** typed strength (0..3; the slider shows 0..2) */
+    void applyStrText() {
+        try { float v = Float.parseFloat(strText.getText().toString().trim().replace(',', '.')); v = Math.max(0f, Math.min(3f, v)); prefs().edit().putFloat(lp() + "lora_str", v).apply(); } catch (NumberFormatException ignored) { }
+        strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20)); strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
+    }
+
+    // ---- sampling fields under the prompt ----
+    interface OnText { void on(String s); }
+    static android.text.TextWatcher watch(OnText cb) {
+        return new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            public void afterTextChanged(android.text.Editable s) { cb.on(s.toString()); }
+        };
+    }
+    /** a labelled number field added to row: [LABEL / field] */
+    EditText numField(LinearLayout row, String title, String value, boolean decimal, OnText cb) {
+        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL);
+        c.addView(label(title));
+        EditText e = field(""); e.setText(value); e.setBackground(bg(CARD, 14)); e.setGravity(Gravity.CENTER);
+        e.setInputType(InputType.TYPE_CLASS_NUMBER | (decimal ? InputType.TYPE_NUMBER_FLAG_DECIMAL : 0));
+        e.addTextChangedListener(watch(s -> { cb.on(s); refreshSampling(); }));
+        c.addView(e);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1); if (row.getChildCount() > 0) lp.leftMargin = dp(8);
+        row.addView(c, lp);
+        return e;
+    }
+    void pickFrom(String title, String[] values, String[] names, String cur, OnText cb) {
+        int i = Math.max(0, java.util.Arrays.asList(values).indexOf(cur));
+        builder().setTitle(title).setSingleChoiceItems(names, i, (d, k) -> { d.dismiss(); cb.on(values[k]); }).show();
+    }
+    void refreshSampling() {
+        if (sampBox == null || samplerBtn == null) return;
+        samplerBtn.setText(Settings.samplerName(Settings.sampler(this)) + "  ▾");
+        schedBtn.setText(Settings.schedulerName(Settings.scheduler(this)) + "  ▾");
+        boolean anima = !isMoss();
+        clipEdit.setEnabled(false); clipEdit.setAlpha(.4f);   // Anima / MOSS encode text with Qwen, not CLIP: clip skip is for the SDXL (Illustrious) models
+        sampBox.setVisibility(anima && !model.isEmpty() ? View.VISIBLE : View.GONE);
+        String n = Settings.defaultSampling(this) ? L.s("По умолчанию: модели обучены на 4 шага, Euler, CFG 1.", "Defaults: the models are distilled for 4 steps, Euler, CFG 1.")
+                : L.f("Вызовов DiT: %d (по умолчанию 4, из них 2 в половинном размере)", "DiT calls: %d (default 4, two of them at half size)", Settings.calls(this));
+        if (Settings.cfgOn(this)) n += "\n" + L.s("CFG больше 1: вдвое медленнее, используется негативный промпт.", "CFG above 1: twice as slow, the negative prompt is used.");
+        if (Settings.twoCalls(Settings.sampler(this))) n += "\n" + L.s("Сэмплер 2-го порядка: вдвое медленнее и с 4 шагами даёт зернистость.", "2nd-order sampler: twice as slow, grainy with 4 steps.");
+        sampNote.setText(n + "\n" + L.s("Clip skip — только для моделей SDXL (Anima использует Qwen3, не CLIP).", "Clip skip is for SDXL models only (Anima uses Qwen3, not CLIP)."));
     }
     void pickLora() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
@@ -438,7 +527,7 @@ public class Main extends Base {
     }
     void dropLora() {
         if (busy) return;
-        final File ld = loraDir();
+        final File ld = isMoss() ? loraDir() : loraSrc();   // Anima: only the selected file leaves the library
         prefs().edit().remove(lp() + "lora_id").remove(lp() + "lora_name").remove(lp() + "lora_info").apply();
         ex2.submit(() -> { MossLora.deleteTree(ld); ui.post(this::refreshLora); });
     }
@@ -446,7 +535,7 @@ public class Main extends Base {
         String nm = "LoRA";
         try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (i >= 0) nm = c.getString(i); } } catch (Exception ignored) { }
         final String name = nm;
-        final boolean moss = isMoss(); final String pre = lp(); final File src = loraSrc();
+        final boolean moss = isMoss(); final String pre = lp(); final File src = moss ? loraSrc() : new File(AnimaLora.dir(getFilesDir()), AnimaLora.fileName(name));
         loraInfo.setTextColor(WARN); loraInfo.setText(L.s("Проверяю файл…", "Checking the file…"));
         ex2.submit(() -> {
             final File dir = loraDir(); dir.mkdirs(); final File tmp = new File(dir, "new.safetensors");
@@ -457,9 +546,11 @@ public class Main extends Base {
             final boolean ok; final String msg;
             if (moss) { MossLora.Check c = MossLora.check(BIN, tmp); ok = c.ok; msg = c.message(); } else { AnimaLora.Check c = AnimaLora.check(tmp); ok = c.ok; msg = c.message(); }
             if (!ok) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, msg); }); return; }
-            File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f);   // the old LoRA (and MOSS's folded patches) go
-            tmp.renameTo(src);
-            prefs().edit().putString(pre + "lora_id", Long.toHexString(System.currentTimeMillis())).putString(pre + "lora_name", name).putString(pre + "lora_info", "✓ " + msg).apply();
+            if (moss) { File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f); }   // MOSS: the old LoRA and its folded patches go; Anima keeps a library
+            src.delete(); tmp.renameTo(src);
+            final String tag = src.getName().replaceAll("\\.safetensors$", "");
+            prefs().edit().putString(pre + "lora_id", Long.toHexString(System.currentTimeMillis())).putString(pre + "lora_name", name).putString("anima_lora_file", moss ? prefs().getString("anima_lora_file", "user.safetensors") : src.getName())
+                .putString(pre + "lora_info", "✓ " + msg + (moss ? "" : "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag))).apply();
             ui.post(this::refreshLora);
         });
     }
@@ -638,6 +729,7 @@ public class Main extends Base {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() ? View.GONE : View.VISIBLE); refreshLora(); }
+            refreshSampling();
             state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
                 : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
@@ -812,6 +904,11 @@ public class Main extends Base {
     /** one picture: loads the model if needed, runs anima.sh, stores the PNG (with the settings inside) in the history; null on failure or Stop */
     File runOne(String pr, String seedS, int w, int h, long t0) {
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
+        final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
+        AnimaLora.Tags tg = AnimaLora.tags(getFilesDir(), pr);
+        pr = tg.prompt; tagLoras = tg.items;
+        if (!tg.missing.isEmpty()) { final String miss = String.join(", ", tg.missing); ui.post(() -> Toast.makeText(this, L.f("LoRA не найдена: %s", "LoRA not found: %s", miss), Toast.LENGTH_LONG).show()); }
+        if (!tg.items.isEmpty() && !loraFitsModel()) ui.post(() -> Toast.makeText(this, L.s("Не применяется к моделям 2.9B: LoRA для Anima 2B", "Not applied to the 2.9B models: it is a LoRA for Anima 2B"), Toast.LENGTH_LONG).show());
         if (!loaded) {
             setProgressUi(0, L.s("Загружаю модель…", "Loading the model…"), t0);
             su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh load < /dev/null >/dev/null 2>&1", false);
@@ -843,10 +940,11 @@ public class Main extends Base {
         try { png = Models.readBytes(new File(f)); } catch (Exception ignored) { }
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
         try {
-            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
+            JSONObject meta = new JSONObject().put("prompt", fullPrompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
                 .put("steps", steps).put("cfg", Settings.cfg(this)).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
             if (Settings.cfgOn(this) && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
-            if (loraOn()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", strBar.getProgress() * 0.05f);
+            if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
+            if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
     }
@@ -856,7 +954,7 @@ public class Main extends Base {
         final File home = getFilesDir(), M = Moss.dir(home), ids = new File(M, "ids.i32"), raw = new File(M, "img.f32");
         setProgressUi(3, L.s("Токенизация…", "Tokenising…"), t0);
         try { Moss.writeIds(home, pr, ids); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "tokenizer: " + e, Toast.LENGTH_LONG).show()); return null; }
-        String loraEnv = ""; final boolean useLora = loraOn(); final float lstr = strBar.getProgress() * 0.05f;
+        String loraEnv = ""; final boolean useLora = loraOn(); final float lstr = loraStr();
         if (useLora) {
             final String[] msg = {""};
             File ovl = MossLora.ensure(home, BIN, loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Подготовка LoRA… %d/%d", "Preparing the LoRA… %d/%d", d, t), t0), () -> cancelled, msg);

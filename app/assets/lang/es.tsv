@@ -230,3 +230,12 @@ This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does no
 This file does not look like an Anima LoRA: the lora_unet_blocks_N_* layers are missing.	El archivo no parece un LoRA de Anima: faltan las capas lora_unet_blocks_N_*.
 A LoRA for Anima 2B (.safetensors): checked as soon as you pick it; a new LoRA or strength reloads the model	Un LoRA para Anima 2B (.safetensors): se revisa al elegirlo; un LoRA o una fuerza nuevos recargan el modelo
 Not applied to the 2.9B models: it is a LoRA for Anima 2B	No se aplica a los modelos 2.9B: es un LoRA para Anima 2B
+NEGATIVE PROMPT  ·  with CFG above 1	PROMPT NEGATIVO  ·  con CFG mayor que 1
+STEPS	PASOS
+Defaults: the models are distilled for 4 steps, Euler, CFG 1.	Por defecto: los modelos están destilados para 4 pasos, Euler y CFG 1.
+DiT calls: %d (default 4, two of them at half size)	Llamadas al DiT: %d (por defecto 4, dos de ellas a la mitad de tamaño)
+CFG above 1: twice as slow, the negative prompt is used.	CFG mayor que 1: el doble de lento, se usa el prompt negativo.
+2nd-order sampler: twice as slow, grainy with 4 steps.	Sampler de 2.º orden: el doble de lento y con 4 pasos sale granulado.
+Clip skip is for SDXL models only (Anima uses Qwen3, not CLIP).	Clip skip es solo para modelos SDXL (Anima usa Qwen3, no CLIP).
+In the prompt: <lora:%s:1.0>	En el prompt: <lora:%s:1.0>
+LoRA not found: %s	LoRA no encontrado: %s

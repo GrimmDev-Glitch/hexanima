@@ -20,12 +20,14 @@
 struct LoraFile {
   struct T { std::string dtype; std::vector<int64_t> shape; size_t off = 0, end = 0; };
   std::map<std::string, T> t; const uint8_t* data = nullptr; size_t size = 0;
+  LoraFile() = default; LoraFile(const LoraFile&) = delete; LoraFile& operator=(const LoraFile&) = delete;
+  ~LoraFile() { if (data) munmap((void*)data, size); }   // megarun lives on: do not keep the (touched) file pages around
   bool open(const char* path) {
     int fd = ::open(path, O_RDONLY); if (fd < 0) return false;
     struct stat st; fstat(fd, &st); size = st.st_size;
     void* m = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0); ::close(fd);
-    if (m == MAP_FAILED || size < 8) return false;
-    data = (const uint8_t*)m; uint64_t n; memcpy(&n, data, 8); if (8 + n > size) return false;
+    if (m == MAP_FAILED) { size = 0; return false; }
+    data = (const uint8_t*)m; if (size < 8) return false; uint64_t n; memcpy(&n, data, 8); if (8 + n > size) return false;
     std::string h((const char*)data + 8, n); const uint8_t* base = data + 8 + n;
     // minimal parser for the safetensors header: {"name":{"dtype":"BF16","shape":[a,b],"data_offsets":[x,y]},...}
     size_t p = 0;

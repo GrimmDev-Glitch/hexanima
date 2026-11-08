@@ -338,6 +338,7 @@ int main(int argc, char** argv) {
     std::vector<Chain> ch, vae, te;
     bool hmx = false;
     const __fp16* embed = nullptr;  // Qwen3 embedding table fp16 [151936][1024] (mmap) for the NPU text encoder
+    int te_sm = 128;                // token slots of the text-encoder contexts (te_v73 contexts: 256)
     if (!test) {
         // q4/blk0..6.bin = the 28 blocks as 7 merged groups of 4 (12% faster than 28 single-block contexts); fall back to blk0..27.bin
         const char* he = getenv("ANIMAD_HMXDIR"); std::string hd = he ? he : "hmx";   // 2.9B: hmx29 (40 blocks)
@@ -357,7 +358,7 @@ int main(int argc, char** argv) {
             int fd = open((ph + "/te_embed.f16").c_str(), O_RDONLY);
             embed = (const __fp16*)mmap(nullptr, (size_t)151936 * 1024 * 2, PROT_READ, MAP_SHARED, fd, 0);
             if (embed == MAP_FAILED) embed = nullptr;
-            if (embed) { te.push_back(spawn_te(ph)); waitline(te[0], "ready", nullptr); }
+            if (embed) { te.push_back(spawn_te(ph)); std::string r = waitline(te[0], "ready", nullptr); int ni = atoi(r.c_str() + 5); if (ni >= 1024) te_sm = ni / 1024; }   // "ready <input elems>" (older terun: no number = 128)
         }
         fprintf(stderr, "animad: chain ready %.1fs (text encoder on NPU: %s)\n", now() - t0, te.empty() ? "no" : "yes");
     }
@@ -375,9 +376,11 @@ int main(int argc, char** argv) {
         {
             double tt = now();
             auto ib = readfile(dir + "/qids" + sfx + ".bin");
-            int S = (int)(ib.size() / 4); const int SM = 128;
-            if (S > SM) { writefile(dir + "/qh" + sfx + ".cpu", "", 0); fprintf(stderr, "animad: text S=%d > %d, CPU fallback\n", S, SM); }
-            else {
+            int S = (int)(ib.size() / 4); const int SM = te_sm;
+            // longer prompts than the contexts take: the first SM tokens are encoded, the rest get zero states (the app has no CPU text-encoder weights,
+            // only a header stub, so the old CPU fallback produced garbage)
+            if (S > SM) fprintf(stderr, "animad: text S=%d > %d, the tokens after %d are dropped\n", S, SM, SM);
+            {
                 std::vector<f32> in((size_t)SM * 1024);
                 for (int i = 0; i < SM; i++) {
                     int id = i < S ? ((const int32_t*)ib.data())[i] : 151643;
@@ -389,6 +392,7 @@ int main(int argc, char** argv) {
                 std::string r = waitline(te[0], "done", "error");
                 if (r[0] != 'd') die("terun error", r);
                 auto ob = readfile(ph + "/te_out.raw");
+                ob.resize((size_t)S * 1024 * 4, 0);
                 writefile(dir + "/qh" + sfx + ".bin", ob.data(), (size_t)S * 1024 * 4);
                 writefile(dir + "/qh" + sfx + ".bin.done", "", 0);
                 fprintf(stderr, "animad: text encoder S=%d %.3fs (npu %s)\n", S, now() - tt, r.c_str() + 5);

@@ -107,14 +107,21 @@ int main(int argc, char** argv) {
     if (got != wtot) { fprintf(stderr, "short read %s\n", p); return 1; }
   }
   fprintf(stderr, "megarun: weights loaded %.1fs\n", now() - t0);
-  if (const char* lp = getenv("MEGA_LORA")) {   // user LoRA (Anima 2B): folded into the fp16 weights in RAM, see lora_fold.h
-    LoraFile L; const float s = getenv("MEGA_LORA_S") ? (float)atof(getenv("MEGA_LORA_S")) : 1.f; double tl = now();
-    if (g_q8) fprintf(stderr, "megarun: LoRA skipped: q8 weights (2.9B models) are not supported\n");
-    else if (!L.open(lp)) fprintf(stderr, "megarun: LoRA skipped: cannot read %s\n", lp);
-    else {
-      int nm = 0;
-      for (int i = 0; i < count; i++) { int k = lora_fold_block(L, s, first + i, wts[i]); if (k < 0) { fprintf(stderr, "megarun: LoRA skipped: shapes do not fit block %d (another model?)\n", first + i); return 1; } nm += k; }
-      fprintf(stderr, "megarun: LoRA %d matrices of blocks %d..%d, strength %.2f, %.1fs\n", nm, first, first + count - 1, s, now() - tl);
+  // user LoRAs (Anima 2B), folded into the fp16 weights in RAM (lora_fold.h): MEGA_LORA = "file*strength|file*strength|..." (a bare file takes MEGA_LORA_S, default 1)
+  if (const char* lv = getenv("MEGA_LORA")) {
+    const float s0 = getenv("MEGA_LORA_S") ? (float)atof(getenv("MEGA_LORA_S")) : 1.f;
+    std::string all = lv;
+    for (size_t p = 0; p < all.size();) {
+      size_t q = all.find('|', p); if (q == std::string::npos) q = all.size();
+      std::string item = all.substr(p, q - p); p = q + 1; if (item.empty()) continue;
+      float s = s0; size_t st = item.rfind('*'); if (st != std::string::npos) { s = (float)atof(item.c_str() + st + 1); item.resize(st); }
+      LoraFile L; double tl = now();
+      if (g_q8) { fprintf(stderr, "megarun: LoRA skipped: q8 weights (2.9B models) are not supported\n"); break; }
+      if (!L.open(item.c_str())) { fprintf(stderr, "megarun: LoRA skipped: cannot read %s\n", item.c_str()); continue; }
+      int nm = 0; bool fit = true;
+      for (int i = 0; i < count && fit; i++) { int k = lora_fold_block(L, s, first + i, wts[i]); if (k < 0) fit = false; else nm += k; }
+      if (!fit) fprintf(stderr, "megarun: LoRA %s does not fit this model (shapes), partly applied\n", item.c_str());
+      fprintf(stderr, "megarun: LoRA %s: %d matrices of blocks %d..%d, strength %.2f, %.1fs\n", item.c_str(), nm, first, first + count - 1, s, now() - tl);
     }
   }
   struct remote_rpc_control_unsigned_module ud = {CDSP_DOMAIN_ID, 1};

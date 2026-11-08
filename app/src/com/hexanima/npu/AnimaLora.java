@@ -11,6 +11,41 @@ final class AnimaLora {
     static File dir(File home) { return new File(new File(home, "anima"), "lora"); }
     static File src(File home) { return new File(dir(home), "user.safetensors"); }
 
+    /* The LoRA dir is a library: every picked or downloaded LoRA is kept under its own (cleaned) file name. One of them is the selected LoRA of the
+       main screen; any of them can also be called from the prompt as <lora:name> or <lora:name:weight> (name = file name without .safetensors). */
+    static String fileName(String display) {
+        String b = display.replaceAll("(?i)\\.safetensors$", "").replaceAll("[^A-Za-z0-9._-]+", "_");
+        return (b.isEmpty() ? "lora" : b) + ".safetensors";
+    }
+    static File find(File home, String name) {
+        File[] fs = dir(home).listFiles(); if (fs == null) return null;
+        String want = name.trim().replaceAll("(?i)\\.safetensors$", "");
+        for (File f : fs) if (f.getName().endsWith(".safetensors") && f.getName().substring(0, f.getName().length() - 12).equalsIgnoreCase(want)) return f;
+        String alt = fileName(want); for (File f : fs) if (f.getName().equalsIgnoreCase(alt)) return f;   // names typed with spaces etc.
+        return null;
+    }
+    static List<String> names(File home) {
+        List<String> out = new ArrayList<>(); File[] fs = dir(home).listFiles();
+        if (fs != null) for (File f : fs) if (f.getName().endsWith(".safetensors") && !f.getName().startsWith("new.")) out.add(f.getName().substring(0, f.getName().length() - 12));
+        Collections.sort(out, String.CASE_INSENSITIVE_ORDER); return out;
+    }
+    /** <lora:name> / <lora:name:weight> tags of a prompt: the prompt without them, the "file*weight" items found and the names not in the library */
+    static final class Tags { String prompt; List<String> items = new ArrayList<>(), missing = new ArrayList<>(), used = new ArrayList<>(); }
+    static Tags tags(File home, String prompt) {
+        Tags t = new Tags(); java.util.regex.Matcher m = java.util.regex.Pattern.compile("<lora:([^:>]+)(?::\\s*(-?[0-9]*\\.?[0-9]+))?\\s*>", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(prompt);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            float w = 1f; try { if (m.group(2) != null) w = Float.parseFloat(m.group(2)); } catch (NumberFormatException ignored) { }
+            File f = find(home, m.group(1));
+            if (f == null) t.missing.add(m.group(1).trim());
+            else if (w != 0f) { t.items.add(f.getPath() + "*" + String.format(Locale.US, "%.2f", w)); t.used.add(m.group(1).trim() + ":" + String.format(Locale.US, "%.2f", w)); }
+            m.appendReplacement(sb, "");
+        }
+        m.appendTail(sb);
+        t.prompt = sb.toString().replaceAll("[ \\t]*,[ \\t]*(,[ \\t]*)+", ", ").replaceAll("\\s+\\n", "\n").trim();
+        return t;
+    }
+
     static final class Check {
         boolean ok; String why = ""; int blocks, mats, rank; boolean te;
         String message() {

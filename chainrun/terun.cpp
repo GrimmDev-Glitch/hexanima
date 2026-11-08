@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
   for (int c = 0; c < N; c++) { setBuf(tins[c], bufs[c].data(), bufs[c].size()); setBuf(touts[c], bufs[c + 1].data(), bufs[c + 1].size()); }
   uint32_t ni = tElems(tins[0]), no = tElems(touts[N - 1]);
   fprintf(stderr, "terun: %d contexts, in %u elems, out %u elems\n", N, ni, no);
-  printf("ready\n"); fflush(stdout);
+  printf("ready %u\n", ni); fflush(stdout);   // input elements: animad derives the sequence length (ni / 1024) the contexts were built for
   std::string line;
   while (std::getline(std::cin, line)) {
     std::istringstream ss(line); std::string cmd, fi, fo; ss >> cmd >> fi >> fo;
