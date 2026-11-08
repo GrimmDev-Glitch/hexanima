@@ -5,6 +5,8 @@
 /* O[M x N] = A[M x K] * W[K x N]; all fp16 crouton. A,O: [row slab][col block]; W: [n block][k block]. A, W, O in DDR. vtcm: >= 6 MB scratch. */
 void hmx_acc(uint8_t *, uint32_t, uint8_t *, uint32_t);
 void hmx_store(uint8_t *, uint32_t);
+void hmx_scale_init(uint8_t *vtcm);   /* V73+: write the store's scale/bias block (hmxscale.c); call after every VTCM acquire */
+#define VT_HMXSCALE ((7u << 20) + 131072)   /* 256 B free in the top MB for every gemm_run user: GEMM stays below 7 MB - 64 KB, blk.c tables end at +128 KB, scratch starts at +256 KB */
 typedef struct {   /* optional epilogue run by the pool workers on the finished output tiles (VTCM) */
   int mode;                      /* 0 none (copy to O), 1 residual: x32 += gate*tile (O unused), 2 GELU in place then copy, 3 copy + rope */
   float *x32; const float *gate; /* mode 1: x32 tiles [slab][64], gate[2048] */

@@ -102,6 +102,7 @@ static int vtcm_get(void) {
   g_vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
   g_et = (u16 *)(g_vt + VT_TAB); g_t2 = g_et + 32768; g_scr = (HVX_Vector *)(g_vt + VT_TAB + 262144);
   memcpy(g_et, g_et_h, 65536); memcpy(g_t2, g_t2_h, 65536);
+  hmx_scale_init(g_vt + VT_HMXSCALE);
   return 0;
 }
 

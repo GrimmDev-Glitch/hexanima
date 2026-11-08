@@ -22,6 +22,13 @@ fi
 # not exported: system tools (setsid, grep...) must not see /vendor/lib64 (its old libc++ breaks them on newer Android); only our binaries get it, with /system/lib64 listed first so the system libc++ wins over the older vendor copy
 RUNX='export LD_LIBRARY_PATH="$LIBS" ADSP_LIBRARY_PATH="$ADSPP"; exec "$@"'   # "env VAR=.. cmd" is not used: an app path contains "=" and env would take it for an assignment
 ADSPP=${BIN:-$A}
+# Snapdragon 8 Gen 2 (Hexagon V73) needs its own build of the DiT kernels: it ships as libmega_skel_v73.so and is copied under the name the DSP
+# loader looks for into a dir listed before $BIN (same trick as moss.sh); the QNN contexts pick their V73 skel by themselves
+case "$(getprop ro.soc.model)" in SM8550) DSPA=v73;; *) DSPA=;; esac
+if [ -n "$DSPA" ] && [ -f "$BIN/libmega_skel_$DSPA.so" ]; then
+  mkdir -p $A/dsp_$DSPA; cmp -s "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so || cp -f "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so
+  ADSPP="$A/dsp_$DSPA;$BIN"
+fi
 if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf quit > $SQ/job.tmp; mv $SQ/job.tmp $SQ/job; fi; pidof $NS >/dev/null && kill $(pidof $NS); n=0; while pidof $NA >/dev/null && [ $n -lt 20 ]; do sleep 0.25; n=$((n+1)); done
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
