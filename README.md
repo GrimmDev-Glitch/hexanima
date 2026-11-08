@@ -39,7 +39,7 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 | **Your own checkpoints** | Any Anima `.safetensors` checkpoint becomes an NPU model on the phone. |
 | **Live preview** | The picture appears while it is drawn (every step; every 2nd or 4th on long runs), with the step and the seconds left. |
 | **Prompt tools** | Tag palette (quality, framing, lighting, style, expression, background), `( − ) ( + )` for `(tag:1.2)` weights, a negative prompt with Clear and Default. |
-| **Sampling** | Steps, CFG, 21 samplers, 9 schedulers; saved per model. |
+| **Sampling** | Steps, CFG, 21 samplers, 9 schedulers; saved per model. Optional: CFG only on the first 80 or 70 % of the steps (10-14 % faster, no visible change in our tests); the comparison grid shows 100 / 80 / 70 / 60 % side by side. |
 | **Extras** | img2img, **inpainting** (paint a mask), hires fix on the NPU, ADetailer for faces, presets, a queue, a **2×2 comparison grid** (seeds, CFG or steps). |
 | **History** | Filter by model, LoRA or prompt words; *Reuse settings* brings back the sampling too. |
 | **Heat and memory** | Automatic cool mode, a free-RAM check before loading, and batches that wait for the phone to cool down. A home-screen widget shows free RAM and frees it. |
