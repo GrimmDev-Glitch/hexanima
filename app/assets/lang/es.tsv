@@ -370,3 +370,11 @@ MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, 
 Low-memory mode (slower)	Modo de poca memoria (más lento)
 The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB.	Los pesos del modelo se leen del almacenamiento para cada imagen en lugar de quedarse en la RAM. Hace falta en teléfonos con 8 GB de RAM, no en los de 12 GB.
   ·  app %.1f GB	  ·  app %.1f GB
+%s  ·  ~%d s left	%s  ·  quedan ~%d s
+Letting the phone cool down… %.1f °C	Dejando enfriar el teléfono… %.1f °C
+Cool mode	Modo fresco
+The NPU runs at a lower clock: the phone gets much less hot, a picture takes about a quarter longer.	La NPU funciona a menor frecuencia: el teléfono se calienta mucho menos y cada imagen tarda aproximadamente un cuarto más.
+Compatible (LyCORIS): %d of %d blocks (%s)	Compatible (LyCORIS): %d de %d bloques (%s)
+This file does not look like an Anima LoRA: no DiT block layers were found.	El archivo no parece un LoRA de Anima: no se encontraron capas de bloques DiT.
+Qwen-Image on the NPU · weights streamed from storage	Qwen-Image en la NPU · pesos leídos del almacenamiento
+Low memory: hires fix skipped for this picture	Poca memoria: hires fix omitido en esta imagen

@@ -1,5 +1,5 @@
 diff --git a/examples/cli/main.cpp b/examples/cli/main.cpp
-index ee1e56f..a55ccf2 100644
+index ee1e56f..a0b81f8 100644
 --- a/examples/cli/main.cpp
 +++ b/examples/cli/main.cpp
 @@ -1,3 +1,8 @@
@@ -21,7 +21,7 @@ index ee1e56f..a55ccf2 100644
          }
      } else {
          int fps = cli_params->preview_method == PREVIEW_PROJ ? cli_params->preview_fps / 4 : cli_params->preview_fps;
-@@ -914,6 +922,89 @@ int main(int argc, const char* argv[]) {
+@@ -914,6 +922,90 @@ int main(int argc, const char* argv[]) {
              img_gen_params = gen_params.to_sd_img_gen_params_t();
          }
  
@@ -37,7 +37,8 @@ index ee1e56f..a55ccf2 100644
 +            LOG_INFO("serve mode: waiting for jobs in %s", sdir.c_str());
 +            for (;;) {
 +                struct stat st_;
-+                while (stat((sdir + "/job").c_str(), &st_) != 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
++                // poll every 2 ms for 2 s after a job, then every 50 ms: an idle server keeps the CPU asleep (less heat)
++                for (int idle = 0; stat((sdir + "/job").c_str(), &st_) != 0; idle++) std::this_thread::sleep_for(std::chrono::milliseconds(idle < 1000 ? 2 : 50));
 +                std::map<std::string, std::string> job;
 +                {
 +                    std::ifstream jf(sdir + "/job");

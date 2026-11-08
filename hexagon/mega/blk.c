@@ -10,6 +10,7 @@
 #include "HAP_power.h"
 #include "mega.h"
 void power_max(void *);
+void power_level(void *, int);
 #include "gemm2.h"
 #include "pool.h"
 #include "kern.h"
@@ -124,7 +125,7 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
   if (!pool_n()) pool_init(meta[M_NW] ? meta[M_NW] : 3);   /* workers spin: with several processes they only exist during a call */
   if (!g_vt && vtcm_get()) { *rc = -1; return 0; }
   uint32_t ctx = g_ctx; uint8_t *vt = g_vt;
-  if (meta[M_FIRST]) { HAP_power_request_t rq; memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX; rq.hmx.power_up = TRUE; HAP_power_set((void *)hd, &rq); power_max((void *)hd); }   /* once per run of blocks */
+  if (meta[M_FIRST]) { HAP_power_request_t rq; memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX; rq.hmx.power_up = TRUE; HAP_power_set((void *)hd, &rq); power_level((void *)hd, meta[M_FIRST] == 2); }   /* once per run of blocks; M_FIRST 2 = cool mode */
   if (HAP_compute_res_hmx_lock(ctx)) { *rc = -2; return 0; }
   const int ntok = meta[M_NTOK], nctx = meta[M_NCTX], ns = ntok / 32, nc = nctx / 32;
 #define BUF(m) (blob + meta[m])

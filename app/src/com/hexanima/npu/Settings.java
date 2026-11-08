@@ -20,6 +20,8 @@ public class Settings extends Base {
     static boolean autoload(Context c) { return prefs(c).getBoolean("autoload", false); }
     static int idleMin(Context c) { return prefs(c).getInt("idle", 10); }
     /** low-memory mode for the Anima models (blocks are streamed from storage instead of being pinned in RAM): on by default below ~9.5 GB of RAM */
+    /** cool mode: the NPU runs at a lower clock / voltage (megarun MEGA_COOL): much less heat, roughly a quarter slower */
+    static boolean cool(Context c) { return prefs(c).getBoolean("cool", true); }
     static boolean lowRam(Context c) { return prefs(c).getBoolean("lowram", Compat.ramGb(c) < 9.5); }
     static boolean keepOn(Context c) { return prefs(c).getBoolean("keepon", true); }
     static String rawPrefix(Context c) { String p = prefs(c).getString("prefix", DEFAULT_PREFIX); return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
@@ -85,6 +87,7 @@ public class Settings extends Base {
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
+        c3.addView(toggle(L.s("Режим без перегрева", "Cool mode"), L.s("NPU работает на меньшей частоте: телефон греется намного меньше, картинка примерно на четверть дольше.", "The NPU runs at a lower clock: the phone gets much less hot, a picture takes about a quarter longer."), cool(this), on -> p.edit().putBoolean("cool", on).apply()));
         c3.addView(toggle(L.s("Экономия памяти (медленнее)", "Low-memory mode (slower)"), L.s("Веса модели читаются с накопителя при каждой картинке, а не держатся в ОЗУ. Нужно телефонам с 8 ГБ ОЗУ, на 12 ГБ не нужно.", "The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB."), lowRam(this), on -> p.edit().putBoolean("lowram", on).apply()));   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
 
         LinearLayout cc = card(col);

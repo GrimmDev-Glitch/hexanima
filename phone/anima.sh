@@ -37,7 +37,7 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
 # LORA=<file*strength|...>: Anima LoRAs folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so they are part of the loaded model
-KEY="${MODEL:-2}${MEGA_STREAM:+s}${LORA:+|$LORA|${LORA_S:-1}}"   # the low-memory (streaming) mode and the LoRAs are part of the key: changing them restarts the server
+KEY="${MODEL:-2}${MEGA_STREAM:+s}${MEGA_COOL:+c}${LORA:+|$LORA|${LORA_S:-1}}"   # the low-memory (streaming) mode and the LoRAs are part of the key: changing them restarts the server
 if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$KEY" ]; then   # loaded server holds another model (or runs in the other memory mode): restart it
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi

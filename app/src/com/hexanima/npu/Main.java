@@ -84,7 +84,7 @@ public class Main extends Base {
             for (String t : tagLoras) if (!ls.contains(t)) ls.add(t);
         }
         String lora = ls.isEmpty() ? "" : "LORA=" + q(String.join("|", ls)) + " ";
-        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "");
+        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "") + (Settings.cool(this) ? "MEGA_COOL=1 " : "");
     }
 
     GradientDrawable gradient(boolean enabled) {
@@ -770,10 +770,7 @@ public class Main extends Base {
         int i = Math.max(0, java.util.Arrays.asList(values).indexOf(cur));
         builder().setTitle(title).setSingleChoiceItems(names, i, (d, k) -> { d.dismiss(); cb.on(values[k]); }).show();
     }
-    // ---- extras: hires fix, AI upscale, ADetailer, init image (img2img), presets, queue ----
-    static final String UPSCALER_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth";
-    static final String UPSCALER_SHA = "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da";
-    File upscaler() { return new File(getFilesDir(), "sd/upscalers/RealESRGAN_x4plus_anime_6B.pth"); }
+    // ---- extras: hires fix, ADetailer (the CPU upscaler was removed: it took the CPU to 90 C and the phone hung), init image (img2img), presets, queue ----
     File initSrc() { return new File(getFilesDir(), "init_src.png"); }
     File adDir() { return new File(getFilesDir(), "adetailer"); }
     LinearLayout extrasBox; TextView initText, adText, queueText; EditText strEdit, hsEdit, hdEdit, hnEdit;
@@ -802,7 +799,6 @@ public class Main extends Base {
         hdEdit = smallField(hr, "DENOISE", "x_hires_den", "0.45", true);
         hnEdit = smallField(hr, L.s("ШАГИ", "STEPS"), "x_hires_steps", "4", false);
         c.addView(hr);
-        sw(c, L.s("Увеличить ×2 (ИИ)", "Upscale ×2 (AI)"), L.s("RealESRGAN на процессоре, ~80 с, до 512×768", "RealESRGAN on the CPU, ~80 s, up to 512×768"), "x_up", false);
         sw(c, L.s("ADetailer (лица)", "ADetailer (faces)"), L.s("Находит лица и перерисовывает их детальнее", "Finds faces and redraws them in more detail"), "x_ad", false);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL);
         adText = text("", 12, DIM, false); ar.addView(adText, new LinearLayout.LayoutParams(0, -2, 1));
@@ -854,7 +850,7 @@ public class Main extends Base {
         if (extrasBox == null) return;
         extrasBox.setVisibility(isMoss() || isQwen() || model.isEmpty() ? View.GONE : View.VISIBLE);
         List<String> on = new ArrayList<>();
-        if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_up", false)) on.add("×2"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
+        if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
         if (initSrc().exists()) on.add(maskSrc().exists() ? "inpaint" : "img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
         extFold.sum.setText(on.isEmpty() ? L.s("выкл.", "off") : android.text.TextUtils.join(" · ", on)); extFold.sum.setTextColor(on.isEmpty() ? DIM : ACC);
         initText.setText(!initSrc().exists() ? L.s("нет: обычная генерация", "none: normal generation") : maskSrc().exists() ? L.s("✓ выбрана · маска: перерисовать закрашенное", "✓ chosen · mask: redraw the painted part") : L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)"));
@@ -984,30 +980,6 @@ public class Main extends Base {
             return out;
         } catch (Exception e) { return null; }
     }
-    /** the upscaler model, downloaded once (null and a toast on failure) */
-    File ensureUpscaler(long t0) {
-        File u = upscaler(); if (u.exists()) return u;
-        setProgressUi(1, L.s("Загрузка модели увеличения (18 МБ)…", "Downloading the upscaler (18 MB)…"), t0);
-        try { Models.fetch(UPSCALER_URL, u, -1, UPSCALER_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); return u; }
-        catch (Exception e) { ui.post(() -> Toast.makeText(this, "RealESRGAN: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
-    }
-    /** AI upscale ×2 on the CPU: RealESRGAN anime is a ×4 model, so the picture is halved first (a quarter of the work: ~80 s for 512×768 on the
-     *  Poco F6 Pro; ×4 of the full picture took ~5 min). Only up to 512×768: larger pictures would pass 2 minutes (the hires fix on the NPU is the fast way). */
-    byte[] upscale2x(byte[] png, int w, int h, long t0) {
-        if ((long) w * h > 512L * 768) { ui.post(() -> Toast.makeText(this, L.s("Увеличение пропущено: только до 512×768 (используйте hires fix)", "Upscale skipped: up to 512×768 only (use the hires fix)"), Toast.LENGTH_LONG).show()); return null; }
-        File u = ensureUpscaler(t0); if (u == null) return null;
-        setProgressUi(96, L.s("Увеличение ×2 (процессор, ~80 с)…", "Upscaling ×2 (CPU, ~80 s)…"), t0);
-        try {
-            Bitmap b = BitmapFactory.decodeByteArray(png, 0, png.length), half = Bitmap.createScaledBitmap(b, w / 2, h / 2, true);
-            File in = new File(D, "up_in.png"), out = new File(D, "up_out.png"); out.delete();
-            try (FileOutputStream o = new FileOutputStream(in)) { half.compress(Bitmap.CompressFormat.PNG, 100, o); }
-            su("cd " + D + " && LD_LIBRARY_PATH=\"$BIN:/system/lib64\" \"$BIN/libsdcli.so\" -M upscale --upscale-model " + q(u.getPath()) + " -i up_in.png -o up_out.png -t 5 --upscale-tile-size 256 < /dev/null > upscale.log 2>&1", false);
-            in.delete();
-            if (cancelled || !out.exists()) return null;
-            byte[] r = Models.readBytes(out); out.delete();
-            return BitmapFactory.decodeByteArray(r, 0, r.length) != null ? r : null;
-        } catch (Exception e) { return null; }
-    }
     /** anima.sh environment for the extras that are on */
     boolean memOk, hotStop;   // the memory warning was answered / a batch stopped because the phone got too hot
     long availMb() { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem / 1048576; }
@@ -1033,8 +1005,8 @@ public class Main extends Base {
     String extrasEnv(int w, int h, long t0) {
         StringBuilder e = new StringBuilder();
         if (prefs().getBoolean("x_preview", true)) e.append("PREVIEW=").append(q(previewFile().getPath())).append(" ");
-        if (availMb() < 3000 && (prefs().getBoolean("x_hires", false) || prefs().getBoolean("x_up", false))) {   // the larger passes need room: skip them rather than swap
-            ui.post(() -> Toast.makeText(this, L.s("Мало памяти: hires fix и увеличение пропущены для этой картинки", "Low memory: hires fix and upscale skipped for this picture"), Toast.LENGTH_LONG).show());
+        if (availMb() < 3000 && prefs().getBoolean("x_hires", false)) {   // the larger passes need room: skip them rather than swap
+            ui.post(() -> Toast.makeText(this, L.s("Мало памяти: hires fix пропущен для этой картинки", "Low memory: hires fix skipped for this picture"), Toast.LENGTH_LONG).show());
             e.append(initEnv(w, h));
             return e.toString();
         }
@@ -1114,7 +1086,7 @@ public class Main extends Base {
                         JSONObject p = new JSONObject();
                         for (String key : PRESET_KEYS) { String fk = Settings.key(this, key); if (prefs().getAll().containsKey(fk)) p.put(key, String.valueOf(prefs().getAll().get(fk))); }
                         p.put("prefix", Settings.rawPrefix(this));
-                        for (String x : new String[]{"x_hires", "x_up", "x_ad"}) p.put(x, prefs().getBoolean(x, false));
+                        for (String x : new String[]{"x_hires", "x_ad"}) p.put(x, prefs().getBoolean(x, false));
                         for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) p.put(x, prefs().getString(x, ""));
                         String n = nm.getText().toString().trim(); if (n.isEmpty()) n = "preset " + (ps.length() + 1);
                         ps.put(n, p); prefs().edit().putString("presets_anima", ps.toString()).apply();
@@ -1128,7 +1100,7 @@ public class Main extends Base {
                     SharedPreferences.Editor e = prefs().edit();
                     for (String key : PRESET_KEYS) if (p.has(key)) { String fk = Settings.key(this, key); if (key.equals("steps")) e.putInt(fk, p.optInt(key)); else e.putString(fk, p.optString(key)); }
                     if (p.has("prefix")) e.putString("prefix", p.optString("prefix"));
-                    for (String x : new String[]{"x_hires", "x_up", "x_ad"}) if (p.has(x)) e.putBoolean(x, p.optBoolean(x));
+                    for (String x : new String[]{"x_hires", "x_ad"}) if (p.has(x)) e.putBoolean(x, p.optBoolean(x));
                     for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) if (p.has(x) && !p.optString(x).isEmpty()) e.putString(x, p.optString(x));
                     e.apply();
                     recreate();   // every field shows the preset
@@ -1707,15 +1679,12 @@ public class Main extends Base {
         byte[] png = new byte[0];
         try { png = Models.readBytes(new File(f)); } catch (Exception ignored) { }
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
-        boolean upscaled = false;
-        if (prefs().getBoolean("x_up", false) && !cancelled) { byte[] up = upscale2x(png, w, h, t0); if (up != null) { png = up; upscaled = true; } }
         try {
             JSONObject meta = new JSONObject().put("prompt", fullPrompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
                 .put("steps", steps).put("cfg", cfgNow()).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
             if (cfgOnNow() && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
             if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
-            if (upscaled) meta.put("upscale", "RealESRGAN x2");
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
     }

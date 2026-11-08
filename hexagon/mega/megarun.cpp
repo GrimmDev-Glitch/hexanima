@@ -105,6 +105,7 @@ static void make_rope(int gh, int gw, f32* cs, f32* sn) {   // tiles [slab][j][3
   }
 }
 
+static bool g_cool = getenv("MEGA_COOL") != nullptr;   // cool mode: lower DSP / HMX clock corners (powermax.c)
 int main(int argc, char** argv) {
   if (argc < 2) { fprintf(stderr, "usage: megarun HMXDIR [FIRST COUNT]\n"); return 1; }
   std::string dir = argv[1]; int first = argc > 2 ? atoi(argv[2]) : 0, count = argc > 3 ? atoi(argv[3]) : 28;
@@ -279,7 +280,7 @@ int main(int argc, char** argv) {
       if (!stream) while (mdone.load(std::memory_order_acquire) <= k) {}
       else { std::unique_lock<std::mutex> lk(smu); scv.wait(lk, [&] { return sready >= oi || sfail.load(); }); if (sfail) { ok = false; break; } }
       uint8_t* wk = stream ? wts[oi % nbuf] : wts[k];
-      L.meta[M_FIRST] = k == firstRun; L.meta[M_REL] = k == lastRun;   // VTCM, pool and power votes are held across the blocks of one run, released after the last
+      L.meta[M_FIRST] = k == firstRun ? (g_cool ? 2 : 1) : 0; L.meta[M_REL] = k == lastRun;   // VTCM, pool and power votes are held across the blocks of one run, released after the last
       double tm1 = now();
       int rc = 0; int rr = mega_block(h, L.meta, M_NMETA, rpcmem_to_fd(wk), blobfd, (const uint8_t*)&mod[(size_t)k * 9 * D], 9 * D * 4, times, 32, &rc);
       if (getenv("MEGA_DBG") && k == 5) { char lp[256]; snprintf(lp, sizeof lp, "megarun_%d.log", first); FILE* lf = fopen(lp, "a"); if (lf) { fprintf(lf, "blk5 stages(us):"); for (int q = 0; q < 25; q++) fprintf(lf, " %d", times[q]); fprintf(lf, " | call %.1f ms\n", (now() - tm1) * 1e3); fclose(lf); } }
