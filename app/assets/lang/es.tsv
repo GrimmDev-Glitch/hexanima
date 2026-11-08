@@ -278,3 +278,5 @@ Cleaner	Limpiador
 Free RAM	Liberar RAM
 Freed ~%d MB	Liberados ~%d MB
 Not a turbo model: 20 steps, DPM++ 2M + SGM Uniform, CFG 4 by default (DiT calls: %d). The values are kept per model.	Modelo no turbo: por defecto 20 pasos, DPM++ 2M + SGM Uniform, CFG 4 (llamadas al DiT: %d). Los valores se guardan por modelo.
+Downloading the face detector (6 MB)…	Descargando el detector de caras (6 MB)…
+The face detector face_yolov8n downloads on first use (6 MB)	El detector de caras face_yolov8n se descarga la primera vez (6 MB)

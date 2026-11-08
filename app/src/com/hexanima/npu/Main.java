@@ -613,12 +613,21 @@ public class Main extends Base {
         refreshExtras();
     }
     File adModel() { File[] fs = adDir().listFiles(); if (fs != null) for (File f : fs) if (f.getName().endsWith(".safetensors")) return f; return null; }
+    /** face_yolov8n (Bingsu/adetailer) converted for sd.cpp, hosted with the V73 packs; downloaded on first use unless the user picked another detector */
+    static final String AD_URL = "https://huggingface.co/GrimmDev-Glitch/hexanima-packs/resolve/main/adetailer/face_yolov8n.safetensors";
+    static final String AD_SHA = "aa44f31aed57284eec9fe6c8152c03e7625424f78ef276868baae7efc952c3d0";
+    File ensureAd(long t0) {
+        File f = adModel(); if (f != null) return f;
+        setProgressUi(1, L.s("Загрузка детектора лиц (6 МБ)…", "Downloading the face detector (6 MB)…"), t0);
+        try { adDir().mkdirs(); File out = new File(adDir(), "face_yolov8n.safetensors"); Models.fetch(AD_URL, out, -1, AD_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); ui.post(this::refreshExtras); return out; }
+        catch (Exception e) { ui.post(() -> Toast.makeText(this, "ADetailer: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+    }
     void refreshExtras() {
         if (extrasBox == null) return;
         extrasBox.setVisibility(isMoss() || model.isEmpty() ? View.GONE : View.VISIBLE);
         initText.setText(initSrc().exists() ? L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)") : L.s("нет: обычная генерация", "none: normal generation"));
         File ad = adModel();
-        adText.setText(ad != null ? "✓ " + ad.getName() : L.s("Нужен детектор YOLOv8, сконвертированный для sd.cpp (.safetensors)", "Needs a YOLOv8 detector converted for sd.cpp (.safetensors)"));
+        adText.setText(ad != null ? "✓ " + ad.getName() : L.s("Детектор лиц face_yolov8n загрузится при первом использовании (6 МБ)", "The face detector face_yolov8n downloads on first use (6 MB)"));
         queueText.setText(queue.isEmpty() ? L.s("Очередь пуста", "Queue is empty") : L.f("В очереди: %d (нажмите, чтобы посмотреть)", "Queued: %d (tap to see)", queue.size()));
     }
     float pf(String key, float def) { try { return Float.parseFloat(prefs().getString(key, String.valueOf(def))); } catch (Exception e) { return def; } }
@@ -660,7 +669,7 @@ public class Main extends Base {
             else ui.post(() -> Toast.makeText(this, L.s("Hires fix: этот размер уже максимальный для NPU", "Hires fix: this size is already the NPU's largest"), Toast.LENGTH_LONG).show());
         }
         if (prefs().getBoolean("x_up", false)) { File u = ensureUpscaler(t0); if (u != null) e.append("UPSCALE=").append(q(u.getPath())).append(" "); }
-        if (prefs().getBoolean("x_ad", false) && adModel() != null) e.append("AD=").append(q(adModel().getPath())).append(" ");
+        if (prefs().getBoolean("x_ad", false)) { File ad = ensureAd(t0); if (ad != null) e.append("AD=").append(q(ad.getPath())).append(" "); }
         File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
         return e.toString();
     }
