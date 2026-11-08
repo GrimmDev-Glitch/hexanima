@@ -84,7 +84,7 @@ public class Main extends Base {
             for (String t : tagLoras) if (!ls.contains(t)) ls.add(t);
         }
         String lora = ls.isEmpty() ? "" : "LORA=" + q(String.join("|", ls)) + " ";
-        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "") + (Settings.cool(this) ? "MEGA_COOL=1 " : "");
+        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "") + (Settings.coolMode(this).equals("on") ? "MEGA_COOL=1 " : "");
     }
 
     GradientDrawable gradient(boolean enabled) {
@@ -681,9 +681,11 @@ public class Main extends Base {
         // the folded blocks of the last LoRA set (megarun MEGA_LORA_CACHE): makes the next load as fast as without a LoRA, costs a model's size on storage
         final File lc = new File(D, "lcache"); long lb = 0; File[] ks = lc.listFiles();
         if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) lb += f.length(); }
+        final File[] tes = new File(D, "tecache").listFiles();   // the text encoder with LoRA text-encoder weights merged in (animad)
+        if (tes != null) for (File f : tes) lb += f.length();
         if (lb > 0) {
             TextView cl = link(L.f("Кэш LoRA: %.1f ГБ · очистить", "LoRA cache: %.1f GB · clear", lb / 1e9)); cl.setPadding(dp(2), dp(8), 0, 0);
-            cl.setOnClickListener(x -> { if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) f.delete(); k.delete(); } cl.setVisibility(View.GONE); });
+            cl.setOnClickListener(x -> { if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) f.delete(); k.delete(); } if (tes != null) for (File f : tes) f.delete(); cl.setVisibility(View.GONE); });
             v.addView(cl, v.getChildCount() - 1);
         }
         filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
@@ -792,7 +794,7 @@ public class Main extends Base {
         extrasBox = new LinearLayout(this); extrasBox.setOrientation(LinearLayout.VERTICAL);
         extFold = fold(extrasBox, L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS"), "extras");
         LinearLayout c = card(extFold.body); c.setPadding(dp(14), dp(6), dp(14), dp(12));
-        sw(c, L.s("Предпросмотр по шагам", "Live preview"), L.s("Картинка обновляется после каждого шага (NPU VAE, ~0.1 с)", "The picture updates after every step (NPU VAE, ~0.1 s)"), "x_preview", true);
+        sw(c, L.s("Предпросмотр по шагам", "Live preview"), L.s("Картинка обновляется по ходу (каждый шаг; на длинных — каждый 2-й или 4-й)", "The picture updates while it is drawn (every step; every 2nd or 4th step on long runs)"), "x_preview", true);
         sw(c, "Hires fix", L.s("Второй проход в большем размере (дольше)", "A second pass at a larger size (slower)"), "x_hires", false);
         LinearLayout hr = new LinearLayout(this);
         hsEdit = smallField(hr, L.s("МАСШТАБ", "SCALE"), "x_hires_scale", "1.5", true);
@@ -985,21 +987,42 @@ public class Main extends Base {
     long availMb() { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem / 1048576; }
     /** battery temperature in °C (Xiaomi phones report thermal status 0 even with the CPU at 80+ °C; the battery sensor is what an app can read) */
     float batteryC() { Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED)); return b == null ? 0 : b.getIntExtra("temperature", 0) / 10f; }
+    /** plugged in: charging warms the battery by itself (~42 °C at rest over USB), so the battery limits are 3 °C higher */
+    boolean charging() { Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED)); return b != null && b.getIntExtra("plugged", 0) != 0; }
+    float hotC() { return charging() ? 45f : 42f; }
     boolean tooHot() {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm.getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE) return true;
         if (android.os.Build.VERSION.SDK_INT >= 30) { float hr = pm.getThermalHeadroom(0); if (!Float.isNaN(hr) && hr >= 0.95f) return true; }
-        return batteryC() >= 42f;
+        return batteryC() >= hotC();
     }
-    /** between pictures: wait (up to 3 min) until the battery is back under 39 °C; false = stopped or still hot */
+    /** between pictures: wait (up to 3 min) until the battery is 3 °C under the limit; false = stopped or still hot */
     boolean waitCool(long t0) {
         for (int i = 0; i < 60 && !cancelled; i++) {
-            float c = batteryC(); if (c < 39f && !tooHotStatus()) return true;
+            float c = batteryC(); if (c < hotC() - 3f && !tooHotStatus()) return true;
             final String m = L.f("Охлаждение телефона… %.1f °C", "Letting the phone cool down… %.1f °C", c);
             ui.post(() -> status.setText(m));
             try { Thread.sleep(3000); } catch (InterruptedException e) { return false; }
         }
         return !cancelled && !tooHot();
+    }
+    /** automatic cool mode: the NPU runs at full clock while the phone is cool and switches to the lower clock from 40 °C battery (43 °C while charging)
+     *  or a thermal headroom of 0.75, back to full speed 2 °C lower. The NPU processes read the file anima/cool before every step. */
+    long coolCheck; boolean coolOn;
+    void coolTick(boolean force) {
+        long t = System.currentTimeMillis(); if (!force && t - coolCheck < 3000) return; coolCheck = t;
+        String mode = Settings.coolMode(this); boolean on;
+        if (mode.equals("on")) on = true;
+        else if (mode.equals("off")) on = false;
+        else {
+            float c = batteryC(), lim = charging() ? 43f : 40f, hr = Float.NaN;
+            if (android.os.Build.VERSION.SDK_INT >= 30) hr = ((PowerManager) getSystemService(POWER_SERVICE)).getThermalHeadroom(0);
+            boolean hot = c >= lim || (!Float.isNaN(hr) && hr >= 0.75f), cold = c < lim - 2f && (Float.isNaN(hr) || hr < 0.65f);
+            on = coolOn ? !cold : hot;
+        }
+        coolOn = on;
+        File cf = new File(D, "cool");
+        try { if (on) { if (!cf.exists()) new java.io.FileOutputStream(cf).close(); } else if (cf.exists()) cf.delete(); } catch (Exception ignored) { }
     }
     boolean tooHotStatus() { return ((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE; }
     String extrasEnv(int w, int h, long t0) {
@@ -1652,6 +1675,7 @@ public class Main extends Base {
             if (cancelled) return null;
             loaded = true;
         }
+        coolTick(true);
         final String f = D + "/last.png";
         final boolean[] done = {false};
         final long[] tStep1 = {0}; remainS = -1;
@@ -1660,6 +1684,7 @@ public class Main extends Base {
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
+                coolTick(false);
                 int[] c = count();
                 int st = c[0] - base[0];   // DiT calls done (the live preview also decodes after every step, so the VAE lines do not mean "finished")
                 long nowMs = System.currentTimeMillis();

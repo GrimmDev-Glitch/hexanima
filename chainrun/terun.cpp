@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #include "HTP/QnnHtpDevice.h"
@@ -71,28 +72,33 @@ int main(int argc, char** argv) {
   if (!check(qi.backendCreate(nullptr, nullptr, &backend), "backendCreate")) return 1;
   Qnn_DeviceHandle_t device = nullptr;
   if (!check(qi.deviceCreate(nullptr, nullptr, &device), "deviceCreate")) return 1;
-    // burst power profile (what qnn-net-run --perf_profile burst does)
+  // power votes: max corners, or the lower "cool" corners (the DSP runs at the highest vote of all its clients, so every NPU process votes the same way).
+  // Cool: MEGA_COOL set (always), or the file MEGA_COOL_FILE exists (the app creates it while the phone is warm); checked before every run
   QnnDevice_Infrastructure_t infra = nullptr;
+  QnnHtpDevice_Infrastructure_t* hi = nullptr; uint32_t pid = 0; int cur_cool = -1;
   if (qi.deviceGetInfrastructure && qi.deviceGetInfrastructure(&infra) == QNN_SUCCESS && infra) {
-    auto* hi = (QnnHtpDevice_Infrastructure_t*)infra;
-    uint32_t pid = 0;
-    if (hi->perfInfra.createPowerConfigId(0, 0, &pid) == QNN_SUCCESS) {
-      QnnHtpPerfInfrastructure_PowerConfig_t dc = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIG_INIT;
-      dc.option = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIGOPTION_DCVS_V3;
-      auto& d = dc.dcvsV3Config;
-      d.contextId = pid; d.setDcvsEnable = 1; d.dcvsEnable = 0;
-      d.powerMode = QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_PERFORMANCE_MODE;
-      const bool cool = getenv("MEGA_COOL") != nullptr;   // the app's cool mode: the same lower corners as megarun (the DSP runs at the highest vote of all its clients)
-      d.setSleepLatency = 1; d.sleepLatency = 40; d.setSleepDisable = 1; d.sleepDisable = cool ? 0 : 1;
-      d.setBusParams = 1; d.busVoltageCornerMin = d.busVoltageCornerTarget = d.busVoltageCornerMax = cool ? DCVS_VOLTAGE_VCORNER_NOM_PLUS : DCVS_VOLTAGE_VCORNER_MAX_VOLTAGE_CORNER;
-      d.setCoreParams = 1; d.coreVoltageCornerMin = d.coreVoltageCornerTarget = d.coreVoltageCornerMax = cool ? DCVS_VOLTAGE_VCORNER_NOM_PLUS : DCVS_VOLTAGE_VCORNER_MAX_VOLTAGE_CORNER;
-      QnnHtpPerfInfrastructure_PowerConfig_t rc = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIG_INIT;
-      rc.option = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIGOPTION_RPC_CONTROL_LATENCY;
-      rc.rpcControlLatencyConfig = 100;
-      const QnnHtpPerfInfrastructure_PowerConfig_t* cfgs[] = {&dc, &rc, nullptr};
-      hi->perfInfra.setPowerConfig(pid, cfgs);
-    }
+    hi = (QnnHtpDevice_Infrastructure_t*)infra;
+    if (hi->perfInfra.createPowerConfigId(0, 0, &pid) != QNN_SUCCESS) hi = nullptr;
   }
+  auto cool_now = [] { const char* f = getenv("MEGA_COOL_FILE"); return getenv("MEGA_COOL") != nullptr || (f && access(f, F_OK) == 0); };
+  auto set_power = [&](bool cool) {
+    if (!hi || cur_cool == (int)cool) return;
+    cur_cool = cool;
+    QnnHtpPerfInfrastructure_PowerConfig_t dc = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIG_INIT;
+    dc.option = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIGOPTION_DCVS_V3;
+    auto& d = dc.dcvsV3Config;
+    d.contextId = pid; d.setDcvsEnable = 1; d.dcvsEnable = 0;
+    d.powerMode = QNN_HTP_PERF_INFRASTRUCTURE_POWERMODE_PERFORMANCE_MODE;
+    d.setSleepLatency = 1; d.sleepLatency = 40; d.setSleepDisable = 1; d.sleepDisable = cool ? 0 : 1;
+    d.setBusParams = 1; d.busVoltageCornerMin = d.busVoltageCornerTarget = d.busVoltageCornerMax = cool ? DCVS_VOLTAGE_VCORNER_NOM_PLUS : DCVS_VOLTAGE_VCORNER_MAX_VOLTAGE_CORNER;
+    d.setCoreParams = 1; d.coreVoltageCornerMin = d.coreVoltageCornerTarget = d.coreVoltageCornerMax = cool ? DCVS_VOLTAGE_VCORNER_NOM_PLUS : DCVS_VOLTAGE_VCORNER_MAX_VOLTAGE_CORNER;
+    QnnHtpPerfInfrastructure_PowerConfig_t rc = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIG_INIT;
+    rc.option = QNN_HTP_PERF_INFRASTRUCTURE_POWER_CONFIGOPTION_RPC_CONTROL_LATENCY;
+    rc.rpcControlLatencyConfig = 100;
+    const QnnHtpPerfInfrastructure_PowerConfig_t* cfgs[] = {&dc, &rc, nullptr};
+    hi->perfInfra.setPowerConfig(pid, cfgs);
+  };
+  set_power(cool_now());
 
 
 
@@ -137,6 +143,7 @@ int main(int argc, char** argv) {
     auto b = readFile(fi);
     if (b.size() != ni * 4) { fprintf(stderr, "bad input size %s\n", fi.c_str()); printf("error\n"); fflush(stdout); continue; }
     { const float* s = (const float*)b.data(); __fp16* d = (__fp16*)bufs[0].data(); for (uint32_t i = 0; i < ni; i++) d[i] = (__fp16)s[i]; }
+    set_power(cool_now());
     auto s0 = std::chrono::steady_clock::now();
     bool ok = true;
     for (int c = 0; c < N && ok; c++) ok = qi.graphExecute(graphs[c], &tins[c], 1, &touts[c], 1, nullptr, nullptr) == QNN_SUCCESS;

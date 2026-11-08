@@ -38,6 +38,8 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
 # LORA=<file*strength|...>: Anima LoRAs folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so they are part of the loaded model
 KEY="${MODEL:-2}${MEGA_STREAM:+s}${MEGA_COOL:+c}${LORA:+|$LORA|${LORA_S:-1}}"   # the low-memory (streaming) mode and the LoRAs are part of the key: changing them restarts the server
+# cool mode: MEGA_COOL=1 = always; otherwise the NPU processes switch to the lower clock while $A/cool exists (the app creates it when the phone is warm)
+export MEGA_COOL_FILE=$A/cool
 if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$KEY" ]; then   # loaded server holds another model (or runs in the other memory mode): restart it
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi
@@ -45,14 +47,18 @@ if ! pidof $NA >/dev/null; then
   echo "$KEY" > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
   # lcache: the folded blocks of the last LoRA set; the next load with the same set reads them instead of folding again
-  if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}" MEGA_LORA_CACHE=$A/lcache; else unset MEGA_LORA MEGA_LORA_S MEGA_LORA_CACHE; fi
+  # tecache: the text encoder with the LoRAs' text-encoder weights merged in (animad writes it and names it in $A/te_llm; sd.cpp then encodes on the CPU)
+  rm -f $A/te_llm
+  if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}" MEGA_LORA_CACHE=$A/lcache ANIMA_TE=$S/miaomiao3DHarem_animaLH3D10_txt.safetensors ANIMA_TE_CACHE=$A/tecache
+  else unset MEGA_LORA MEGA_LORA_S MEGA_LORA_CACHE ANIMA_TE ANIMA_TE_CACHE; fi
   cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
   while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done
 fi
 # persistent sd-cli (text tokenizer/sampler/PNG writer stay loaded: saves ~0.7 s per image); ANIMA_NOSERVE=1 starts one per image as before
 if [ -z "$ANIMA_NOSERVE" ] && ! pidof $NS >/dev/null; then
   rm -rf $SQ; mkdir -p $SQ; chmod 777 $SQ
-  cd $S && SD_SERVE=$SQ LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $SDCLI --diffusion-model $DM --llm miaomiao3DHarem_animaLH3D10_txt.safetensors \
+  LLM=miaomiao3DHarem_animaLH3D10_txt.safetensors; [ -s $A/te_llm ] && LLM=$(cat $A/te_llm)
+  cd $S && SD_SERVE=$SQ LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $SDCLI --diffusion-model $DM --llm "$LLM" \
     -p x --sampling-method euler --cfg-scale 1 --steps 4 -W 512 -H 768 ${VAEARG:---taesd taew2_1.safetensors} --hires-upscalers-dir $S/upscalers --mmap -t ${T:-4} -o /sdcard/Download/anima_srv.png < /dev/null > $A/sdcli.log 2>&1 &
   while [ ! -f $SQ/ready ] && [ ! -f $A/cancel ]; do sleep 0.1; done
 fi
@@ -82,7 +88,9 @@ if [ -z "$ANIMA_NOSERVE" ]; then
   [ -n "$HIRES" ] && [ -n "$HIRES_W" ] && printf 'hw=%s\nhh=%s\n' "$HIRES_W" "$HIRES_H" >> $SQ/job.tmp   # exact size (the NPU blocks need patch counts they can run)
   [ -n "$AD" ] && printf 'ad=%s\nap=%s\nax=%s\n' "$AD" "$(printf '%s' "$AD_PROMPT" | tr '\n' ' ')" "${AD_ARGS:-confidence=0.3,denoising_strength=0.4}" >> $SQ/job.tmp
   # live preview (PREVIEW=<png>): every step is decoded by the NPU VAE (proj = a cheap latent projection when the NPU VAE is off); none while ADetailer runs
-  [ -n "$PREVIEW" ] && [ -z "$AD" ] && printf 'pv=%s\npp=%s\n' "$([ "$V" = 0 ] && echo proj || echo vae)" "$PREVIEW" >> $SQ/job.tmp
+  # every step for short runs; every 2nd step from 9 steps, every 4th from 21 (each decode is extra NPU work and heat)
+  PI=1; [ "${STEPS:-4}" -gt 8 ] && PI=2; [ "${STEPS:-4}" -gt 20 ] && PI=4
+  [ -n "$PREVIEW" ] && [ -z "$AD" ] && printf 'pv=%s\npp=%s\npi=%s\n' "$([ "$V" = 0 ] && echo proj || echo vae)" "$PREVIEW" "$PI" >> $SQ/job.tmp
   mv $SQ/job.tmp $SQ/job
   while [ ! -f $ROOT/$ID/sd_done ] && [ ! -f $ROOT/$ID/sd_failed ] && [ ! -f $A/cancel ]; do sleep 0.05; done
 else

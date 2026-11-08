@@ -6,7 +6,8 @@ import org.json.JSONObject;
 
 /** User LoRA for the Anima 2B models. The picked .safetensors is copied to files/anima/lora/user.safetensors and checked here from its header (names, shapes, rank, dtype).
  *  anima.sh hands it to megarun (LORA / LORA_S), which folds it into the fp16 block weights while it loads them (hexagon/mega/lora_fold.h): a new LoRA or strength reloads the
- *  model (a few seconds), nothing extra is written to storage. Only the DiT part is applied: the text encoder is a precompiled NPU graph. The 2.9B models (q8) are left as they are. */
+ *  model. animad folds the LLM-adapter part (CPU). The text-encoder part (lora_te_*) needs a merged copy of the text encoder (animad writes it to anima/tecache):
+ *  the NPU text encoder is a precompiled graph, so with such a LoRA the prompts are encoded on the CPU. */
 final class AnimaLora {
     static File dir(File home) { return new File(new File(home, "anima"), "lora"); }
     static File src(File home) { return new File(dir(home), "user.safetensors"); }
@@ -47,13 +48,15 @@ final class AnimaLora {
     }
 
     static final class Check {
-        boolean ok; String why = ""; int blocks, mats, rank, maxBlock; boolean te, lycoris;
+        boolean ok; String why = ""; int blocks, mats, rank, maxBlock; boolean te, adapter, lycoris;
         String message() {
             if (!ok) return why;
             boolean big = maxBlock >= 28;   // made for the 40-block 2.9B models
             StringBuilder s = new StringBuilder(rank > 0 ? L.f("Подходит: ранг %d, блоков %d из %d (%s)", "Compatible: rank %d, %d of %d blocks (%s)", rank, blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B")
                 : L.f("Подходит (LyCORIS): блоков %d из %d (%s)", "Compatible (LyCORIS): %d of %d blocks (%s)", blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B"));
-            if (te) s.append("\n").append(L.s("Часть для текстового энкодера не применяется", "The text-encoder part is not applied"));
+            if (mats == 0) { s.setLength(0); s.append(L.s("Подходит", "Compatible")); }
+            if (adapter) s.append("\n").append(L.s("+ LLM-адаптер", "+ LLM adapter"));
+            if (te) s.append("\n").append(L.s("+ текстовый энкодер (с этой LoRA текст кодируется на CPU)", "+ text encoder (with this LoRA the text is encoded on the CPU)"));
             return s.toString();
         }
     }
@@ -82,7 +85,8 @@ final class AnimaLora {
         Check c = new Check(); Set<Integer> blocks = new HashSet<>(); boolean other = false;
         for (Iterator<String> it = h.keys(); it.hasNext(); ) {
             String k = it.next(); if (k.equals("__metadata__")) continue;
-            if (k.startsWith("lora_te") || k.startsWith("text_encoder") || k.startsWith("te.") || k.contains("llm_adapter")) { c.te = true; continue; }
+            if (k.contains("llm_adapter")) { c.adapter = true; continue; }
+            if (k.startsWith("lora_te") || k.startsWith("text_encoder") || k.startsWith("te.")) { c.te = true; continue; }
             if (k.startsWith("lora_unet_input_blocks") || k.startsWith("lora_unet_down_blocks") || k.startsWith("lora_unet_double_blocks") || k.startsWith("lora_unet_single_blocks")
                 || k.startsWith("lora_unet_joint_blocks") || k.contains("double_blocks.") || k.contains("single_blocks.") || k.contains("down_blocks.")) { other = true; continue; }
             // the first key of each update: kohya .lora_down, diffusers .lora_A, LoKr .lokr_w1(_a), LoHa .hada_w1_a
@@ -110,8 +114,7 @@ final class AnimaLora {
             if (b < 0 || b >= 40) return fail(L.s("В LoRA есть блоки, которых нет в Anima 2B / 2.9B.", "The LoRA has blocks that Anima 2B / 2.9B do not have."));
             blocks.add(b); c.mats++; c.maxBlock = Math.max(c.maxBlock, b);
         }
-        if (c.mats == 0) return fail(other ? L.s("Это LoRA для другой модели (SDXL / Illustrious, FLUX или похожей). Для Anima она не подходит.", "This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does not fit Anima.")
-                : c.te ? L.s("В файле только LoRA для текстового энкодера. Такие пока не поддерживаются.", "The file only has text-encoder LoRA weights. Those are not supported yet.")
+        if (c.mats == 0 && !c.te && !c.adapter) return fail(other ? L.s("Это LoRA для другой модели (SDXL / Illustrious, FLUX или похожей). Для Anima она не подходит.", "This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does not fit Anima.")
                 : L.s("Файл не похож на LoRA для Anima: не найдены слои блоков DiT.", "This file does not look like an Anima LoRA: no DiT block layers were found."));
         c.ok = true; c.blocks = blocks.size(); return c;
     }

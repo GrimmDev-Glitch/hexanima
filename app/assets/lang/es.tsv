@@ -383,3 +383,10 @@ HexAnima is a project by ayanoby (github.com/ayanoby/hexanima). This build is a 
 Turbo models: 4 steps and CFG 1. Other models: 20+ steps and a negative prompt (Sampling).	Modelos turbo: 4 pasos y CFG 1. Los demás modelos: 20+ pasos y prompt negativo (Muestreo).
 Negative prompt and CFG	Prompt negativo y CFG
 Turbo models are made for CFG 1, where a negative prompt changes nothing. Non-turbo models use CFG 3-5 and the negative prompt (Sampling, under the prompt); each picture then takes about twice as long.	Los modelos turbo están hechos para CFG 1, donde el prompt negativo no cambia nada. Los modelos no turbo usan CFG 3-5 y el prompt negativo (Muestreo, debajo del prompt); cada imagen tarda entonces aproximadamente el doble.
+Automatic	Automático
+Always	Siempre
+Compatible	Compatible
++ LLM adapter	+ adaptador LLM
++ text encoder (with this LoRA the text is encoded on the CPU)	+ codificador de texto (con este LoRA el texto se codifica en la CPU)
+The NPU runs at a lower clock: the phone gets much less hot, a picture takes ~17 % longer. Automatic: full speed while the phone is cool, the lower clock once it gets warm.	La NPU funciona a menor frecuencia: el teléfono se calienta mucho menos y cada imagen tarda ~17 % más. Automático: velocidad completa mientras el teléfono está frío y menor frecuencia cuando se calienta.
+The picture updates while it is drawn (every step; every 2nd or 4th step on long runs)	La imagen se actualiza mientras se dibuja (en cada paso; cada 2 o 4 pasos en tiradas largas)
