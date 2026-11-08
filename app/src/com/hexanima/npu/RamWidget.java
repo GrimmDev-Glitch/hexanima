@@ -65,6 +65,13 @@ public class RamWidget extends AppWidgetProvider {
     static void freeRam(Context c) {
         long before = avail(c);
         if (modelLoaded()) unload(c);
+        freeRamOthers(c);
+        long freed = Math.max(0, avail(c) - before);
+        L.init(c);
+        last = L.f("Освобождено ~%d МБ", "Freed ~%d MB", freed / 1048576);
+    }
+    /** the other apps' background processes only (HexAnima's model stays loaded: the app calls this before a generation) */
+    static void freeRamOthers(Context c) {
         ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
         android.content.pm.PackageManager pm = c.getPackageManager();
         int n = 0;
@@ -73,9 +80,6 @@ public class RamWidget extends AppWidgetProvider {
             try { am.killBackgroundProcesses(a.packageName); n++; } catch (Exception ignored) { }
         }
         try { Thread.sleep(1500); } catch (InterruptedException ignored) { }   // the system needs a moment to reclaim the memory
-        long freed = Math.max(0, avail(c) - before);
-        L.init(c);
-        last = L.f("Освобождено ~%d МБ", "Freed ~%d MB", freed / 1048576);
     }
 
     static PendingIntent self(Context c, String action, int code) {

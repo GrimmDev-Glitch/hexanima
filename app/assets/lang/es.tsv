@@ -280,3 +280,10 @@ Freed ~%d MB	Liberados ~%d MB
 Not a turbo model: 20 steps, DPM++ 2M + SGM Uniform, CFG 4 by default (DiT calls: %d). The values are kept per model.	Modelo no turbo: por defecto 20 pasos, DPM++ 2M + SGM Uniform, CFG 4 (llamadas al DiT: %d). Los valores se guardan por modelo.
 Downloading the face detector (6 MB)…	Descargando el detector de caras (6 MB)…
 The face detector face_yolov8n downloads on first use (6 MB)	El detector de caras face_yolov8n se descarga la primera vez (6 MB)
+Low free memory	Poca memoria libre
+%d MB free, about %d MB are needed. Without it the phone slows down and gets very hot.	Hay %d MB libres y se necesitan unos %d MB. Sin eso el teléfono se pone lento y se calienta mucho.
+Free RAM and go on	Liberar y continuar
+Anyway	Igual
+Paused: the phone is very hot, let it cool down	En pausa: el teléfono está muy caliente, déjalo enfriar
+Queue paused: the phone is too hot	Cola en pausa: el teléfono está demasiado caliente
+Low memory: hires fix and upscale skipped for this picture	Poca memoria: hires fix y reescalado omitidos en esta imagen

@@ -1,5 +1,6 @@
 package com.hexanima.npu;
 
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -414,6 +415,7 @@ public class Main extends Base {
         String del = ModelsActivity.deleted; ModelsActivity.deleted = "";
         if (!del.isEmpty() && del.equals(model) && loaded && !busy) { loaded = false; ex.submit(() -> su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false)); }
         if (genBtn != null) { refreshModels(); ui.post(ramTick); }
+        ex2.submit(() -> RamWidget.updateAll(getApplicationContext()));   // a widget placed before an update keeps its old buttons until it is redrawn
         if (android.os.Build.VERSION.SDK_INT >= 33 && prefs().getBoolean("welcomed", false) && !prefs().getBoolean("asked_notif", false)) {   // once, after the welcome screen
             prefs().edit().putBoolean("asked_notif", true).apply();
             if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5);
@@ -661,8 +663,16 @@ public class Main extends Base {
         catch (Exception e) { ui.post(() -> Toast.makeText(this, "RealESRGAN: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
     }
     /** anima.sh environment for the extras that are on */
+    boolean memOk, hotStop;   // the memory warning was answered / a batch stopped because the phone got too hot
+    long availMb() { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem / 1048576; }
+    boolean tooHot() { return ((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE; }
     String extrasEnv(int w, int h, long t0) {
         StringBuilder e = new StringBuilder();
+        if (availMb() < 3000 && (prefs().getBoolean("x_hires", false) || prefs().getBoolean("x_up", false))) {   // the larger passes need room: skip them rather than swap
+            ui.post(() -> Toast.makeText(this, L.s("Мало памяти: hires fix и увеличение пропущены для этой картинки", "Low memory: hires fix and upscale skipped for this picture"), Toast.LENGTH_LONG).show());
+            File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
+            return e.toString();
+        }
         if (prefs().getBoolean("x_hires", false)) {
             int[] hs = hiresSize(w, h);
             if (hs != null) e.append("HIRES=1 HIRES_W=").append(hs[0]).append(" HIRES_H=").append(hs[1]).append(" HIRES_DENOISE=").append(pf("x_hires_den", .45f)).append(" HIRES_STEPS=").append((int) pf("x_hires_steps", 4)).append(" ");
@@ -1149,8 +1159,19 @@ public class Main extends Base {
         String bad = isMoss() ? mossSizeError(cw, ch) : sizeError(cw, ch);
         if (bad != null) { Toast.makeText(this, bad, Toast.LENGTH_LONG).show(); return; }
         if (cw != resW || ch != resH) setRes(cw, ch);
-        final String pr = prompt.getText().toString().trim();
-        if (pr.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
+        final String pr0 = prompt.getText().toString().trim();
+        if (pr0.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
+        // memory guard: the model needs ~4.5 GB when it is not loaded yet, and a generation ~1.5 GB more; with less the phone swaps, heats up and can hang
+        final long need = (loaded || isMoss() ? 0 : 4600) + 1500, have = availMb();
+        if (have < need && !memOk) {
+            builder().setTitle(L.s("Мало свободной памяти", "Low free memory"))
+                .setMessage(L.f("Свободно %d МБ, нужно около %d МБ. Без этого телефон начнёт тормозить и сильно греться.", "%d MB free, about %d MB are needed. Without it the phone slows down and gets very hot.", have, need))
+                .setPositiveButton(L.s("Освободить и продолжить", "Free RAM and go on"), (d, k) -> ex2.submit(() -> { RamWidget.freeRamOthers(this); ui.post(() -> { memOk = true; generate(newSeed); memOk = false; }); }))
+                .setNeutralButton(L.s("Всё равно", "Anyway"), (d, k) -> { memOk = true; generate(newSeed); memOk = false; })
+                .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+            return;
+        }
+        final String pr = pr0;
         String sd = seed.getText().toString().trim();
         final boolean randomSeed = newSeed || sd.isEmpty() || sd.equals("-1");   // -1 = random; the seed used is shown under the picture
         long base0 = 0; try { base0 = Long.parseLong(sd); } catch (NumberFormatException ignored) { }
@@ -1172,6 +1193,7 @@ public class Main extends Base {
             int made = 0; Bitmap lastBm = null;
             for (int i = 0; i < n && !cancelled; i++) {
                 curIdx = i;
+                if (i > 0 && tooHot()) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
                 final String seedS = String.valueOf(randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 final File f = runOne(pr, seedS, w, h, t0);
                 if (f == null) break;
@@ -1187,7 +1209,8 @@ public class Main extends Base {
                 });
             }
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
-            final boolean wasCancelled = cancelled, okAny = made > 0;
+            final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
+            hotStop = false;
             final int total = made;
             if (wasCancelled) loaded = false;   // Stop shut the server down
             busy = false; cancelled = false;
@@ -1199,9 +1222,12 @@ public class Main extends Base {
                 if (wasCancelled) status.setText(L.s("Остановлено", "Stopped"));
                 else if (!okAny) status.setText(L.s("Ошибка генерации (лог: files/anima/animad.log)", "Generation failed (log: files/anima/animad.log)"));
                 else status.setText(L.f("Готово за %.1f с", "Done in %.1f s", sec));
+                if (hot) status.setText(status.getText() + "  ·  " + L.s("Пауза: телефон сильно нагрелся, дайте ему остыть", "Paused: the phone is very hot, let it cool down"));
                 setModelUi(loaded, false, "");
                 if (okAny && !visible) notifyDone(app, nb, pr, total);
-                Runnable next = afterGen; afterGen = null; if (next != null && okAny && !wasCancelled) next.run();   // the queue goes on
+                Runnable next = afterGen; afterGen = null;
+                if (next != null && okAny && !wasCancelled && !hot) next.run();   // the queue goes on, unless the phone is too hot (it stays queued)
+                else if (next != null && hot) Toast.makeText(this, L.s("Очередь на паузе: телефон слишком горячий", "Queue paused: the phone is too hot"), Toast.LENGTH_LONG).show();
             });
         });
     }
