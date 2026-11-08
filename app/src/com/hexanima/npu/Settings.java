@@ -52,7 +52,8 @@ public class Settings extends Base {
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
-        TextView pl = text(L.s("Теги качества перед описанием", "Quality tags before the prompt"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
+        if (Moss.is(p.getString("model", ""))) return;   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
+        TextView pl = text(L.s("Теги качества перед описанием (модели Anima)", "Quality tags before the prompt (Anima models)"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
         prefixEdit = field("");
         prefixEdit.setText(rawPrefix(this)); prefixEdit.setTextSize(13); prefixEdit.setMinLines(2); prefixEdit.setGravity(Gravity.TOP);
         prefixEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);

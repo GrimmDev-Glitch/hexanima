@@ -173,3 +173,39 @@ Chip %s · Android %s	芯片 %s · Android %s
 Send the log	发送日志
 Authors and links	作者与链接
 Component licenses	组件许可证
+LORA  ·  optional	LoRA  ·  可选
+none	无
+Choose	选择
+Strength	强度
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image 的 .safetensors 文件：选择后立即检查
+Checking the file…	正在检查文件…
+Cannot read the file: %s	无法读取文件：%s
+the file is larger than 1 GB	文件大于 1 GB
+LoRA "%s" does not fit	LoRA“%s”不适用
+Compatible: rank %d, %d of 42 blocks	兼容：秩 %d，42 个块中的 %d 个
+High rank: some fine detail may be lost when it is merged with the turbo adapter	秩较高：与 turbo 适配器合并时可能丢失部分细节
+The text-encoder part is not applied	文本编码器部分未应用
+Some extra tensors are skipped	部分多余张量已跳过
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	此 LoRA 适用于其他模型（FLUX、SDXL 或类似模型），与 MOSS-Image 不兼容。
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	此文件看起来不是 MOSS-Image 的 LoRA：缺少所需的层（layers.N.proj.*）。
+The file only has text-encoder LoRA weights. Those are not supported yet.	文件中只有文本编码器的 LoRA 权重，暂不支持。
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	层尺寸与 MOSS-Image 不匹配（%s）。这可能是针对该模型其他版本的 LoRA。
+The rank is too large (%s). Supported: 1 to 128.	秩过大（%s）。支持范围：1 到 128。
+The LoRA has blocks that MOSS-Image does not have (%s).	该 LoRA 含有 MOSS-Image 中不存在的块（%s）。
+Unsupported weight format: F32, F16 or BF16 are needed.	不支持的权重格式：需要 F32、F16 或 BF16。
+Cannot read the file (%s). A .safetensors file is needed.	无法读取文件（%s）。需要 .safetensors 文件。
+Check failed: %s %s	检查失败：%s %s
+Preparing the LoRA… %d/%d	正在准备 LoRA… %d/%d
+Could not prepare the LoRA: %s	无法准备 LoRA：%s
+Quality tags: Anima only	质量标签：仅限 Anima
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	设置中的质量标签只会添加到 Anima 模型的提示词前。MOSS-Image 不会添加，选中 MOSS-Image 时设置中也不会显示该选项。
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B（Apache-2.0）是第二个更大的模型：请用完整的句子描述画面，而不是标签。文本编码器、Transformer 和解码器都在 NPU 上运行。需要约 14 GB 存储空间，已在 12 GB 内存的手机上测试。每生成一张图都会从存储中读取权重：512×768 约 30 秒，100 万像素约 80 秒。无需预先加载。
+MOSS-Image sizes	MOSS-Image 尺寸
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	任意尺寸均可：两边都是 16 的倍数，不小于 256，不超过 6144 个图块（宽/16 × 高/16），例如 1536×1024。4 步适配器在约 100 万像素（1024×1024、832×1216…）下训练，较小的尺寸同样可用。没有现成解码器的尺寸会分块解码，色调可能略有偏移。
+LoRA for MOSS-Image	MOSS-Image 的 LoRA
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	选择您自己的、专为 MOSS-Image 制作的 .safetensors 文件（FLUX、SDXL 等其他模型的 LoRA 不适用）。选择后会立即检查，若不适用，应用会说明原因。强度 1.00 是作者的设定：调低效果变弱，调高效果变强。使用新的 LoRA 或新强度的第一张图需要约 15 秒准备（临时文件约 300 MB）。使用 LoRA 须遵守其作者的许可协议。
+MOSS-Image licenses	MOSS-Image 许可证
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image（OpenMOSS）、Qwen3.5-9B（Qwen 团队）、rapid-moss 适配器（darask0、lodestones）、FLUX.2 small 解码器（Black Forest Labs）以及 Unsloth 量化版本均采用 Apache License 2.0。这些文件是为 NPU 转换的副本，修改内容见下方声明。许可证全文在底部“组件许可证”中。
+MOSS-Image notices (changes made)	MOSS-Image 声明（所作修改）
+Quality tags before the prompt (Anima models)	提示词前的质量标签 (Anima)

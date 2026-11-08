@@ -87,8 +87,9 @@ public class ModelsActivity extends Base {
     void render() {
         list.removeAllViews(); bars.clear(); msgs.clear();
         final String base = prefBase();
-        final boolean needCommon = !store.commonInstalled();
+        final boolean needCommonAnima = !store.commonInstalled();
         for (final Models.Item it : items) {
+            final boolean needCommon = needCommonAnima && !it.moss;
             final boolean have = store.modelInstalled(it.id);
             final boolean busyThis = downloading && it.id.equals(dlId);
             LinearLayout c = card(list);
@@ -120,13 +121,20 @@ public class ModelsActivity extends Base {
             }
         }
         if (items.isEmpty()) list.addView(text(L.s("Каталог пуст", "The catalog is empty"), 13, DIM, false));
-        else if (!store.commonInstalled()) { TextView n = text(L.f("К первой модели добавятся общие файлы (%s ГБ): текстовый энкодер и VAE. Они качаются один раз.", "The first model also fetches the shared files (%s GB): text encoder and VAE, once.", gb(store.commonSize)), 12, DIM, false); n.setPadding(dp(2), 0, 0, 0); list.addView(n); }
+        else if (!store.commonInstalled() && hasAnima()) { TextView n = text(L.f("К первой модели добавятся общие файлы (%s ГБ): текстовый энкодер и VAE. Они качаются один раз.", "The first model also fetches the shared files (%s GB): text encoder and VAE, once.", gb(store.commonSize)), 12, DIM, false); n.setPadding(dp(2), 0, 0, 0); list.addView(n); }
     }
+
+    boolean hasAnima() { for (Models.Item it : items) if (!it.moss) return true; return false; }
 
     void start(String base, Models.Item it, boolean needCommon) {
         if (!Compat.chipAllowed(this)) {   // an unsupported chip: the models will not run, so ask before 4 GB are downloaded
             builder().setMessage(L.f("Чип %s не поддерживается: модели рассчитаны на Snapdragon 8 Gen 1 / 8+ Gen 1. Всё равно скачать?", "Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1. Download anyway?", Compat.soc()))
                 .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> { Compat.allowChip(this); begin(base, it, needCommon); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+            return;
+        }
+        if (it.moss && Compat.ramGb(this) < 10.5) {   // text encoder 6 GB and the DiT stream through RAM: 12 GB phones only
+            builder().setMessage(L.f("В телефоне %.1f ГБ ОЗУ: для этой модели рекомендуется 12 ГБ. Всё равно скачать?", "This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?", Compat.ramGb(this)))
+                .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> begin(base, it, needCommon)).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
         }
         begin(base, it, needCommon);
@@ -148,7 +156,7 @@ public class ModelsActivity extends Base {
                 dlDone = d; dlTotal = tot; dlMsg = L.f("%s / %s ГБ  ·  %s", "%s / %s GB  ·  %s", gb(d), gb(tot), what);
             };
             String err = null;
-            try { store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
+            try { if (!it.moss) store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
             catch (java.io.InterruptedIOException e) { err = L.s("Загрузка отменена: файлы сохранены, можно продолжить", "Cancelled: the files are kept, you can resume"); }
             catch (Exception e) { err = L.f("Ошибка: %s", "Error: %s", e.getMessage()); }
             final String msg = err;

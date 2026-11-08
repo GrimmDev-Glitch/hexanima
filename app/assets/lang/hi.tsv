@@ -173,3 +173,39 @@ Chip %s · Android %s	चिप %s · Android %s
 Send the log	लॉग भेजें
 Authors and links	रचयिता और लिंक
 Component licenses	घटकों के लाइसेंस
+LORA  ·  optional	LORA  ·  वैकल्पिक
+none	कोई नहीं
+Choose	चुनें
+Strength	शक्ति
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image के लिए .safetensors फ़ाइल: चुनते ही उसकी जाँच हो जाती है
+Checking the file…	फ़ाइल की जाँच हो रही है…
+Cannot read the file: %s	फ़ाइल पढ़ी नहीं जा सकी: %s
+the file is larger than 1 GB	फ़ाइल 1 GB से बड़ी है
+LoRA "%s" does not fit	LoRA “%s” उपयुक्त नहीं है
+Compatible: rank %d, %d of 42 blocks	संगत: रैंक %d, 42 में से %d ब्लॉक
+High rank: some fine detail may be lost when it is merged with the turbo adapter	ऊँचा रैंक: टर्बो एडैप्टर के साथ मिलाने पर कुछ बारीक विवरण खो सकते हैं
+The text-encoder part is not applied	टेक्स्ट एन्कोडर वाला हिस्सा लागू नहीं किया जाता
+Some extra tensors are skipped	कुछ अतिरिक्त टेंसर छोड़ दिए गए
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	यह LoRA किसी दूसरे मॉडल (FLUX, SDXL या इसी तरह के) के लिए है। यह MOSS-Image के साथ संगत नहीं है।
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	यह फ़ाइल MOSS-Image की LoRA जैसी नहीं लगती: अपेक्षित लेयर (layers.N.proj.*) नहीं मिलीं।
+The file only has text-encoder LoRA weights. Those are not supported yet.	फ़ाइल में केवल टेक्स्ट एन्कोडर के LoRA वज़न हैं। इन्हें अभी समर्थन नहीं है।
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	लेयर के आकार MOSS-Image से मेल नहीं खाते (%s)। संभवतः यह मॉडल के किसी अन्य संस्करण की LoRA है।
+The rank is too large (%s). Supported: 1 to 128.	रैंक बहुत बड़ा है (%s)। समर्थित: 1 से 128।
+The LoRA has blocks that MOSS-Image does not have (%s).	इस LoRA में ऐसे ब्लॉक हैं जो MOSS-Image में नहीं हैं (%s)।
+Unsupported weight format: F32, F16 or BF16 are needed.	असमर्थित वज़न प्रारूप: F32, F16 या BF16 चाहिए।
+Cannot read the file (%s). A .safetensors file is needed.	फ़ाइल पढ़ी नहीं जा सकी (%s)। .safetensors फ़ाइल चाहिए।
+Check failed: %s %s	जाँच विफल: %s %s
+Preparing the LoRA… %d/%d	LoRA तैयार हो रही है… %d/%d
+Could not prepare the LoRA: %s	LoRA तैयार नहीं हो सकी: %s
+Quality tags: Anima only	गुणवत्ता टैग: केवल Anima
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	सेटिंग्स के गुणवत्ता टैग केवल Anima मॉडलों के विवरण में जोड़े जाते हैं। MOSS-Image को ये नहीं मिलते, और MOSS-Image चुने रहने पर यह सेटिंग छिपी रहती है।
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B (Apache-2.0) दूसरा, बड़ा मॉडल है: चित्र का वर्णन टैग से नहीं, सामान्य वाक्यों में करें। टेक्स्ट एन्कोडर, ट्रांसफ़ॉर्मर और डिकोडर तीनों NPU पर चलते हैं। इसके लिए लगभग 14 GB स्टोरेज चाहिए और इसे 12 GB RAM वाले फ़ोन पर परखा गया है। हर चित्र के लिए वज़न स्टोरेज से पढ़े जाते हैं: 512×768 के लिए लगभग 30 सेकंड, 1 Mpx के लिए लगभग 80 सेकंड। पहले से कुछ लोड करने की ज़रूरत नहीं।
+MOSS-Image sizes	MOSS-Image के आकार
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	कोई भी आकार चलता है: दोनों भुजाएँ 16 की गुणज हों, कम से कम 256, और अधिकतम 6144 पैच (चौड़ाई/16 × ऊँचाई/16), जैसे 1536×1024। 4-स्टेप एडैप्टर लगभग 1 Mpx (1024×1024, 832×1216…) पर प्रशिक्षित है, पर छोटे आकार भी चलते हैं। जिन आकारों का तैयार डिकोडर नहीं है, उन्हें टाइलों में डिकोड किया जाता है, इसलिए रंगत थोड़ी बदल सकती है।
+LoRA for MOSS-Image	MOSS-Image के लिए LoRA
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image के लिए बनी अपनी .safetensors फ़ाइल चुनें (FLUX, SDXL और अन्य मॉडलों की LoRA उपयुक्त नहीं हैं)। चुनते ही फ़ाइल की जाँच होती है, और उपयुक्त न होने पर ऐप कारण बताता है। शक्ति 1.00 लेखक की सेटिंग है: कम करने पर प्रभाव कमज़ोर, बढ़ाने पर तेज़ होता है। नई LoRA या नई शक्ति के साथ पहले चित्र में तैयारी पर लगभग 15 सेकंड लगते हैं (लगभग 300 MB की अस्थायी फ़ाइलें)। LoRA का उपयोग उसके लेखक के लाइसेंस के अधीन है।
+MOSS-Image licenses	MOSS-Image के लाइसेंस
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen टीम), rapid-moss एडैप्टर (darask0, lodestones), FLUX.2 small डिकोडर (Black Forest Labs) और Unsloth क्वांटाइज़ेशन सभी Apache License 2.0 के अंतर्गत हैं। फ़ाइलें NPU के लिए बदली गई प्रतियाँ हैं; किए गए बदलाव नीचे दी गई सूचनाओं में हैं। लाइसेंस का पूरा पाठ सबसे नीचे, घटकों के लाइसेंस में है।
+MOSS-Image notices (changes made)	MOSS-Image की सूचनाएँ (किए गए बदलाव)
+Quality tags before the prompt (Anima models)	विवरण से पहले गुणवत्ता टैग (Anima)

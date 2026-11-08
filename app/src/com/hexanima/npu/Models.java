@@ -17,11 +17,11 @@ import org.json.JSONObject;
  * Layout: files/anima/{te*.bin, te_embed.f16, vae.bin} (common), files/anima/m_ID/{small.bin, blkNN.bin}, files/sd/{ID.safetensors stub, llm stub, taew2_1.safetensors}.
  */
 final class Models {
-    static class Item { String id, name, desc, descEn, params = "", quant = "", author = "", manifest; long size; int speed; }   // speed: seconds per picture at 512x768
+    static class Item { String id, name, desc, descEn, params = "", quant = "", author = "", manifest; long size; int speed; boolean moss; }   // speed: seconds per picture at 512x768
     interface Progress { void on(long done, long total, String what); }
 
-    final File anima, sd;
-    Models(File home) { anima = new File(home, "anima"); sd = new File(home, "sd"); anima.mkdirs(); sd.mkdirs(); }
+    final File anima, sd, home;
+    Models(File home) { this.home = home; anima = new File(home, "anima"); sd = new File(home, "sd"); anima.mkdirs(); sd.mkdirs(); }
 
     static String get(String url) throws IOException {
         HttpURLConnection c = open(url, 0);
@@ -40,29 +40,33 @@ final class Models {
 
     long commonSize;
     List<Item> catalog(String base) throws Exception {
-        JSONObject j = new JSONObject(get(base + "catalog.json"));
+        String txt;   // catalog2.json lists the Anima models and MOSS-Image (1.3+); catalog.json stays as is for older apps, which would misread a MOSS entry
+        try { txt = get(base + "catalog2.json"); } catch (Exception e) { txt = get(base + "catalog.json"); }
+        JSONObject j = new JSONObject(txt);
         commonSize = j.optLong("common_size", 0);
         List<Item> out = new ArrayList<>();
         JSONArray a = j.getJSONArray("models");
         for (int i = 0; i < a.length(); i++) {
             JSONObject m = a.getJSONObject(i); Item it = new Item();
             it.id = m.getString("id"); it.name = m.getString("name"); it.desc = m.optString("desc", ""); it.size = m.getLong("size"); it.manifest = m.getString("manifest");
-            it.descEn = m.optString("desc_en", it.desc); it.params = m.optString("params", ""); it.quant = m.optString("quant", ""); it.author = m.optString("author", ""); it.speed = m.optInt("speed", 0);
+            it.descEn = m.optString("desc_en", it.desc); it.params = m.optString("params", ""); it.quant = m.optString("quant", ""); it.author = m.optString("author", ""); it.speed = m.optInt("speed", 0); it.moss = m.optString("kind", "").equals("moss");
             out.add(it);
         }
         return out;
     }
 
     // ---- state ----------------------------------------------------------------------------------
-    File modelDir(String id) { return new File(anima, "m_" + id); }
+    File modelDir(String id) { return Moss.is(id) ? Moss.dir(home) : new File(anima, "m_" + id); }
     File doneMark(File dir) { return new File(dir, ".installed"); }
-    boolean modelInstalled(String id) { return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
+    boolean modelInstalled(String id) { if (Moss.is(id)) return Moss.installed(home) && id.equals(mossId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
     /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */
     static String commonDir() { String a = Compat.dspArch(); return a.isEmpty() || a.equals("v69") ? "common" : "common_" + a; }
     boolean commonInstalled() { return doneMark(new File(anima, commonDir())).exists(); }
+    String mossId() { try { return new JSONObject(read(new File(Moss.dir(home), "meta.json"))).getString("id"); } catch (Exception e) { return ""; } }
     /** ids of installed models, in catalog order of installation directory names */
     List<String> installed() {
         List<String> out = new ArrayList<>();
+        if (Moss.installed(home)) out.add(mossId());
         File[] ds = anima.listFiles();
         if (ds != null) for (File d : ds) if (d.getName().startsWith("m_") && modelInstalled(d.getName().substring(2))) out.add(d.getName().substring(2));
         java.util.Collections.sort(out);
@@ -97,11 +101,16 @@ final class Models {
     }
 
     void installModel(String base, Item it, Progress pg, AtomicBoolean cancel) throws Exception {
-        JSONObject m = new JSONObject(get(base + it.manifest));
+        final String murl = it.manifest.startsWith("http") ? it.manifest : base + it.manifest;   // a pack may live in another repository (MOSS-Image: Apache-2.0, not in the Anima repo)
+        JSONObject m = new JSONObject(get(murl));
         File dir = modelDir(it.id); dir.mkdirs(); doneMark(dir).delete();
         JSONArray files = m.getJSONArray("files");
         long[] done = {0};
-        fetchAll(base + new File(it.manifest).getParent() + "/", files, dir, total(files), done, pg, cancel);
+        fetchAll(murl.substring(0, murl.lastIndexOf('/') + 1), files, dir, total(files), done, pg, cancel);
+        if (it.moss) {   // MOSS-Image: raw files only, no sd.cpp stub
+            try (FileWriter w = new FileWriter(new File(dir, "meta.json"))) { w.write(new JSONObject().put("id", it.id).put("name", it.name).put("speed", it.speed).toString()); }
+            doneMark(dir).createNewFile(); return;
+        }
         JSONObject st = m.getJSONObject("stub");
         File hdr = new File(dir, st.getString("hdr"));
         stub(hdr, new File(sd, it.id + ".safetensors"), st.getLong("size"));
@@ -117,9 +126,12 @@ final class Models {
 
     void delete(String id) {
         File dir = modelDir(id);
+        if (Moss.is(id)) { deleteTree(dir); return; }
         File[] fs = dir.listFiles(); if (fs != null) for (File f : fs) f.delete();
         dir.delete(); new File(sd, id + ".safetensors").delete();
     }
+
+    static void deleteTree(File f) { File[] fs = f.listFiles(); if (fs != null) for (File c : fs) deleteTree(c); f.delete(); }
 
     /** sparse stub of a safetensors file: the real header, then a hole up to the real size (sd.cpp maps the file but never touches tensor data when the DiT/LLM run on the NPU) */
     static void stub(File hdr, File out, long size) throws IOException {

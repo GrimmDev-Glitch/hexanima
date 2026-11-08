@@ -173,3 +173,39 @@ Chip %s · Android %s	Chip %s · Android %s
 Send the log	Protokoll senden
 Authors and links	Autoren und Links
 Component licenses	Lizenzen der Komponenten
+LORA  ·  optional	LORA  ·  optional
+none	keine
+Choose	Wählen
+Strength	Stärke
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	Eine .safetensors-Datei für MOSS-Image: Sie wird sofort nach der Auswahl geprüft
+Checking the file…	Datei wird geprüft…
+Cannot read the file: %s	Datei kann nicht gelesen werden: %s
+the file is larger than 1 GB	die Datei ist größer als 1 GB
+LoRA "%s" does not fit	LoRA „%s“ passt nicht
+Compatible: rank %d, %d of 42 blocks	Kompatibel: Rang %d, %d von 42 Blöcken
+High rank: some fine detail may be lost when it is merged with the turbo adapter	Hoher Rang: Beim Zusammenführen mit dem Turbo-Adapter können feine Details verloren gehen
+The text-encoder part is not applied	Der Textencoder-Teil wird nicht angewendet
+Some extra tensors are skipped	Einige überzählige Tensoren wurden übersprungen
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	Diese LoRA ist für ein anderes Modell (FLUX, SDXL oder ähnlich). Sie passt nicht zu MOSS-Image.
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	Diese Datei sieht nicht nach einer MOSS-Image-LoRA aus: Die erwarteten Schichten (layers.N.proj.*) fehlen.
+The file only has text-encoder LoRA weights. Those are not supported yet.	Die Datei enthält nur LoRA-Gewichte des Textencoders. Diese werden noch nicht unterstützt.
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	Die Schichtgrößen passen nicht zu MOSS-Image (%s). Wahrscheinlich ist es eine LoRA für eine andere Modellversion.
+The rank is too large (%s). Supported: 1 to 128.	Der Rang ist zu groß (%s). Unterstützt: 1 bis 128.
+The LoRA has blocks that MOSS-Image does not have (%s).	Die LoRA enthält Blöcke, die MOSS-Image nicht hat (%s).
+Unsupported weight format: F32, F16 or BF16 are needed.	Nicht unterstütztes Gewichtsformat: F32, F16 oder BF16 sind nötig.
+Cannot read the file (%s). A .safetensors file is needed.	Datei kann nicht gelesen werden (%s). Es wird eine .safetensors-Datei benötigt.
+Check failed: %s %s	Prüfung fehlgeschlagen: %s %s
+Preparing the LoRA… %d/%d	LoRA wird vorbereitet… %d/%d
+Could not prepare the LoRA: %s	LoRA konnte nicht vorbereitet werden: %s
+Quality tags: Anima only	Qualitäts-Tags: nur Anima
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	Die Qualitäts-Tags aus den Einstellungen werden nur den Beschreibungen für Anima-Modelle vorangestellt. MOSS-Image bekommt sie nicht, und die Einstellung ist ausgeblendet, solange MOSS-Image gewählt ist.
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B (Apache-2.0) ist ein zweites, größeres Modell: Beschreibe Bilder in normalen Sätzen, nicht mit Tags. Textencoder, Transformer und Decoder laufen alle auf der NPU. Es braucht etwa 14 GB Speicher und wurde auf einem Handy mit 12 GB RAM getestet. Die Gewichte werden für jedes Bild vom Speicher gelesen: etwa 30 s für 512×768, etwa 80 s für 1 Mpx. Vorladen ist nicht nötig.
+MOSS-Image sizes	MOSS-Image-Größen
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	Jede Größe funktioniert: Beide Seiten sind Vielfache von 16, mindestens 256, höchstens 6144 Patches (Breite/16 × Höhe/16), zum Beispiel 1536×1024. Der 4-Schritt-Adapter wurde mit etwa 1 Mpx trainiert (1024×1024, 832×1216…), kleinere Größen funktionieren aber ebenfalls. Größen ohne fertigen Decoder werden in Kacheln dekodiert, daher kann sich der Farbton leicht verschieben.
+LoRA for MOSS-Image	LoRA für MOSS-Image
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	Wähle eine eigene .safetensors-Datei, die für MOSS-Image gemacht ist (LoRAs für FLUX, SDXL und andere Modelle passen nicht). Sie wird sofort nach der Auswahl geprüft, und wenn sie nicht passt, nennt die App den Grund. Stärke 1,00 ist die Einstellung des Autors: weniger ist schwächer, mehr ist stärker. Das erste Bild mit einer neuen LoRA oder Stärke braucht etwa 15 s Vorbereitung (temporäre Dateien von etwa 300 MB). Die Nutzung einer LoRA unterliegt der Lizenz ihres Autors.
+MOSS-Image licenses	MOSS-Image-Lizenzen
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen-Team), der rapid-moss-Adapter (darask0, lodestones), der FLUX.2-small-Decoder (Black Forest Labs) und die Unsloth-Quantisierungen stehen alle unter der Apache License 2.0. Die Dateien sind für die NPU konvertierte Kopien; die Änderungen stehen in den Hinweisen unten. Die Lizenztexte stehen ganz unten unter Lizenzen der Komponenten.
+MOSS-Image notices (changes made)	MOSS-Image-Hinweise (vorgenommene Änderungen)
+Quality tags before the prompt (Anima models)	Qualitäts-Tags vor der Beschreibung (Anima)

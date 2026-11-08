@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Outline;
@@ -62,6 +63,7 @@ public class Main extends Base {
     ImageButton dlBtn, shareBtn, favBtn, againBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
+    LinearLayout loraBox; TextView loraName, loraInfo, strText; SeekBar strBar; Button loraPick, loraDrop;
     ProgressBar bar, ramBar;
     ImageView img;
     File lastFile;
@@ -265,6 +267,34 @@ public class Main extends Base {
         sr.addView(dice, dl);
         root.addView(sr);
 
+        // MOSS-Image: user LoRA (picked file is checked at once; strength slider; folded with the turbo adapter on first use)
+        loraBox = new LinearLayout(this); loraBox.setOrientation(LinearLayout.VERTICAL);
+        loraBox.addView(label(L.s("LORA  ·  необязательно", "LORA  ·  optional")));
+        LinearLayout lr = new LinearLayout(this); lr.setGravity(Gravity.CENTER_VERTICAL);
+        loraName = text(L.s("не выбрана", "none"), 14, TXT, false); loraName.setSingleLine(true); loraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        loraName.setBackground(bg(CARD, 16)); loraName.setPadding(dp(16), dp(12), dp(16), dp(12));
+        lr.addView(loraName, new LinearLayout.LayoutParams(0, -2, 1));
+        loraPick = button(L.s("Выбрать", "Choose"), CARD, TXT); loraPick.setOnClickListener(v -> pickLora());
+        LinearLayout.LayoutParams pl2 = new LinearLayout.LayoutParams(-2, dp(44)); pl2.leftMargin = dp(8); lr.addView(loraPick, pl2);
+        loraDrop = button("✕", CARD, TXT); loraDrop.setOnClickListener(v -> dropLora());
+        LinearLayout.LayoutParams dl2 = new LinearLayout.LayoutParams(dp(48), dp(44)); dl2.leftMargin = dp(8); lr.addView(loraDrop, dl2);
+        loraBox.addView(lr);
+        loraInfo = text("", 12, DIM, false); loraInfo.setPadding(dp(4), dp(6), dp(4), 0); loraBox.addView(loraInfo);
+        LinearLayout sr2 = new LinearLayout(this); sr2.setGravity(Gravity.CENTER_VERTICAL); sr2.setPadding(0, dp(6), 0, 0);
+        sr2.addView(text(L.s("Сила", "Strength"), 14, TXT, false));
+        strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat("moss_lora_str", 1f) * 20));
+        sr2.addView(strBar, new LinearLayout.LayoutParams(0, -2, 1));
+        strText = text("", 14, TXT, true); strText.setMinWidth(dp(44)); strText.setGravity(Gravity.END); sr2.addView(strText);
+        strBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar b, int p, boolean u) { strText.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); if (u) prefs().edit().putFloat("moss_lora_str", p * 0.05f).apply(); }
+            public void onStartTrackingTouch(SeekBar b) { }
+            public void onStopTrackingTouch(SeekBar b) { }
+        });
+        strText.setText(String.format(java.util.Locale.US, "%.2f", strBar.getProgress() * 0.05f));
+        loraBox.addView(sr2);
+        root.addView(loraBox);
+        refreshLora();
+
         // sticky bottom bar: progress + status + [pictures count] [Generate / Stop]
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
@@ -359,6 +389,7 @@ public class Main extends Base {
     };
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == 9 && res == RESULT_OK && d != null && d.getData() != null) { importLora(d.getData()); return; }
         if (req == 7 && res == RESULT_OK && d != null) {
             prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
             customOpen = false;
@@ -374,6 +405,49 @@ public class Main extends Base {
                 Toast.makeText(this, L.s("Настройки загружены из файла", "Settings loaded from the file"), Toast.LENGTH_SHORT).show();
             } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
         }
+    }
+
+
+    // ---- MOSS-Image user LoRA ---------------------------------------------------------------------
+    String loraId() { return prefs().getString("moss_lora_id", ""); }
+    boolean loraOn() { return isMoss() && !loraId().isEmpty() && MossLora.src(getFilesDir()).exists() && strBar.getProgress() > 0; }
+    void refreshLora() {
+        boolean has = !loraId().isEmpty() && MossLora.src(getFilesDir()).exists();
+        loraName.setText(has ? prefs().getString("moss_lora_name", "LoRA") : L.s("не выбрана", "none"));
+        loraInfo.setText(has ? prefs().getString("moss_lora_info", "") : L.s("Файл .safetensors для MOSS-Image: проверяется сразу после выбора", "A .safetensors file for MOSS-Image: it is checked as soon as you pick it"));
+        loraInfo.setTextColor(has ? OK : DIM);
+        loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f);
+    }
+    void pickLora() {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 9);
+    }
+    void dropLora() {
+        if (busy) return;
+        prefs().edit().remove("moss_lora_id").remove("moss_lora_name").remove("moss_lora_info").apply();
+        ex2.submit(() -> { MossLora.deleteTree(MossLora.dir(getFilesDir())); ui.post(this::refreshLora); });
+    }
+    void importLora(Uri uri) {
+        String nm = "LoRA";
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (i >= 0) nm = c.getString(i); } } catch (Exception ignored) { }
+        final String name = nm;
+        loraInfo.setTextColor(WARN); loraInfo.setText(L.s("Проверяю файл…", "Checking the file…"));
+        ex2.submit(() -> {
+            final File dir = MossLora.dir(getFilesDir()); dir.mkdirs(); final File tmp = new File(dir, "new.safetensors");
+            try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(tmp)) {
+                byte[] b = new byte[1 << 16]; long total = 0;
+                for (int n; (n = in.read(b)) > 0; ) { o.write(b, 0, n); total += n; if (total > (1L << 30)) throw new IOException(L.s("файл больше 1 ГБ", "the file is larger than 1 GB")); }
+            } catch (Exception e) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, L.f("Не удалось прочитать файл: %s", "Cannot read the file: %s", e.getMessage())); }); return; }
+            MossLora.Check c = MossLora.check(BIN, tmp);
+            if (!c.ok) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, c.message()); }); return; }
+            File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f);   // the old LoRA and its folded patches go
+            tmp.renameTo(MossLora.src(getFilesDir()));
+            prefs().edit().putString("moss_lora_id", Long.toHexString(System.currentTimeMillis())).putString("moss_lora_name", name).putString("moss_lora_info", "✓ " + c.message()).apply();
+            ui.post(this::refreshLora);
+        });
+    }
+    void loraFail(String name, String why) {
+        builder().setTitle(L.f("LoRA «%s» не подходит", "LoRA \"%s\" does not fit", name)).setMessage(why).setPositiveButton("OK", null).show();
     }
 
     // ---- menu, dialogs ------------------------------------------------------------------------
@@ -458,9 +532,9 @@ public class Main extends Base {
         final AlertDialog[] dlg = new AlertDialog[1];
         LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14), dp(14), dp(14), dp(10));
         java.util.List<int[]> por = new java.util.ArrayList<>(), lan = new java.util.ArrayList<>(), sq = new java.util.ArrayList<>();
-        for (int[] z : SIZES) (z[1] > z[0] ? por : z[0] > z[1] ? lan : sq).add(z);
+        for (int[] z : sizeList()) (z[1] > z[0] ? por : z[0] > z[1] ? lan : sq).add(z);
         box.addView(cols(text(L.s("Портрет", "Portrait"), 12, DIM, true), text(L.s("Альбом", "Landscape"), 12, DIM, true), true));
-        for (int i = 0; i < por.size(); i++) box.addView(cols(cell(por.get(i), dlg), cell(lan.get(i), dlg), false));
+        for (int i = 0; i < Math.max(por.size(), lan.size()); i++) box.addView(cols(i < por.size() ? cell(por.get(i), dlg) : new View(this), i < lan.size() ? cell(lan.get(i), dlg) : new View(this), false));
         TextView sqh = text(L.s("Квадрат", "Square"), 12, DIM, true); sqh.setPadding(dp(4), dp(14), 0, dp(6)); box.addView(sqh);
         for (int i = 0; i < sq.size(); i += 2) box.addView(cols(cell(sq.get(i), dlg), i + 1 < sq.size() ? cell(sq.get(i + 1), dlg) : new View(this), false));
         Button custom = button(L.s("Свой", "Custom"), FIELD, customOpen ? ACC : TXT);
@@ -488,6 +562,11 @@ public class Main extends Base {
         return t;
     }
 
+    boolean isMoss() { return Moss.is(model); }
+    /** the size presets of the selected model: Anima's list, or MOSS-Image's own presets (any size with sides multiple of 16 works) */
+    java.util.List<int[]> sizeList() { return java.util.Arrays.asList(isMoss() ? Moss.PRESETS : SIZES); }
+    String mossSizeError(int w, int h) { return Moss.sizeError(w, h); }
+
     // ---- model state --------------------------------------------------------------------------
     String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }
 
@@ -513,7 +592,7 @@ public class Main extends Base {
     void setRes(int w, int h) {
         resW = w; resH = h;
         boolean preset = false;
-        for (int[] z : SIZES) if (z[0] == w && z[1] == h) preset = true;
+        for (int[] z : sizeList()) if (z[0] == w && z[1] == h) preset = true;
         if (sizeText != null) sizeText.setText(sizeLabel(w, h) + (preset && !customOpen ? "" : "  ·  " + L.s("Свой", "Custom")));
         if (customRow != null) { customRow.setVisibility(customOpen || !preset ? View.VISIBLE : View.GONE); if (!wEdit.getText().toString().equals(String.valueOf(w)) || !hEdit.getText().toString().equals(String.valueOf(h))) { wEdit.setText(String.valueOf(w)); hEdit.setText(String.valueOf(h)); } }
         if (chipName != null) chipName.setText(modelName());
@@ -539,10 +618,11 @@ public class Main extends Base {
         ui.post(() -> {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
-            state.setText(working ? msg : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
+            if (loraBox != null) loraBox.setVisibility(isMoss() ? View.VISIBLE : View.GONE);
+            state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
                 : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
-            loadBtn.setEnabled(!working && !busy && !model.isEmpty());
+            loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss());
             loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);
             countBtn.setEnabled(!busy); countBtn.setAlpha(busy ? .5f : 1f);
             boolean can = busy ? !cancelled : !working;   // while a picture is made the main button is "Stop"
@@ -554,6 +634,7 @@ public class Main extends Base {
     }
 
     void refreshState() {
+        if (isMoss()) { setModelUi(false, false, ""); return; }
         ex.submit(() -> {
             String s = su("sh " + D + "/anima.sh status", true);
             if (s.startsWith("ERR") || s.isEmpty()) {
@@ -578,6 +659,7 @@ public class Main extends Base {
     }
 
     void toggleModel() {
+        if (isMoss()) return;   // nothing to preload
         final boolean want = !loaded;
         setModelUi(loaded, true, want ? L.s("Загружаю модель…", "Loading the model…") : L.s("Выгружаю модель…", "Unloading the model…"));
         ex.submit(() -> {
@@ -589,9 +671,10 @@ public class Main extends Base {
 
     /** anima.sh ships in assets and is rewritten at every start (it is a script, so it may live in the app's data dir) */
     void installScript() {
-        try (InputStream in = getAssets().open("anima.sh"); FileOutputStream o = new FileOutputStream(new File(D, "anima.sh"))) {
-            byte[] b = new byte[8192]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
-        } catch (IOException e) { Toast.makeText(this, "anima.sh: " + e, Toast.LENGTH_LONG).show(); }
+        for (String nm : new String[]{"anima.sh", "moss.sh"})
+            try (InputStream in = getAssets().open(nm); FileOutputStream o = new FileOutputStream(new File(D, nm))) {
+                byte[] b = new byte[8192]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
+            } catch (IOException e) { Toast.makeText(this, nm + ": " + e, Toast.LENGTH_LONG).show(); }
     }
 
     void refreshModels() {
@@ -640,14 +723,15 @@ public class Main extends Base {
         if (!busy || cancelled) return;
         cancelled = true;
         setModelUi(loaded, false, "");
-        ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
+        if (isMoss()) ex2.submit(() -> ctlSh.run("sh " + D + "/moss.sh stop < /dev/null >/dev/null 2>&1"));
+        else ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
     }
 
     void generate(boolean newSeed) {
         if (model.isEmpty()) { openModels(); return; }
         int cw = 0, ch = 0;
         try { cw = Integer.parseInt(wEdit.getText().toString().trim()); ch = Integer.parseInt(hEdit.getText().toString().trim()); } catch (NumberFormatException e) { }
-        String bad = sizeError(cw, ch);
+        String bad = isMoss() ? mossSizeError(cw, ch) : sizeError(cw, ch);
         if (bad != null) { Toast.makeText(this, bad, Toast.LENGTH_LONG).show(); return; }
         if (cw != resW || ch != resH) setRes(cw, ch);
         final String pr = prompt.getText().toString().trim();
@@ -708,6 +792,7 @@ public class Main extends Base {
 
     /** one picture: loads the model if needed, runs anima.sh, stores the PNG (with the settings inside) in the history; null on failure or Stop */
     File runOne(String pr, String seedS, int w, int h, long t0) {
+        if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         if (!loaded) {
             setProgressUi(0, L.s("Загружаю модель…", "Loading the model…"), t0);
             su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh load < /dev/null >/dev/null 2>&1", false);
@@ -740,6 +825,45 @@ public class Main extends Base {
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
+    }
+
+    /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
+    File runOneMoss(String pr, String seedS, int w, int h, long t0) {
+        final File home = getFilesDir(), M = Moss.dir(home), ids = new File(M, "ids.i32"), raw = new File(M, "img.f32");
+        setProgressUi(3, L.s("Токенизация…", "Tokenising…"), t0);
+        try { Moss.writeIds(home, pr, ids); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "tokenizer: " + e, Toast.LENGTH_LONG).show()); return null; }
+        String loraEnv = ""; final boolean useLora = loraOn(); final float lstr = strBar.getProgress() * 0.05f;
+        if (useLora) {
+            final String[] msg = {""};
+            File ovl = MossLora.ensure(home, BIN, loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Подготовка LoRA… %d/%d", "Preparing the LoRA… %d/%d", d, t), t0), () -> cancelled, msg);
+            if (ovl == null) { if (!cancelled) ui.post(() -> Toast.makeText(this, L.f("Не удалось подготовить LoRA: %s", "Could not prepare the LoRA: %s", msg[0]), Toast.LENGTH_LONG).show()); return null; }
+            loraEnv = "MOSS_LORA=" + q(ovl.getPath()) + " ";
+        }
+        final boolean[] done = {false};
+        Thread poll = new Thread(() -> {
+            while (!done[0]) {
+                try { Thread.sleep(700); } catch (InterruptedException e) { return; }
+                String s = su("echo $(grep -c '^te:' " + M + "/moss.log) $(grep -c '^refiner:' " + M + "/moss.log) $(grep -c '^step' " + M + "/moss.log) $(grep -c '^done' " + M + "/moss.log)", true);
+                try {
+                    String[] a = s.split("\\s+"); int te = Integer.parseInt(a[0]), rf = Integer.parseInt(a[1]), st = Integer.parseInt(a[2]), dn = Integer.parseInt(a[3]);
+                    if (dn > 0) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
+                    else if (rf > 0) setProgressUi(22 + 70 * st / STEPS, L.f("Шаг %d/%d", "Step %d/%d", Math.min(st + 1, STEPS), STEPS), t0);
+                    else if (te > 0) setProgressUi(20, L.s("Подготовка текста…", "Preparing the text…"), t0);
+                    else setProgressUi(8, L.s("Кодирование текста на NPU…", "Encoding the text on the NPU…"), t0);
+                } catch (Exception ignored) { }
+            }
+        });
+        poll.start();
+        su("rm -f " + q(raw.getPath()) + "; " + loraEnv + "M=" + q(M.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        done[0] = true;
+        try { poll.join(); } catch (InterruptedException ignored) { }
+        if (cancelled) return null;
+        try {
+            byte[] png = Moss.png(raw, w, h); raw.delete();
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            if (useLora) meta.put("lora", prefs().getString("moss_lora_name", "LoRA")).put("lora_strength", lstr);
+            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+        } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Ошибка генерации: %s (лог files/moss/moss.log)", "Generation failed: %s (log files/moss/moss.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
     }
 
     /** "Done" notification when the app is not on screen; tapping it opens the app */

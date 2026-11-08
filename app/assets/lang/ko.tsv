@@ -173,3 +173,39 @@ Chip %s · Android %s	칩 %s · Android %s
 Send the log	로그 보내기
 Authors and links	제작자와 링크
 Component licenses	구성 요소 라이선스
+LORA  ·  optional	LoRA  ·  선택 사항
+none	없음
+Choose	선택
+Strength	강도
+A .safetensors file for MOSS-Image: it is checked as soon as you pick it	MOSS-Image용 .safetensors 파일: 선택하면 바로 검사합니다
+Checking the file…	파일 확인 중…
+Cannot read the file: %s	파일을 읽을 수 없습니다: %s
+the file is larger than 1 GB	파일이 1 GB보다 큽니다
+LoRA "%s" does not fit	LoRA “%s”은(는) 맞지 않습니다
+Compatible: rank %d, %d of 42 blocks	호환됨: 랭크 %d, 42개 블록 중 %d개
+High rank: some fine detail may be lost when it is merged with the turbo adapter	높은 랭크: 터보 어댑터와 병합할 때 세부 표현 일부가 손실될 수 있습니다
+The text-encoder part is not applied	텍스트 인코더 부분은 적용되지 않습니다
+Some extra tensors are skipped	불필요한 텐서 일부를 건너뛰었습니다
+This LoRA is for another model (FLUX, SDXL or similar). It does not fit MOSS-Image.	이 LoRA는 다른 모델(FLUX, SDXL 등)용입니다. MOSS-Image에는 맞지 않습니다.
+This file does not look like a MOSS-Image LoRA: the expected layers (layers.N.proj.*) are missing.	이 파일은 MOSS-Image LoRA가 아닌 것 같습니다: 필요한 레이어(layers.N.proj.*)가 없습니다.
+The file only has text-encoder LoRA weights. Those are not supported yet.	파일에 텍스트 인코더 LoRA 가중치만 있습니다. 아직 지원하지 않습니다.
+Layer sizes do not match MOSS-Image (%s). It is probably a LoRA for another version of the model.	레이어 크기가 MOSS-Image와 일치하지 않습니다(%s). 모델의 다른 버전용 LoRA일 수 있습니다.
+The rank is too large (%s). Supported: 1 to 128.	랭크가 너무 큽니다(%s). 지원 범위: 1~128.
+The LoRA has blocks that MOSS-Image does not have (%s).	이 LoRA에는 MOSS-Image에 없는 블록이 있습니다(%s).
+Unsupported weight format: F32, F16 or BF16 are needed.	지원하지 않는 가중치 형식입니다: F32, F16 또는 BF16이 필요합니다.
+Cannot read the file (%s). A .safetensors file is needed.	파일을 읽을 수 없습니다(%s). .safetensors 파일이 필요합니다.
+Check failed: %s %s	검사 실패: %s %s
+Preparing the LoRA… %d/%d	LoRA 준비 중… %d/%d
+Could not prepare the LoRA: %s	LoRA를 준비하지 못했습니다: %s
+Quality tags: Anima only	품질 태그: Anima 전용
+The quality tags from Settings are added only to prompts for Anima models. MOSS-Image does not get them, and the setting is hidden while MOSS-Image is selected.	설정의 품질 태그는 Anima 모델의 프롬프트에만 추가됩니다. MOSS-Image에는 추가되지 않으며, MOSS-Image를 선택한 동안 설정에서도 숨겨집니다.
+MOSS-Image	MOSS-Image
+MOSS-Image 5B (Apache-2.0) is a second, larger model: describe pictures in plain sentences, not tags. The text encoder, the transformer and the decoder all run on the NPU. It needs about 14 GB of storage and was tested on a phone with 12 GB of RAM. Its weights are streamed from storage for every picture: about 30 s for 512×768, about 80 s for 1 Mpx. There is nothing to preload.	MOSS-Image 5B(Apache-2.0)는 두 번째로 더 큰 모델입니다. 태그가 아니라 평범한 문장으로 그림을 설명하세요. 텍스트 인코더, 트랜스포머, 디코더가 모두 NPU에서 실행됩니다. 저장 공간이 약 14 GB 필요하며 RAM 12 GB 휴대폰에서 테스트했습니다. 가중치는 그림마다 저장소에서 읽어 옵니다: 512×768은 약 30초, 100만 화소는 약 80초. 미리 불러올 필요는 없습니다.
+MOSS-Image sizes	MOSS-Image 크기
+Any size works: both sides are multiples of 16, at least 256, at most 6144 patches (width/16 × height/16), for example 1536×1024. The 4-step adapter was trained at about 1 Mpx (1024×1024, 832×1216…), but smaller sizes also work. Sizes without a ready decoder are decoded in tiles, so the tone can shift slightly.	어떤 크기든 가능합니다: 두 변 모두 16의 배수이고 256 이상이며, 패치 수(너비/16 × 높이/16)는 6144 이하입니다(예: 1536×1024). 4단계 어댑터는 약 100만 화소(1024×1024, 832×1216…)로 학습되었지만 더 작은 크기에서도 동작합니다. 준비된 디코더가 없는 크기는 타일 단위로 디코딩하므로 색조가 약간 달라질 수 있습니다.
+LoRA for MOSS-Image	MOSS-Image용 LoRA
+Pick your own .safetensors file made for MOSS-Image (LoRAs for FLUX, SDXL and other models do not fit). It is checked as soon as you pick it, and if it does not fit the app says why. Strength 1.00 is the author's setting: lower is weaker, higher is stronger. The first picture with a new LoRA or strength spends about 15 s preparing it (temporary files of about 300 MB). Using a LoRA is subject to its author's license.	MOSS-Image용으로 만든 .safetensors 파일을 직접 선택하세요(FLUX, SDXL 등 다른 모델의 LoRA는 맞지 않습니다). 선택하면 바로 검사하며, 맞지 않으면 이유를 알려 줍니다. 강도 1.00은 제작자의 설정입니다. 낮추면 효과가 약해지고 높이면 강해집니다. 새 LoRA나 새 강도로 만드는 첫 그림은 준비에 약 15초가 걸립니다(임시 파일 약 300 MB). LoRA 사용은 제작자의 라이선스를 따릅니다.
+MOSS-Image licenses	MOSS-Image 라이선스
+MOSS-Image (OpenMOSS), Qwen3.5-9B (Qwen team), the rapid-moss adapter (darask0, lodestones), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth quantisations are all under the Apache License 2.0. The files are converted copies made for the NPU; the changes are listed in the notices below. License texts are at the bottom, under Component licenses.	MOSS-Image(OpenMOSS), Qwen3.5-9B(Qwen 팀), rapid-moss 어댑터(darask0, lodestones), FLUX.2 small 디코더(Black Forest Labs), Unsloth 양자화는 모두 Apache License 2.0입니다. 파일은 NPU용으로 변환한 사본이며 변경 사항은 아래 고지에 나와 있습니다. 라이선스 전문은 하단의 구성 요소 라이선스에 있습니다.
+MOSS-Image notices (changes made)	MOSS-Image 고지(변경 사항)
+Quality tags before the prompt (Anima models)	프롬프트 앞의 품질 태그 (Anima)

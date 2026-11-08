@@ -4,4 +4,6 @@ set -e; cd "$(dirname "$0")/.."; J=app/jnilibs/lib/arm64-v8a; Q=~/anima-npu/sdk/
 cp phone/animad $J/libanimad.so; cp hexagon/mega/out/megarun $J/libmegarun.so; cp hexagon/mega/out/libmega_skel.so $J/
 cp chainrun/vaerun $J/libvaerun.so; cp chainrun/terun $J/libterun.so; cp android/build/bin/sd-cli.stripped $J/libsdcli.so   # llvm-strip of android/build/bin/sd-cli
 cp $Q/aarch64-android/{libQnnHtp.so,libQnnSystem.so,libQnnHtpV69Stub.so} $J/; cp $Q/hexagon-v69/unsigned/libQnnHtpV69Skel.so $J/; cp $Q/aarch64-android/libQnnHtpV79Stub.so $J/; cp $Q/hexagon-v79/unsigned/libQnnHtpV79Skel.so $J/   # v79 = Snapdragon 8 Elite
+# MOSS-Image (optional, from the research tree): the runner and its DSP skel (same file name as Anima's, so it is shipped as libmossskel.so and copied to files/moss/dsp/libmega_skel.so by moss.sh)
+MOSS=${MOSS_DIR:-moss}; [ -f $MOSS/mossrun/out/mossrun ] && cp $MOSS/mossrun/out/mossrun $J/libmossrun.so && cp $MOSS/hexagon/mega/out/libmega_skel.so $J/libmossskel.so && cp $MOSS/mossrun/out/vaetile $J/libvaetile.so && cp $MOSS/mossrun/out/lorafold $J/liblorafold.so
 ls -la $J

@@ -170,3 +170,6 @@ Quick resume: `cd hexagon/rmsrope/run/blk; source ~/anima-npu/work/env.sh; pytho
 - GEMM epilogues (residual) are DDR-bandwidth bound: o/co-proj 3.2 ms vs 2.5 plain; split-K for K=8192 saved only ~0.7 ms (m2 is limited by the epilogue, not weight traffic).
 - HAP_power_set_HMX_v2 (set_clock, max corner) fails (rc -3) on SM8475/V69: no separate HMX clock to vote for. GEMM stays at 5.26 TFLOPS.
 - Low-res first steps: rebuild the low-res input from (x0 estimate, noise), not by pooling x_t (pooling a noisy mixture breaks the noise variance); keep the original noise for the whole request.
+
+## V69 qf16 subtract bug (2026-11-08)
+- `Q6_Vqf16_vsub_VhfVhf(hf(0x6400|u), hf(1024))` returns u+1 for u = 4, 8, 12 (multiples of 4, u > 0), so the old q8 dequant had some weights one quantisation level off. Dequant now goes through the widening qf32 product (`Q6_Wqf32_vmpy_VhfVhf`) and subtracts `1152*S` in qf32 (`gemm2.c: dq_tile`). Same speed.

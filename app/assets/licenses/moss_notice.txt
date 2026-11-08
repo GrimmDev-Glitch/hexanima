@@ -1,0 +1,46 @@
+# Notice
+
+HexAnima MOSS-Image packs. These files are converted and quantised derivatives of the open models listed below. Every component is licensed under the Apache License 2.0 (see LICENSE).
+HexAnima is an independent, unofficial project. It is not affiliated with, endorsed by or sponsored by OpenMOSS, Unsloth, the Qwen team / Alibaba, Black Forest Labs, Qualcomm or the other authors named here.
+
+## Components
+
+- MOSS-Image-SFT (5.1B text-to-image transformer)
+  Files: `dit/blk00.bin` … `dit/blk41.bin`, `glue.bin`
+  Original: https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT (GGUF quantisation by Unsloth: https://huggingface.co/unsloth/MOSS-Image-SFT-GGUF, file `MOSS-Image-SFT-UD-Q5_K_XL.gguf`)
+  Author: OpenMOSS; quantisation Unsloth AI
+  License: Apache-2.0
+
+- rapid-moss 4-step adapter (rank-128 LoRA, time path and sampler matrix)
+  Files: LoRA weights inside `dit/blk*.bin`, `glue.bin` (`latent_mix.Q`, `step_codes`, time embedding, biases)
+  Original: https://huggingface.co/darask0/MOSS-Image_4-step_adapter_lora (continues https://huggingface.co/lodestones/MOSS-Image-SFT-8-steps-dmd)
+  Author: darask0, lodestones
+  License: Apache-2.0
+
+- Qwen3.5-9B (text encoder)
+  Files: `te/te00.bin` … `te32.bin`, `embd.q4k`, `ref/*.bin` (text projection and refiner blocks come from MOSS-Image-SFT)
+  Original: https://huggingface.co/Qwen/Qwen3.5-9B (GGUF quantisation by Unsloth: https://huggingface.co/unsloth/Qwen3.5-9B-GGUF, file `Qwen3.5-9B-UD-Q4_K_XL.gguf`)
+  Author: Qwen team, Alibaba Cloud; quantisation Unsloth AI
+  License: Apache-2.0
+
+- Qwen tokenizer
+  Files: `tok_vocab.txt`, `tok_merges.txt`, `tok_special.txt`
+  Original: `tokenizer.json` of https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT
+  Author: Qwen team
+  License: Apache-2.0
+
+- FLUX.2 small decoder (VAE decoder) and its batch-norm statistics
+  Files: `vae/vae_<W>x<H>.bin`, `glue.bin` (`bn.mean`, `bn.var`)
+  Original: https://huggingface.co/black-forest-labs/FLUX.2-small-decoder
+  Author: Black Forest Labs
+  License: Apache-2.0
+
+
+## Changes made to the original works
+
+- The Unsloth GGUF files were dequantised and re-packed into 32x32 tiles for the Hexagon matrix unit: 8-bit blocks with one fp16 scale per column and 32 weights, or (Q4_K tensors of the text encoder only) a lossless 4-bit affine form. K-quant groups of 32 are kept; Q5_K / Q6_K / Q8_0 / IQ4_XS tensors are stored as 8-bit blocks.
+- The rapid-moss LoRA is not merged into the weights (its delta is smaller than bf16 rounding); its two matrices are stored next to every projection and applied as extra input tiles.
+- The FLUX.2 small decoder was converted to a Qualcomm HTP (V69, fp16) context binary for fixed image sizes.
+- The weights are not usable with any other software.
+
+No other changes were made to the models. The licenses and copyright notices of the original works apply to these derivatives; see LICENSE.

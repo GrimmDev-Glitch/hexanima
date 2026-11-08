@@ -18,13 +18,19 @@ void gemm_set_q8(int on) { g_q8 = on; }
 typedef struct { uint8_t *dst; const uint8_t *src; size_t bytes; int q8; } cpy_t;   /* bytes = destination bytes; q8: src tiles are 1152 B q8 records */
 /* q8 tile record -> 2 KB fp16 tile. Bytes are offset-binary (u = q + 128): hf bits 0x6400|u = 1024 + u exactly, minus 1152 (exact in qf16) = q, times the per-column scale vector. (No int16 -> hf convert before v73.) */
 static void dq_tile(uint8_t *dst, const uint8_t *src) {
+  /* x = (1024+u)*S - 1152*S in qf32. Do NOT subtract in qf16: on V69 Q6_Vqf16_vsub_VhfVhf((0x6400|u), 1024) returns u+1 for u = 4, 8, 12, ..., so some
+     weights were one quantisation level off (about 1% error on the matmul outputs). The widening product is exact enough and the cost is the same. */
   const HVX_Vector S = *(const HVX_Vector *)src, M = Q6_Vh_vsplat_R(0x6400), C = Q6_Vh_vsplat_R(0x6480);
+  const HVX_VectorPair Cw = Q6_Wqf32_vmpy_VhfVhf(S, C);   /* 1152 * S */
+  const HVX_Vector Clo = Q6_V_lo_W(Cw), Chi = Q6_V_hi_W(Cw);
   const HVX_Vector *q = (const HVX_Vector *)(src + 128); HVX_Vector *d = (HVX_Vector *)dst;
   for (int j = 0; j < 8; j++) {
     HVX_VectorPair P = Q6_Wuh_vunpack_Vub(q[j]);
-    HVX_Vector lo = Q6_V_vor_VV(Q6_V_lo_W(P), M), hi = Q6_V_vor_VV(Q6_V_hi_W(P), M);
-    d[2 * j] = Q6_Vhf_equals_Vqf16(Q6_Vqf16_vmpy_Vqf16Vhf(Q6_Vqf16_vsub_VhfVhf(lo, C), S));
-    d[2 * j + 1] = Q6_Vhf_equals_Vqf16(Q6_Vqf16_vmpy_Vqf16Vhf(Q6_Vqf16_vsub_VhfVhf(hi, C), S));
+    HVX_Vector u2[2] = {Q6_V_vor_VV(Q6_V_lo_W(P), M), Q6_V_vor_VV(Q6_V_hi_W(P), M)};
+    for (int t = 0; t < 2; t++) {
+      const HVX_VectorPair pr = Q6_Wqf32_vmpy_VhfVhf(u2[t], S);
+      d[2 * j + t] = Q6_Vhf_equals_Wqf32(Q6_W_vcombine_VV(Q6_Vqf32_vsub_Vqf32Vqf32(Q6_V_hi_W(pr), Chi), Q6_Vqf32_vsub_Vqf32Vqf32(Q6_V_lo_W(pr), Clo)));
+    }
   }
 }
 static void dq_range(uint8_t *dst, const uint8_t *src, size_t ntiles) {

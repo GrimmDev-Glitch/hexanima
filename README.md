@@ -12,13 +12,17 @@ HexAnima runs the [Anima](https://huggingface.co/circlestone-labs/Anima) diffusi
 The diffusion transformer is executed by custom HMX kernels; the text encoder and the sampler run on the CPU.
 A 512x768 picture takes about **7 s** with the 2B models and **12 s** with the 2.9B models (4 steps, Xiaomi 12T Pro).
 
+It can also run **MOSS-Image 5B** (OpenMOSS, Apache-2.0), a larger model that you prompt with plain sentences. Its text encoder (Qwen3.5-9B), the transformer and the decoder all run on the NPU:
+about 30 s for 512x768 and about 80 s for 1 Mpx; any size with sides that are multiples of 16 (up to 6144 patches). It is an optional ~14 GB download.
+
 ## Features
 
 - Fully offline after the models are downloaded; nothing leaves the phone.
 - Four MiaoMiao models (2B fp16 and 2.9B q8) with a one-tap model manager: resumable downloads, sha256 verification, delete to free space.
 - Size picker with portrait / landscape / square presets (all multiples of 16) and custom sizes, seed, batch of several pictures, stop button.
 - History with favourites, trash, multi-select, share and save; settings are stored in the PNG, so any picture can be reopened with its prompt and seed.
-- Prompt tag suggestions (Danbooru tags), templates, quality-tag prefix.
+- Prompt tag suggestions (Danbooru tags), templates, quality-tag prefix (Anima models only; MOSS-Image takes plain sentences and gets no tags).
+- Your own LoRA for MOSS-Image: pick a `.safetensors` file, the app checks it at once (layer names, shapes, rank, data type) and says why if it does not fit; a strength slider (0-2). The LoRA is folded with the built-in 4-step adapter on the phone (about 15 s the first time) and never leaves the device.
 - Live RAM meter, thermal / battery warnings, the model unloads itself when idle.
 - Light / dark / system themes, notifications, 13 languages (English, Russian, Chinese, Japanese, Korean, Spanish, Portuguese, German, French, Indonesian, Turkish, Vietnamese, Hindi).
 
@@ -33,6 +37,26 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
   <img src="docs/screens/quality/realskin-2.9b.jpg" width="190" alt="MiaoMiao RealSkin 2.9B">
 </p>
 <p align="center"><sub>3D Harem LH3D 1.1 (2B, ~7 s) · RealSkin Anima 1.3 (2B, ~7 s) · Harem 2.9B BETA 1.1 (~12 s) · RealSkin 2.9B 1.0 (~12 s)</sub></p>
+
+### MOSS-Image
+
+Four different prompts, 768x1024, 4 steps, about 60 s each, straight from the phone (same method as above, nothing retouched). Text in the picture is a strength of MOSS-Image but not a guarantee:
+short words usually come out right, longer or secondary text (shop-front boards, book covers, small signs) is often garbled. The pictures below are the first and only attempt for each prompt, bad text left as it is.
+
+<p align="center">
+  <img src="docs/screens/quality/moss-1.jpg" width="190" alt="MOSS-Image: coffee shop with a neon sign">
+  <img src="docs/screens/quality/moss-2.jpg" width="190" alt="MOSS-Image: fox reading a book, poster title">
+  <img src="docs/screens/quality/moss-3.jpg" width="190" alt="MOSS-Image: girl holding a board with text">
+  <img src="docs/screens/quality/moss-4.jpg" width="190" alt="MOSS-Image: arcade machine, GAME OVER screen">
+</p>
+<p align="center"><sub>"neon sign that says OPEN LATE" (the sign is right, the boards are not) · "title at the top says THE LAST LIBRARY" (title right, subtitle garbled) · "board that says HEXANIMA" (right) · "the words GAME OVER in pixel font" (readable, with small glitches)</sub></p>
+
+**Your own LoRA.** Pick a `.safetensors` file made for MOSS-Image; the app checks it at once (layer names, shapes, rank, data type) and tells you why if it does not fit (a FLUX or SDXL LoRA, a wrong shape, a rank above 128, a text-encoder-only file...). A strength slider goes from 0 to 2.
+The LoRA is folded with the built-in 4-step adapter on the phone (about 15 s the first time for a new LoRA or strength, then cached) and never leaves the device. Left: without a LoRA, right: with a third-party style LoRA from Civitai (same prompt, seed and size; LoRAs stay under their authors' licenses).
+
+<p align="center"><img src="docs/screens/quality/moss-lora-compare.jpg" width="640" alt="Without and with a LoRA"></p>
+
+Limits worth knowing: MOSS-Image only does text-to-image (no editing or image input), it needs about 14 GB of storage and was tested on a 12 GB phone only, and its weights are streamed from storage for every picture, so a picture takes 30 s at 512x768 and about 80 s at 1 Mpx.
 
 ## A tour of the app
 
@@ -53,13 +77,19 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
 <td align="center"><img src="docs/screens/12-settings.jpg" width="220"><br><b>Settings</b><br><sub>Language, theme, idle unload, quality tags</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screens/13-info.jpg" width="220"><br><b>Info</b><br><sub>Why 4 steps, which sizes work, licenses</sub></td>
+<td align="center"><img src="docs/screens/13-info.jpg" width="220"><br><b>Info</b><br><sub>Why 4 steps, which sizes work, MOSS-Image and LoRA notes, licenses</sub></td>
 <td align="center"><img src="docs/screens/14-light.jpg" width="220"><br><b>Light theme</b><br><sub>Light, dark or follow the system</sub></td>
 <td align="center"><img src="docs/screens/15-languages.jpg" width="220"><br><b>13 languages</b><br><sub>Chosen in Settings</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/screens/16-trash.jpg" width="220"><br><b>Trash</b><br><sub>Deleted pictures stay 30 days, restore any time</sub></td>
-<td></td><td></td>
+<td align="center"><img src="docs/screens/17-moss.jpg" width="220"><br><b>MOSS-Image</b><br><sub>Plain-sentence prompts, any size</sub></td>
+<td align="center"><img src="docs/screens/18-lora.jpg" width="220"><br><b>Your LoRA</b><br><sub>Checked at once, strength slider, prepared on the phone</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screens/19-moss-models.jpg" width="220"><br><b>Five models</b><br><sub>MOSS-Image next to the four Anima models</sub></td>
+<td align="center"><img src="docs/screens/20-info-moss.jpg" width="220"><br><b>Info: MOSS-Image</b><br><sub>Sizes, LoRA, licenses</sub></td>
+<td></td>
 </tr>
 </table>
 
@@ -69,7 +99,7 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
 - **Snapdragon 8 Elite** (SM8750, Hexagon V79, e.g. Galaxy S25): not supported. Versions 1.2.0 and 1.2.1 had experimental support, withdrawn in 1.2.2: on a tester's Galaxy S25 the NPU matrix unit is sometimes silently unavailable after an interrupted run (garbage pictures) and large sizes come out as noise. A proper port is not planned in the short term.
 - Other chips (Snapdragon 8 Gen 2 / 8 Gen 3, SM8550 / SM8650) are not supported yet; the app tells you if yours is not.
 - Android 10 or newer, 64-bit. No root needed.
-- RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per model.
+- RAM: tested on a 12 GB phone (about 10.9 GB usable). Phones with less RAM are untested; the 2.9B models need the most. Storage: 1.2 GB for the shared files plus 3.6-4.2 GB per Anima model; MOSS-Image needs about 14 GB (and ~300 MB more while a user LoRA is in use). MOSS-Image was tested on a 12 GB phone only.
 
 ## Install
 
@@ -77,15 +107,19 @@ Straight from the phone, 512x768, 4 steps, no upscaling, no editing (screenshots
 2. Open the app and pick a model in **Models**. The files are downloaded from Hugging Face (`ayanoby/anima-npu-packs`) the first time.
 3. Type a prompt (Danbooru-style tags work best), press **Generate**.
 
+MOSS-Image is a separate download in the same manager (it lives in its own Hugging Face repository with its own `LICENSE` and `NOTICE.md`).
+
 Tips: the models are distilled for 4 steps and use no negative prompt; see **Info** in the app for the other notes.
 
 ## Disclaimer
 
-**HexAnima is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to CircleStone Labs, NVIDIA, Qualcomm, Alibaba (Qwen) or the authors of the models it can download.**
+**HexAnima is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to CircleStone Labs, NVIDIA, Qualcomm, Alibaba (Qwen), OpenMOSS, Unsloth, Black Forest Labs or the authors of the models it can download.**
 "Anima" and "Cosmos" refer to third-party models, "NVIDIA" and "Qualcomm", "Snapdragon", "Hexagon" are trademarks of their respective owners.
 They are used only to describe what the software works with.
 The models (MiaoMiao Harem / 3D Harem / RealSkin by MIAOKA, based on Anima by CircleStone Labs and NVIDIA Cosmos) stay under their authors' licenses: non-commercial use only.
 The models are made with a turbo (distillation) LoRA merged in: Anima Turbo v1.1 Lora by somedoby for the 2B models and TURBO for ANIMA (V4-29B) by n_Arno for the 2.9B models (both on Civitai). See `THIRD_PARTY.md`.
+MOSS-Image, Qwen3.5-9B, the rapid-moss 4-step adapter (darask0, on lodestones' 8-step DMD), the FLUX.2 small decoder (Black Forest Labs) and the Unsloth GGUF quantisations are all under the **Apache License 2.0**; the MOSS-Image pack holds converted copies (the changes are listed in its `NOTICE.md`, also shown in the app under Info -> Licenses).
+LoRA files that you load yourself stay under their authors' licenses; check them before you share pictures made with them.
 A model author can ask for removal of their model from the download catalog: open a discussion in the Community tab of the model packs repository.
 
 ## Third-party components
@@ -113,3 +147,4 @@ The model packs are built by `tools/make_pack.py` and downloaded by the app from
 ## License
 
 The HexAnima source code is MIT (`LICENSE`). Models, QNN and the other components keep their own licenses: see `THIRD_PARTY.md`.
+The app shows all required license texts and notices (Info -> Licenses): Qualcomm AI Stack License, QNN notices, Apache License 2.0 and the MOSS-Image notice; the files are in `app/assets/licenses/`.
