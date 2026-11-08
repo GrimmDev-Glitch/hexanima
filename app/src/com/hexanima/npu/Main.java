@@ -583,7 +583,8 @@ public class Main extends Base {
         hdEdit = smallField(hr, "DENOISE", "x_hires_den", "0.45", true);
         hnEdit = smallField(hr, L.s("ШАГИ", "STEPS"), "x_hires_steps", "4", false);
         c.addView(hr);
-        sw(c, L.s("Увеличить ×4 (ИИ)", "Upscale ×4 (AI)"), L.s("RealESRGAN anime на процессоре после генерации; 18 МБ при первом использовании", "RealESRGAN anime on the CPU after generation; 18 MB on first use"), "x_up", false);
+        sw(c, L.s("Увеличить ×2 (ИИ)", "Upscale ×2 (AI)"), L.s("RealESRGAN anime на процессоре, ~80 с, до 512×768; 18 МБ при первом использовании. Быстрее: hires fix (NPU)",
+            "RealESRGAN anime on the CPU, ~80 s, up to 512×768; 18 MB on first use. Faster: the hires fix (NPU)"), "x_up", false);
         sw(c, L.s("ADetailer (лица)", "ADetailer (faces)"), L.s("Находит лица и перерисовывает их детальнее", "Finds faces and redraws them in more detail"), "x_ad", false);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL);
         adText = text("", 12, DIM, false); ar.addView(adText, new LinearLayout.LayoutParams(0, -2, 1));
@@ -662,6 +663,23 @@ public class Main extends Base {
         try { Models.fetch(UPSCALER_URL, u, -1, UPSCALER_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); return u; }
         catch (Exception e) { ui.post(() -> Toast.makeText(this, "RealESRGAN: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
     }
+    /** AI upscale ×2 on the CPU: RealESRGAN anime is a ×4 model, so the picture is halved first (a quarter of the work: ~80 s for 512×768 on the
+     *  Poco F6 Pro; ×4 of the full picture took ~5 min). Only up to 512×768: larger pictures would pass 2 minutes (the hires fix on the NPU is the fast way). */
+    byte[] upscale2x(byte[] png, int w, int h, long t0) {
+        if ((long) w * h > 512L * 768) { ui.post(() -> Toast.makeText(this, L.s("Увеличение пропущено: только до 512×768 (используйте hires fix)", "Upscale skipped: up to 512×768 only (use the hires fix)"), Toast.LENGTH_LONG).show()); return null; }
+        File u = ensureUpscaler(t0); if (u == null) return null;
+        setProgressUi(96, L.s("Увеличение ×2 (процессор, ~80 с)…", "Upscaling ×2 (CPU, ~80 s)…"), t0);
+        try {
+            Bitmap b = BitmapFactory.decodeByteArray(png, 0, png.length), half = Bitmap.createScaledBitmap(b, w / 2, h / 2, true);
+            File in = new File(D, "up_in.png"), out = new File(D, "up_out.png"); out.delete();
+            try (FileOutputStream o = new FileOutputStream(in)) { half.compress(Bitmap.CompressFormat.PNG, 100, o); }
+            su("cd " + D + " && LD_LIBRARY_PATH=\"$BIN:/system/lib64\" \"$BIN/libsdcli.so\" -M upscale --upscale-model " + q(u.getPath()) + " -i up_in.png -o up_out.png -t 5 --upscale-tile-size 256 < /dev/null > upscale.log 2>&1", false);
+            in.delete();
+            if (cancelled || !out.exists()) return null;
+            byte[] r = Models.readBytes(out); out.delete();
+            return BitmapFactory.decodeByteArray(r, 0, r.length) != null ? r : null;
+        } catch (Exception e) { return null; }
+    }
     /** anima.sh environment for the extras that are on */
     boolean memOk, hotStop;   // the memory warning was answered / a batch stopped because the phone got too hot
     long availMb() { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem / 1048576; }
@@ -678,7 +696,6 @@ public class Main extends Base {
             if (hs != null) e.append("HIRES=1 HIRES_W=").append(hs[0]).append(" HIRES_H=").append(hs[1]).append(" HIRES_DENOISE=").append(pf("x_hires_den", .45f)).append(" HIRES_STEPS=").append((int) pf("x_hires_steps", 4)).append(" ");
             else ui.post(() -> Toast.makeText(this, L.s("Hires fix: этот размер уже максимальный для NPU", "Hires fix: this size is already the NPU's largest"), Toast.LENGTH_LONG).show());
         }
-        if (prefs().getBoolean("x_up", false)) { File u = ensureUpscaler(t0); if (u != null) e.append("UPSCALE=").append(q(u.getPath())).append(" "); }
         if (prefs().getBoolean("x_ad", false)) { File ad = ensureAd(t0); if (ad != null) e.append("AD=").append(q(ad.getPath())).append(" "); }
         File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
         return e.toString();
@@ -1270,12 +1287,15 @@ public class Main extends Base {
         byte[] png = new byte[0];
         try { png = Models.readBytes(new File(f)); } catch (Exception ignored) { }
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
+        boolean upscaled = false;
+        if (prefs().getBoolean("x_up", false) && !cancelled) { byte[] up = upscale2x(png, w, h, t0); if (up != null) { png = up; upscaled = true; } }
         try {
             JSONObject meta = new JSONObject().put("prompt", fullPrompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
                 .put("steps", steps).put("cfg", Settings.cfg(this)).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
             if (Settings.cfgOn(this) && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
             if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
+            if (upscaled) meta.put("upscale", "RealESRGAN x2");
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
     }
