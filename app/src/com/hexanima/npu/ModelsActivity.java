@@ -78,7 +78,7 @@ public class ModelsActivity extends Base {
         final String base = url.getText().toString().trim().replaceAll("/*$", "") + "/";
         getSharedPreferences("anima", 0).edit().putString("base", base).apply();
         io.submit(() -> {
-            try { final List<Models.Item> cat = store.catalog(base); for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); }); }
+            try { final List<Models.Item> cat = store.catalog(base); if (Compat.dspArch().equals("v73")) cat.removeIf(it -> it.moss || it.qwen);   /* MOSS-Image and Qwen-Image have no V73 build yet (their own DSP kernels and VAE contexts) */ for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); }); }
             catch (Exception e) { ui.post(() -> { list.removeAllViews(); list.addView(text(L.f("Каталог недоступен: %s", "Catalog unavailable: %s", e.getMessage()), 13, BAD, false)); }); }
         });
     }
@@ -90,7 +90,7 @@ public class ModelsActivity extends Base {
         final String base = prefBase();
         final boolean needCommonAnima = !store.commonInstalled();
         for (final Models.Item it : items) {
-            final boolean needCommon = needCommonAnima && !it.moss;
+            final boolean needCommon = needCommonAnima && !it.moss && !it.qwen;
             final boolean have = store.modelInstalled(it.id);
             final boolean busyThis = downloading && it.id.equals(dlId);
             LinearLayout c = card(list);
@@ -125,7 +125,7 @@ public class ModelsActivity extends Base {
         else if (!store.commonInstalled() && hasAnima()) { TextView n = text(L.f("К первой модели добавятся общие файлы (%s ГБ): текстовый энкодер и VAE. Они качаются один раз.", "The first model also fetches the shared files (%s GB): text encoder and VAE, once.", gb(store.commonSize)), 12, DIM, false); n.setPadding(dp(2), 0, 0, 0); list.addView(n); }
     }
 
-    boolean hasAnima() { for (Models.Item it : items) if (!it.moss) return true; return false; }
+    boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen) return true; return false; }
 
     void start(String base, Models.Item it, boolean needCommon) {
         if (!Compat.chipAllowed(this)) {   // an unsupported chip: the models will not run, so ask before 4 GB are downloaded
@@ -133,7 +133,7 @@ public class ModelsActivity extends Base {
                 .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> { Compat.allowChip(this); begin(base, it, needCommon); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
         }
-        if (it.moss && Compat.ramGb(this) < 10.5) {   // text encoder 6 GB and the DiT stream through RAM: 12 GB phones only
+        if ((it.moss || it.qwen) && Compat.ramGb(this) < 10.5) {   // text encoder 6 GB and the DiT stream through RAM: 12 GB phones only
             builder().setMessage(L.f("В телефоне %.1f ГБ ОЗУ: для этой модели рекомендуется 12 ГБ. Всё равно скачать?", "This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?", Compat.ramGb(this)))
                 .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> begin(base, it, needCommon)).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
@@ -157,7 +157,7 @@ public class ModelsActivity extends Base {
                 dlDone = d; dlTotal = tot; dlMsg = L.f("%s / %s ГБ  ·  %s", "%s / %s GB  ·  %s", gb(d), gb(tot), what);
             };
             String err = null;
-            try { if (!it.moss) store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
+            try { if (!it.moss && !it.qwen) store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
             catch (java.io.InterruptedIOException e) { err = L.s("Загрузка отменена: файлы сохранены, можно продолжить", "Cancelled: the files are kept, you can resume"); }
             catch (Exception e) { err = L.f("Ошибка: %s", "Error: %s", e.getMessage()); }
             final String msg = err;

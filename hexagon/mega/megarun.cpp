@@ -5,6 +5,9 @@
 // stdin: "run X_IN EMB LORA CTX X_OUT [GH GW]" -> "done <ms>"; "quit".   X_IN/X_OUT fp32 [D][T], EMB fp32[2048], LORA fp32[6144], CTX fp32 [1024][512]
 // usage: megarun HMXDIR [FIRST COUNT]
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -37,6 +40,16 @@ static std::vector<char> readfile(const std::string& p) {
   fseek(f, 0, SEEK_END); size_t n = ftell(f); fseek(f, 0, SEEK_SET); b.resize(n);
   if (fread(b.data(), 1, n, f) != n) b.clear();
   fclose(f); return b;
+}
+// MEGA_STREAM=1 (low-RAM mode): only two block buffers stay in memory; the blocks are read from flash for every run while the DSP works on the previous one
+// (3-4 GB of pinned weights do not fit next to Android on an 8 GB phone). ~1.4 GB/s from UFS -> about 2.5 s per step for the 2.9B models.
+static size_t read_into(const std::string& path, uint8_t* dst, size_t maxb) {   // 4 parallel preads (one stream reads ~0.9 GB/s, four ~1.5 GB/s)
+  int fd = open(path.c_str(), O_RDONLY); if (fd < 0) return 0;
+  struct stat st; fstat(fd, &st); size_t n = std::min((size_t)st.st_size, maxb);
+  const size_t chunk = 8u << 20; std::atomic<size_t> next(0), got(0);
+  auto work = [&] { for (;;) { size_t o = next.fetch_add(chunk); if (o >= n) break; size_t len = std::min(chunk, n - o), d = 0; while (d < len) { ssize_t r = pread(fd, dst + o + d, len - d, o + d); if (r <= 0) return; d += r; } got += d; } };
+  std::vector<std::thread> th; for (int i = 0; i < 3; i++) th.emplace_back(work); work(); for (auto& t : th) t.join();
+  posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED); close(fd); return got.load();
 }
 static size_t up(size_t x) { return (x + 4095) & ~(size_t)4095; }
 
@@ -96,7 +109,8 @@ int main(int argc, char** argv) {
   if (argc < 2) { fprintf(stderr, "usage: megarun HMXDIR [FIRST COUNT]\n"); return 1; }
   std::string dir = argv[1]; int first = argc > 2 ? atoi(argv[2]) : 0, count = argc > 3 ? atoi(argv[3]) : 28;
   rpcmem_init();
-  std::vector<uint8_t*> wts(count);
+  const bool stream = getenv("MEGA_STREAM") != nullptr; const int nbuf = stream ? std::min(2, count) : count;
+  std::vector<uint8_t*> wts(nbuf);
   { char p[512]; snprintf(p, sizeof p, "%s/blk%02d.bin", dir.c_str(), first); struct stat st; if (!stat(p, &st) && (size_t)st.st_size == WQ_TOTAL) g_q8 = true; }   // q8 weight files are recognised by size
   const size_t wtot = g_q8 ? WQ_TOTAL : W_TOTAL, wmodw = g_q8 ? WQ_MODW : W_MODW;
   // LoRA cache (MEGA_LORA_CACHE=<dir>): blocks already folded with this exact LoRA set (files, sizes, dates, strengths) are read from <dir>/<key>/
@@ -118,9 +132,10 @@ int main(int argc, char** argv) {
     for (int i = 0; i < count && cached; i++) { char p[600]; snprintf(p, sizeof p, "%s/blk%02d.bin", cdir.c_str(), first + i); struct stat st; cached = !stat(p, &st) && (size_t)st.st_size == wtot; }
   }
   double t0 = now();
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < nbuf; i++) {
     char p[600]; snprintf(p, sizeof p, "%s/blk%02d.bin", cached ? cdir.c_str() : dir.c_str(), first + i);
     wts[i] = (uint8_t*)rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, wtot);
+    if (stream) { if (!wts[i]) { fprintf(stderr, "rpcmem_alloc failed\n"); return 1; } continue; }   // streaming: the buffers are filled for every run
     int fd = open(p, O_RDONLY); if (fd < 0 || !wts[i]) { fprintf(stderr, "cannot load %s\n", p); return 1; }
     size_t got = 0; while (got < wtot) { ssize_t r = read(fd, wts[i] + got, wtot - got); if (r <= 0) break; got += r; }
     posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED); close(fd);
@@ -130,7 +145,9 @@ int main(int argc, char** argv) {
   if (cached) fprintf(stderr, "megarun: LoRA from cache %s, blocks %d..%d\n", cdir.c_str(), first, first + count - 1);
   bool folded = false;
   // user LoRAs (Anima 2B), folded into the fp16 weights in RAM (lora_fold.h): MEGA_LORA = "file*strength|file*strength|..." (a bare file takes MEGA_LORA_S, default 1)
-  if (const char* lv = cached ? nullptr : getenv("MEGA_LORA")) {
+  if (stream && !cached && lv0 && *lv0) fprintf(stderr, "megarun: LoRA skipped in low-memory mode (no folded copy in the LoRA cache yet: load once with the mode off)\n");
+  const std::string sdir = cached ? cdir : dir;   // where the streaming loader reads the blocks
+  if (const char* lv = cached || stream ? nullptr : getenv("MEGA_LORA")) {
     const float s0 = getenv("MEGA_LORA_S") ? (float)atof(getenv("MEGA_LORA_S")) : 1.f;
     std::string all = lv;
     for (size_t p = 0; p < all.size();) {
@@ -152,7 +169,7 @@ int main(int argc, char** argv) {
   remote_session_control(DSPRPC_CONTROL_UNSIGNED_MODULE, &ud, sizeof ud);
   remote_handle64 h = 0; int r = mega_open(mega_URI CDSP_DOMAIN, &h);
   if (r) { fprintf(stderr, "mega_open 0x%x\n", r); return 1; }
-  for (int i = 0; i < count; i++) {   // map once (a DSP process takes at most ~13 of these buffers: run several megarun processes for 28 blocks)
+  for (int i = 0; i < nbuf; i++) {   // map once (a DSP process takes at most ~13 of these buffers: run several megarun processes for 28 blocks)
     int fd = rpcmem_to_fd(wts[i]);
     dma_buf_sync_ sy = {(1ull << 2) | 3};   // DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW: clean CPU caches so the DSP sees the weights
     ioctl(fd, DMA_BUF_IOCTL_SYNC_, &sy);
@@ -162,7 +179,7 @@ int main(int argc, char** argv) {
   uint8_t* blob = nullptr; int blobT = 0, blobfd = -1;   // activations: one rpcmem buffer mapped into the DSP; the CPU/DSP cache sync is done by hand (dma-buf sync here, dccleaninva on the DSP)
 
   // make the CPU-written weights visible to the DSP (clean CPU caches), then map every buffer into the DSP once (extended address space: 4 GB do not fit in the normal one)
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < nbuf; i++) {
     int fd = rpcmem_to_fd(wts[i]);
     dma_buf_sync_ sy = {(1ull << 2) | 3};   // DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW
     ioctl(fd, DMA_BUF_IOCTL_SYNC_, &sy);
@@ -204,6 +221,7 @@ int main(int argc, char** argv) {
     if (cmd != "run") continue;
     std::string xi, em, lo, cx, xo; int gh = 48, gw = 32; unsigned skipmask = 0; ss >> xi >> em >> lo >> cx >> xo >> gh >> gw >> skipmask;
     int T = gh * gw;
+    auto skipped = [&](int k) { return first + k < 32 && ((skipmask >> (first + k)) & 1); };   // the mask has 32 bits: blocks 32+ (2.9B models) are never skipped
     auto xb = readfile(xi), eb = readfile(em), lb = readfile(lo), cb = readfile(cx);
     if (T % 32 || T > TMAX || xb.size() != (size_t)D * T * 4 || eb.size() != D * 4 || lb.size() != 6144 * 4 || cb.size() != (size_t)1024 * NCTX * 4) { fprintf(stderr, "bad input T=%d\n", T); printf("error\n"); fflush(stdout); continue; }
     double ts = now(), t_in = ts;
@@ -224,34 +242,52 @@ int main(int argc, char** argv) {
     // modulation vectors of all blocks on a helper thread; block k is waited for before its DSP call
     const f32* e = (const f32*)eb.data(); const f32* lr = (const f32*)lb.data();
     std::atomic<int> mdone(0);
-    std::thread mt([&] {
-      std::vector<f32> s(D), h1(256);
-      for (int i = 0; i < D; i++) s[i] = e[i] / (1.f + expf(-e[i]));
-      for (int k = 0; k < count; k++) {
-        const __fp16* mw = (const __fp16*)(wts[k] + wmodw);
-        for (int site = 0; site < 3; site++) {
-          const __fp16* A = mw + (size_t)site * (256 * 2048 + 6144 * 256); const __fp16* B = A + 256 * 2048;
-          for (int j = 0; j < 256; j++) { float a = 0; const __fp16* row = A + (size_t)j * 2048; for (int i = 0; i < D; i++) a += (float)row[i] * s[i]; h1[j] = a; }
-          f32* out = &mod[((size_t)k * 9 + site * 3) * D];
-          for (int o = 0; o < 6144; o++) { float a = lr[o]; const __fp16* row = B + (size_t)o * 256; for (int j = 0; j < 256; j++) a += (float)row[j] * h1[j]; out[o] = a; }
-        }
-        mdone.store(k + 1, std::memory_order_release);
+    std::vector<f32> sv(D);
+    for (int i = 0; i < D; i++) sv[i] = e[i] / (1.f + expf(-e[i]));
+    auto compute_mod = [&](int k, const uint8_t* wk) {
+      std::vector<f32> h1(256);
+      const __fp16* mw = (const __fp16*)(wk + wmodw);
+      for (int site = 0; site < 3; site++) {
+        const __fp16* A = mw + (size_t)site * (256 * 2048 + 6144 * 256); const __fp16* B = A + 256 * 2048;
+        for (int j = 0; j < 256; j++) { float a = 0; const __fp16* row = A + (size_t)j * 2048; for (int i = 0; i < D; i++) a += (float)row[i] * sv[i]; h1[j] = a; }
+        f32* out = &mod[((size_t)k * 9 + site * 3) * D];
+        for (int o = 0; o < 6144; o++) { float a = lr[o]; const __fp16* row = B + (size_t)o * 256; for (int j = 0; j < 256; j++) a += (float)row[j] * h1[j]; out[o] = a; }
+      }
+    };
+    std::vector<int> order;   // blocks to run (skipped ones pass x through)
+    for (int k = 0; k < count; k++) if (!skipped(k)) order.push_back(k);
+    std::mutex smu; std::condition_variable scv; int sready = -1, sfreed = -2; std::atomic<bool> sfail(false);
+    std::thread mt;
+    if (!stream) mt = std::thread([&] { for (int k = 0; k < count; k++) { compute_mod(k, wts[k]); mdone.store(k + 1, std::memory_order_release); } });
+    else mt = std::thread([&] {   // loader: block i+1 is read (and its modulation computed) while the DSP runs block i
+      for (size_t oi = 0; oi < order.size(); oi++) {
+        { std::unique_lock<std::mutex> lk(smu); scv.wait(lk, [&] { return sfreed >= (int)oi - 2; }); }
+        int k = order[oi]; uint8_t* b = wts[oi % nbuf]; char p[600]; snprintf(p, sizeof p, "%s/blk%02d.bin", sdir.c_str(), first + k);
+        if (read_into(p, b, wtot) != wtot) { fprintf(stderr, "cannot read %s\n", p); sfail = true; }
+        else { dma_buf_sync_ sy = {(1ull << 2) | 3}; ioctl(rpcmem_to_fd(b), DMA_BUF_IOCTL_SYNC_, &sy); compute_mod(k, b); }
+        { std::lock_guard<std::mutex> lk(smu); sready = (int)oi; } scv.notify_all();
+        if (sfail) break;
       }
     });
     double t_conv = now();
     bool ok = true; int times[32];
     int firstRun = -1, lastRun = -1;   // blocks in skipmask are skipped (x passes through unchanged)
-    for (int k = 0; k < count; k++) if (!((skipmask >> (first + k)) & 1)) { if (firstRun < 0) firstRun = k; lastRun = k; }
+    for (int k = 0; k < count; k++) if (!skipped(k)) { if (firstRun < 0) firstRun = k; lastRun = k; }
     for (int k = 0; k < count && ok; k++) {
-      if ((skipmask >> (first + k)) & 1) continue;
-      while (mdone.load(std::memory_order_acquire) <= k) {}
+      if (skipped(k)) continue;
+      int oi = (int)(std::find(order.begin(), order.end(), k) - order.begin());
+      if (!stream) while (mdone.load(std::memory_order_acquire) <= k) {}
+      else { std::unique_lock<std::mutex> lk(smu); scv.wait(lk, [&] { return sready >= oi || sfail.load(); }); if (sfail) { ok = false; break; } }
+      uint8_t* wk = stream ? wts[oi % nbuf] : wts[k];
       L.meta[M_FIRST] = k == firstRun; L.meta[M_REL] = k == lastRun;   // VTCM, pool and power votes are held across the blocks of one run, released after the last
       double tm1 = now();
-      int rc = 0; int rr = mega_block(h, L.meta, M_NMETA, rpcmem_to_fd(wts[k]), blobfd, (const uint8_t*)&mod[(size_t)k * 9 * D], 9 * D * 4, times, 32, &rc);
+      int rc = 0; int rr = mega_block(h, L.meta, M_NMETA, rpcmem_to_fd(wk), blobfd, (const uint8_t*)&mod[(size_t)k * 9 * D], 9 * D * 4, times, 32, &rc);
       if (getenv("MEGA_DBG") && k == 5) { char lp[256]; snprintf(lp, sizeof lp, "megarun_%d.log", first); FILE* lf = fopen(lp, "a"); if (lf) { fprintf(lf, "blk5 stages(us):"); for (int q = 0; q < 25; q++) fprintf(lf, " %d", times[q]); fprintf(lf, " | call %.1f ms\n", (now() - tm1) * 1e3); fclose(lf); } }
       if (rr || rc) { fprintf(stderr, "block %d failed r=0x%x rc=%d\n", first + k, rr, rc); ok = false; }
+      if (stream) { std::lock_guard<std::mutex> lk(smu); sfreed = oi; scv.notify_all(); }
     }
     double t_dsp = now();
+    if (stream) { std::lock_guard<std::mutex> lk(smu); sfreed = 1 << 30; scv.notify_all(); }   // let the loader finish when a block failed
     mt.join();
     if (!ok) { printf("error\n"); fflush(stdout); continue; }
     { dma_buf_sync_ sy = {(0ull << 2) | 3}; ioctl(blobfd, DMA_BUF_IOCTL_SYNC_, &sy); }   // START|RW: invalidate CPU caches before reading the result

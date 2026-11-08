@@ -193,13 +193,20 @@ public class History extends Base {
         fl.addView(chk, cp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(cell - dp(6), (int) ((cell - dp(6)) * 1.3f)); lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         fl.setLayoutParams(lp);
-        fl.setOnClickListener(v -> { if (selecting) { if (!sel.remove(f)) sel.add(f); refreshSel(); } else show(f); });
+        fl.setOnClickListener(v -> { if (selecting) { if (!sel.remove(f)) sel.add(f); refreshSel(); } else { int k = Arrays.asList(cur).indexOf(f); Viewer.open(this, cur, Math.max(0, k), mode, true); } });
         fl.setOnLongClickListener(v -> { if (!selecting) { setSelecting(true); sel.add(f); refreshSel(); } return true; });
         paintCell(fl);
         Bitmap bm = cache.get(f.getName());
         if (bm != null) iv.setImageBitmap(bm);
         else io.submit(() -> { Bitmap t = thumb(f, cell); if (t != null) { cache.put(f.getName(), t); ui.post(() -> iv.setImageBitmap(t)); } });
         return fl;
+    }
+
+    /** the viewer returns "reuse settings" (pass it on to the main screen) or just closes; its trash / favourite changes show in the grid */
+    @Override protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == Viewer.REQ && res == RESULT_OK && data != null) { setResult(RESULT_OK, data); finish(); return; }
+        fill();
     }
 
     void paintCell(FrameLayout fl) {

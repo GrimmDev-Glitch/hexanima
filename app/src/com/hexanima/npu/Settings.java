@@ -19,6 +19,8 @@ public class Settings extends Base {
     static SharedPreferences prefs(Context c) { return c.getSharedPreferences("anima", 0); }
     static boolean autoload(Context c) { return prefs(c).getBoolean("autoload", false); }
     static int idleMin(Context c) { return prefs(c).getInt("idle", 10); }
+    /** low-memory mode for the Anima models (blocks are streamed from storage instead of being pinned in RAM): on by default below ~9.5 GB of RAM */
+    static boolean lowRam(Context c) { return prefs(c).getBoolean("lowram", Compat.ramGb(c) < 9.5); }
     static boolean keepOn(Context c) { return prefs(c).getBoolean("keepon", true); }
     static String rawPrefix(Context c) { String p = prefs(c).getString("prefix", DEFAULT_PREFIX); return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
     /** what goes before the prompt: trimmed, ending with a comma and a space; a single space when the user cleared it (anima.sh treats an empty PREFIX as "use the default") */
@@ -83,6 +85,7 @@ public class Settings extends Base {
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
+        c3.addView(toggle(L.s("Экономия памяти (медленнее)", "Low-memory mode (slower)"), L.s("Веса модели читаются с накопителя при каждой картинке, а не держатся в ОЗУ. Нужно телефонам с 8 ГБ ОЗУ, на 12 ГБ не нужно.", "The model's weights are read from storage for every picture instead of staying in RAM. Needed on phones with 8 GB of RAM, not on 12 GB."), lowRam(this), on -> p.edit().putBoolean("lowram", on).apply()));   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
 
         LinearLayout cc = card(col);
         TextView ct = text(L.s("Ключ API Civitai", "Civitai API key"), 15, TXT, true); ct.setPadding(dp(2), dp(6), 0, dp(2)); cc.addView(ct);
@@ -91,7 +94,7 @@ public class Settings extends Base {
         cn.setPadding(dp(2), 0, 0, dp(6)); cc.addView(cn);
         keyEdit = field("…"); keyEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD); keyEdit.setText(p.getString("civitai_key", "")); keyEdit.setTextSize(14);
         cc.addView(keyEdit);
-        if (Moss.is(p.getString("model", ""))) return;   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
+        if (Moss.is(p.getString("model", "")) || Qwen.is(p.getString("model", ""))) return;   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
         TextView pl = text(L.s("Теги качества перед описанием (модели Anima)", "Quality tags before the prompt (Anima models)"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
         prefixEdit = field("");
         prefixEdit.setText(rawPrefix(this)); prefixEdit.setTextSize(13); prefixEdit.setMinLines(2); prefixEdit.setGravity(Gravity.TOP);

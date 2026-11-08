@@ -9,6 +9,8 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 | MiaoMiao Harem / 3D Harem / RealSkin (MIAOKA) | downloadable models | author's terms: non-commercial, no selling of images |
 | Qwen3 0.6B text encoder, Qwen-Image VAE | text encoder, VAE | Apache 2.0 |
 | MOSS-Image-SFT (OpenMOSS), Unsloth GGUF quantisation, rapid-moss 4-step adapter (darask0, on lodestones' 8-step DMD), Qwen3.5-9B (Qwen team) with Unsloth GGUF quantisation, FLUX.2 small decoder (Black Forest Labs) | the optional MOSS-Image pack (converted for the NPU, hosted in its own repository with `LICENSE` and `NOTICE.md`) | Apache 2.0 (each component) |
+| Qwen-Image-2.1-Turbo (Qwen team) with the Unsloth Q5_K_S GGUF quantisation, Lightning v2-RL 4-step adapter (LightX2V), Qwen-Image-2.1 VAE | the optional Qwen-Image pack (generation and photo editing; converted for the NPU, hosted in its own repository with `LICENSE` and `NOTICE.md`) | Qwen Research License Agreement (non-commercial only) |
+| Qwen3-VL-8B-Instruct (Qwen team) with Unsloth GGUF quantisation (text encoder and vision tower of the Qwen-Image pack) | same pack | Apache 2.0 |
 | stable-diffusion.cpp | sampler and CPU parts (`patches/` are applied to it) | MIT |
 | TAEHV (`taew2_1`) | preview decoder | see github.com/madebyollin/taehv |
 | Danbooru tag list (DominikDoom/a1111-sd-webui-tagcomplete) | prompt suggestions | see that repository |
@@ -20,6 +22,14 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 All MOSS-Image components are under the Apache License 2.0. The pack is converted and quantised (8-bit tiles for the Hexagon matrix unit, the rapid-moss LoRA kept unmerged), see the pack's `NOTICE.md`.
 The Apache License 2.0 text and that notice are bundled in the app (`app/assets/licenses/apache-2.0.txt`, `moss_notice.txt`) and shown under Info -> Licenses.
 A user-supplied LoRA is a separate work under its author's license; HexAnima only folds it with the adapter on the phone (nothing is uploaded or redistributed).
+
+## Qwen-Image notice
+
+Built with Qwen. The Lightning v2-RL adapter's repository (lightx2v/Qwen-Image-2.1-Lightning) declares no license; it is an adapter of Qwen-Image-2.1 and is treated as a derivative of the Qwen Materials (Qwen Research License, non-commercial).
+
+Qwen-Image-2.1-Turbo, the Lightning v2-RL adapter and the Qwen-Image-2.1 VAE are licensed under the Qwen RESEARCH LICENSE AGREEMENT (Copyright (c) 2026 Hangzhou Tongyi Laboratory Technology Co., Ltd.): non-commercial use only.
+The pack is converted and quantised (8-bit and lossless 4-bit tiles for the Hexagon matrix unit, the Lightning LoRA kept unmerged, the vision tower's heads zero-padded, the VAE re-written as fp16 Hexagon contexts); the changes are listed in the pack's `NOTICE.md` and in `app/assets/licenses/qwen_notice.txt`.
+The license text is bundled in the app (`qwen_research_license.txt`) and shown under Info -> Licenses. Sources of the conversion are in `qwen/`.
 
 ## CircleStone Model notice
 

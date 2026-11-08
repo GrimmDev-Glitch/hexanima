@@ -36,13 +36,13 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
-# LORA=<file.safetensors> LORA_S=<strength>: an Anima LoRA folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so it is part of the loaded model
-MKEY="${MODEL:-2}${LORA:+|$LORA|${LORA_S:-1}}"
-if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$MKEY" ]; then   # loaded server holds another model (or LoRA): restart it
+# LORA=<file*strength|...>: Anima LoRAs folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so they are part of the loaded model
+KEY="${MODEL:-2}${MEGA_STREAM:+s}${LORA:+|$LORA|${LORA_S:-1}}"   # the low-memory (streaming) mode and the LoRAs are part of the key: changing them restarts the server
+if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$KEY" ]; then   # loaded server holds another model (or runs in the other memory mode): restart it
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi
 if ! pidof $NA >/dev/null; then
-  echo "$MKEY" > $A/model
+  echo "$KEY" > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
   # lcache: the folded blocks of the last LoRA set; the next load with the same set reads them instead of folding again
   if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}" MEGA_LORA_CACHE=$A/lcache; else unset MEGA_LORA MEGA_LORA_S MEGA_LORA_CACHE; fi
