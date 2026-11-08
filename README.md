@@ -27,22 +27,22 @@ Open the app, pick a model, write a prompt and press **Generate**. The models do
 | 2.9B turbo, 4 steps | ~10-12 s |
 | 2B non-turbo, 20 steps, CFG 4 (40 NPU calls) | ~85 s |
 
-Times with *cool mode* off. Cool mode (on by default) runs the NPU at a lower clock: about 17 % slower, with the CPU around 60 °C instead of 90 °C on long runs.
+Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower, with the CPU around 60 °C instead of 90 °C on long runs. By default it is automatic: full speed while the phone is cool, the lower clock once the battery reaches 40 °C (43 °C while charging).
 
 ## What this fork adds
 
 | | |
 |---|---|
 | **Snapdragon 8 Gen 2** | NPU kernels rebuilt for Hexagon V73; text encoder (512 tokens) and VAE compiled for V73. |
-| **LoRAs** | Write `<lora:name:weight>`, or tick LoRAs in a list with a filter and a weight each: the tag and its trigger words go into the prompt. Formats: kohya, diffusers / ComfyUI, LyCORIS LoKr and LoHa, including the adaLN layers. 2B LoRAs also work on 2.9B models. Merged blocks are cached, so the next load is as fast as without a LoRA. |
+| **LoRAs** | Write `<lora:name:weight>`, or tick LoRAs in a list with a filter and a weight each: the tag and its trigger words go into the prompt. Formats: kohya, diffusers / ComfyUI, LyCORIS LoKr and LoHa, including the adaLN layers, the LLM adapter and the text encoder (with text-encoder weights the prompt is encoded on the CPU, ~1.4 s). 2B LoRAs also work on 2.9B models. Merged blocks are kept as q8 and cached: 1.3 GB less RAM, and the next load takes ~2 s. |
 | **Civitai** | Search Anima LoRAs and checkpoints, sort, filter, download straight into the app. Optional API key for 18+ (sent only to civitai.com). |
 | **Your own checkpoints** | Any Anima `.safetensors` checkpoint becomes an NPU model on the phone. |
-| **Live preview** | The picture appears after every step, with the step and the seconds left. |
+| **Live preview** | The picture appears while it is drawn (every step; every 2nd or 4th on long runs), with the step and the seconds left. |
 | **Prompt tools** | Tag palette (quality, framing, lighting, style, expression, background), `( − ) ( + )` for `(tag:1.2)` weights, a negative prompt with Clear and Default. |
 | **Sampling** | Steps, CFG, 21 samplers, 9 schedulers; saved per model. |
 | **Extras** | img2img, **inpainting** (paint a mask), hires fix on the NPU, ADetailer for faces, presets, a queue, a **2×2 comparison grid** (seeds, CFG or steps). |
 | **History** | Filter by model, LoRA or prompt words; *Reuse settings* brings back the sampling too. |
-| **Heat and memory** | Cool mode, a free-RAM check before loading, and batches that wait for the phone to cool down. A home-screen widget shows free RAM and frees it. |
+| **Heat and memory** | Automatic cool mode, a free-RAM check before loading, and batches that wait for the phone to cool down. A home-screen widget shows free RAM and frees it. |
 | **Look** | Lavender light / dark themes, Barlow Semi Condensed font, folding sections. Spanish and English. |
 
 ## Screens
