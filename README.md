@@ -34,7 +34,7 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 | | |
 |---|---|
 | **Snapdragon 8 Gen 2** | NPU kernels rebuilt for Hexagon V73; text encoder (512 tokens) and VAE compiled for V73. |
-| **LoRAs** | Write `<lora:name:weight>`, or tick LoRAs in a list with a filter and a weight each: the tag and its trigger words go into the prompt. Formats: kohya, diffusers / ComfyUI, LyCORIS LoKr and LoHa, including the adaLN layers, the LLM adapter and the text encoder (with text-encoder weights the prompt is encoded on the CPU, ~1.4 s). 2B LoRAs also work on 2.9B models. Merged blocks are kept as q8 and cached: 1.3 GB less RAM, and the next load takes ~2 s. |
+| **LoRAs** | Write `<lora:name:weight>`, or tick LoRAs in a list with a filter and a weight each: the tag and its trigger words go into the prompt. Formats: kohya, diffusers / ComfyUI, LyCORIS LoKr and LoHa, including the adaLN layers, the LLM adapter and the text encoder (with text-encoder weights the prompt is encoded on the CPU, ~1.4 s). 2B LoRAs also work on 2.9B models. Merged blocks are kept as q8 and cached: 1.3 GB less RAM, and the next load takes ~2 s. LoRAs also work in the low-memory mode. |
 | **Civitai** | Search Anima LoRAs and checkpoints, sort, filter, download straight into the app. Optional API key for 18+ (sent only to civitai.com). |
 | **Your own checkpoints** | Any Anima `.safetensors` checkpoint becomes an NPU model on the phone. |
 | **Live preview** | The picture appears while it is drawn (every step; every 2nd or 4th on long runs), with the step and the seconds left. |
