@@ -59,6 +59,14 @@ final class Models {
     File modelDir(String id) { return Moss.is(id) ? Moss.dir(home) : new File(anima, "m_" + id); }
     File doneMark(File dir) { return new File(dir, ".installed"); }
     /** a 40-block (2.9B, q8) model: told by its block files, not its id (imported ids like "cv2945208" contain "29" too) */
+    /** distilled for 4 steps? the catalog packs are (turbo LoRA merged); imported checkpoints only when their meta or name says so */
+    boolean turbo(String id) {
+        if (Moss.is(id) || id.isEmpty()) return true;
+        try { JSONObject m = new JSONObject(read(new File(modelDir(id), "meta.json")));
+            if (m.has("turbo")) return m.getBoolean("turbo");
+            return !m.optBoolean("imported") || m.optString("name").toLowerCase(java.util.Locale.ROOT).contains("turbo");
+        } catch (Exception e) { return true; }
+    }
     boolean is29(String id) { return !Moss.is(id) && new File(modelDir(id), "blk39.bin").exists(); }
     boolean modelInstalled(String id) { if (Moss.is(id)) return Moss.installed(home) && id.equals(mossId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
     /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */

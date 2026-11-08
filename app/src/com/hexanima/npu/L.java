@@ -9,8 +9,9 @@ import java.util.Locale;
 /** Languages: Russian and English are written at the call sites, L.s(ru, en); every other language is a table assets/lang/<code>.tsv (English string -> translation, "\n" escaped)
  *  and falls back to the English text when a string is missing. The choice is stored in the "anima" prefs (default: the system language). */
 final class L {
-    static final String[] CODES = {"ru", "en", "zh", "ja", "ko", "es", "pt", "de", "fr", "id", "tr", "vi", "hi"};
-    static final String[] NAMES = {"Русский", "English", "中文（简体）", "日本語", "한국어", "Español", "Português", "Deutsch", "Français", "Bahasa Indonesia", "Türkçe", "Tiếng Việt", "हिन्दी"};
+    /** this build offers Spanish and English only (the Russian texts stay in the code as the second key of L.s, the other tables were dropped) */
+    static final String[] CODES = {"es", "en"};
+    static final String[] NAMES = {"Español", "English"};
     static String lang = "ru";
     static final HashMap<String, String> T = new HashMap<>();
 

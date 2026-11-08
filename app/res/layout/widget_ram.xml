@@ -13,7 +13,7 @@
         <Button android:id="@+id/w_unload" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp"
             android:textSize="12sp" android:textAllCaps="false" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="Unload model" />
         <Button android:id="@+id/w_clean" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_marginStart="6dp"
-            android:textSize="12sp" android:textAllCaps="false" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="Cleaner" />
+            android:textSize="12sp" android:textAllCaps="false" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="Free RAM" />
         <Button android:id="@+id/w_refresh" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="6dp"
             android:textSize="14sp" android:textColor="#FF0E1116" android:background="@drawable/widget_btn" android:text="↻" />
     </LinearLayout>

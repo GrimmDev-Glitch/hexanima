@@ -275,3 +275,6 @@ HexAnima model in memory (~4–5 GB)	Modelo de HexAnima en memoria (~4–5 GB)
 HexAnima model unloaded	Modelo de HexAnima descargado
 Unload model	Descargar modelo
 Cleaner	Limpiador
+Free RAM	Liberar RAM
+Freed ~%d MB	Liberados ~%d MB
+Not a turbo model: 20 steps, DPM++ 2M + SGM Uniform, CFG 4 by default (DiT calls: %d). The values are kept per model.	Modelo no turbo: por defecto 20 pasos, DPM++ 2M + SGM Uniform, CFG 4 (llamadas al DiT: %d). Los valores se guardan por modelo.

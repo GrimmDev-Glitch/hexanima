@@ -43,7 +43,8 @@ final class AnimaImport {
             File hdr = new File(dir, "hdr.bin");
             Models.fetch(base + "models/" + ref + "/" + st.getString("hdr"), hdr, -1, null, null, new AtomicBoolean());
             Models.stub(hdr, new File(store.sd, id + ".safetensors"), st.getLong("size"));
-            try (FileWriter w = new FileWriter(new File(dir, "meta.json"))) { w.write(new JSONObject().put("id", id).put("name", name).put("speed", blocks == 40 ? 12 : 7).put("imported", true).toString()); }
+            try (FileWriter w = new FileWriter(new File(dir, "meta.json"))) { w.write(new JSONObject().put("id", id).put("name", name).put("speed", blocks == 40 ? 12 : 7).put("imported", true)
+                .put("turbo", (name + " " + src.getName()).toLowerCase(java.util.Locale.ROOT).contains("turbo")).toString()); }   // non-turbo models get their own sampling defaults (Settings)
             store.doneMark(dir).createNewFile();
             src.delete(); Civitai.metaFile(src).delete();
             return null;

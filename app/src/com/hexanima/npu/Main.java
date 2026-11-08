@@ -793,6 +793,8 @@ public class Main extends Base {
         sampBox.setVisibility(!isMoss() && !model.isEmpty() ? View.VISIBLE : View.GONE);
         String n = Settings.defaultSampling(this) ? L.s("По умолчанию: модели обучены на 4 шага, Euler, CFG 1.", "Defaults: the models are distilled for 4 steps, Euler, CFG 1.")
             : L.f("Вызовов DiT: %d (по умолчанию 4, из них 2 в половинном размере)", "DiT calls: %d (default 4, two of them at half size)", Settings.calls(this));
+        if (!Settings.turbo(this)) n = L.f("Модель не turbo: по умолчанию 20 шагов, DPM++ 2M + SGM Uniform, CFG 4 (вызовов DiT: %d). Значения хранятся для каждой модели.",
+            "Not a turbo model: 20 steps, DPM++ 2M + SGM Uniform, CFG 4 by default (DiT calls: %d). The values are kept per model.", Settings.calls(this));
         if (Settings.cfgOn(this)) n += "\n" + L.s("CFG больше 1: вдвое медленнее, используется негативный промпт.", "CFG above 1: twice as slow, the negative prompt is used.");
         if (Settings.twoCalls(Settings.sampler(this))) n += "\n" + L.s("Сэмплер 2-го порядка: вдвое медленнее и с 4 шагами даёт зернистость.", "2nd-order sampler: twice as slow, grainy with 4 steps.");
         sampNote.setText(n);
@@ -1050,9 +1052,9 @@ public class Main extends Base {
     void setModel(String m) {
         if (m.equals(model) || busy) return;   // no model switch mid-generation
         model = m;
-        prefs().edit().putString("model", model).apply();   // the sampling fields read their family from it
+        prefs().edit().putString("model", model).apply();   // the sampling fields are kept per model
         setRes(resW, resH);
-        refreshSampling();
+        sampFill = false; refreshSampling();   // show this model's values
         if (loaded) {   // the loaded server holds the other model's weights
             setModelUi(true, true, L.s("Меняю модель…", "Switching model…"));
             ex.submit(() -> { su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); });
@@ -1080,8 +1082,10 @@ public class Main extends Base {
 
     void refreshModels() {
         ids = store.installed();
+        String was = prefs().getString("model", "");
         model = ids.isEmpty() ? "" : ids.contains(model) ? model : ids.get(0);
         prefs().edit().putString("model", model).apply();
+        if (!model.equals(was)) sampFill = false;
         setRes(resW, resH);
         setModelUi(loaded, false, "");
     }

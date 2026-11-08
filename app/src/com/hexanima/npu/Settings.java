@@ -34,14 +34,20 @@ public class Settings extends Base {
     static final String[] SCHEDULER_NAMES = {"Normal (discrete)", "SGM Uniform", "Simple", "Karras", "Exponential", "Beta", "KL optimal", "Smoothstep", "Bong tangent"};
     static String samplerName(String s) { int i = java.util.Arrays.asList(SAMPLERS).indexOf(s); return i < 0 ? s : SAMPLER_NAMES[i]; }
     static String schedulerName(String s) { int i = java.util.Arrays.asList(SCHEDULERS).indexOf(s); return i < 0 ? s : SCHEDULER_NAMES[i]; }
-    /** pref key of a sampling field */
-    static String key(Context c, String k) { return k; }
-    static int steps(Context c) { return prefs(c).getInt(key(c, "steps"), 4); }
-    static String cfg(Context c) { return prefs(c).getString(key(c, "cfg"), "1"); }
+    /* The sampling fields are kept per model ("steps@<model id>", ...). Defaults: turbo models (the catalog's MiaoMiao packs, imported ones with
+       "turbo" in the name) 4 steps / Euler / CFG 1; other Anima checkpoints (base, aesthetic, fine-tunes) 20 steps, DPM++ 2M + SGM Uniform, CFG 4 and
+       Anima's usual negative prompt. */
+    static final String NEG_DEFAULT = "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, bad anatomy, bad hands, extra digits, fewer digits, watermark, signature, text";
+    static String modelId(Context c) { return prefs(c).getString("model", ""); }
+    static boolean turbo(Context c) { return new Models(c.getFilesDir()).turbo(modelId(c)); }
+    /** pref key of a sampling field for the selected model */
+    static String key(Context c, String k) { return k + "@" + modelId(c); }
+    static int steps(Context c) { return prefs(c).getInt(key(c, "steps"), turbo(c) ? 4 : 20); }
+    static String cfg(Context c) { return prefs(c).getString(key(c, "cfg"), turbo(c) ? "1" : "4"); }
     static boolean cfgOn(Context c) { try { return Float.parseFloat(cfg(c)) > 1.001f; } catch (Exception e) { return false; } }
-    static String sampler(Context c) { return prefs(c).getString(key(c, "sampler"), "euler"); }
-    static String scheduler(Context c) { return prefs(c).getString(key(c, "sched"), "discrete"); }
-    static String negative(Context c) { return prefs(c).getString(key(c, "neg"), ""); }
+    static String sampler(Context c) { return prefs(c).getString(key(c, "sampler"), turbo(c) ? "euler" : "dpm++2m"); }
+    static String scheduler(Context c) { return prefs(c).getString(key(c, "sched"), turbo(c) ? "discrete" : "sgm_uniform"); }
+    static String negative(Context c) { return prefs(c).getString(key(c, "neg"), turbo(c) ? "" : NEG_DEFAULT); }
     static boolean twoCalls(String sampler) { return sampler.equals("heun") || sampler.equals("dpm2") || sampler.equals("dpm++2s_a") || sampler.equals("res_2s"); }
     /** DiT calls per picture (progress estimate): CFG and 2nd-order samplers double them */
     static int calls(Context c) { return steps(c) * (cfgOn(c) ? 2 : 1) * (twoCalls(sampler(c)) ? 2 : 1); }
