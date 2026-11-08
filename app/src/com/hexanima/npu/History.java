@@ -33,6 +33,8 @@ public class History extends Base {
     final ExecutorService io = Executors.newSingleThreadExecutor();
     final LruCache<String, Bitmap> cache = new LruCache<>(60);
     int cell;
+    String fModel = "", fLora = "", fText = "";   // filters (empty = all)
+    LinearLayout filters; Button modelF, loraF;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -43,6 +45,19 @@ public class History extends Base {
         LinearLayout col = screen(L.s("История", "History"), selBtn);
         tabs = new LinearLayout(this); tabs.setPadding(0, 0, 0, dp(6));
         col.addView(tabs);
+        // filters: model, LoRA, words of the prompt
+        filters = new LinearLayout(this); filters.setGravity(Gravity.CENTER_VERTICAL); filters.setPadding(0, 0, 0, dp(8));
+        modelF = button("", CARD, TXT); modelF.setTextSize(12); modelF.setOnClickListener(v -> pickFilter(true));
+        filters.addView(modelF, new LinearLayout.LayoutParams(0, dp(38), 1));
+        loraF = button("", CARD, TXT); loraF.setTextSize(12); loraF.setOnClickListener(v -> pickFilter(false));
+        LinearLayout.LayoutParams lfl = new LinearLayout.LayoutParams(0, dp(38), 1); lfl.leftMargin = dp(6); filters.addView(loraF, lfl);
+        col.addView(filters);
+        EditText search = field(L.s("Искать в промптах…", "Search the prompts…")); search.setSingleLine(true); search.setTextSize(14); search.setBackground(bg(CARD, 12));
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence q, int a, int b2, int c) { } public void onTextChanged(CharSequence q, int a, int b2, int c) { }
+            public void afterTextChanged(android.text.Editable q) { fText = q.toString().trim().toLowerCase(java.util.Locale.ROOT); fill(); }
+        });
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, -2); sl.bottomMargin = dp(8); col.addView(search, sl);
         trashNote = new LinearLayout(this); trashNote.setGravity(Gravity.CENTER_VERTICAL); trashNote.setPadding(dp(2), 0, 0, dp(8));
         col.addView(trashNote);
         grid = new LinearLayout(this); grid.setOrientation(LinearLayout.VERTICAL);
@@ -121,6 +136,19 @@ public class History extends Base {
             trashNote.addView(clr, new LinearLayout.LayoutParams(-2, dp(34)));
         }
         cur = Gallery.list(this, mode);
+        modelF.setText((fModel.isEmpty() ? L.s("Все модели", "All models") : fModel) + "  ▾"); modelF.setTextColor(fModel.isEmpty() ? TXT : ACC);
+        loraF.setText((fLora.isEmpty() ? L.s("Все LoRA", "All LoRAs") : fLora) + "  ▾"); loraF.setTextColor(fLora.isEmpty() ? TXT : ACC);
+        if (!fModel.isEmpty() || !fLora.isEmpty() || !fText.isEmpty()) {
+            List<File> keep = new ArrayList<>();
+            for (File f : cur) {
+                JSONObject m = Gallery.meta(f);
+                if (!fModel.isEmpty() && !fModel.equals(m.optString("model"))) continue;
+                if (!fLora.isEmpty() && !loras(m).contains(fLora)) continue;
+                if (!fText.isEmpty() && !m.optString("prompt").toLowerCase(java.util.Locale.ROOT).contains(fText)) continue;
+                keep.add(f);
+            }
+            cur = keep.toArray(new File[0]);
+        }
         grid.removeAllViews();
         if (cur.length == 0) {
             String[] em = {L.s("Пока пусто.\nКартинки появятся здесь, а в галерею телефона попадают только после «Скачать».", "Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download."),
@@ -135,6 +163,22 @@ public class History extends Base {
         }
         sel.retainAll(Arrays.asList(cur));
         if (selecting) updateBar();
+    }
+
+    /** the LoRA names a picture was made with: the file LoRA and the prompt's <lora:...> ones */
+    static List<String> loras(JSONObject m) {
+        List<String> r = new ArrayList<>();
+        if (!m.optString("lora").isEmpty()) r.add(m.optString("lora"));
+        for (String x : m.optString("prompt_loras").split(",\\s*")) { x = x.replaceAll(":[0-9.]+$", "").trim(); if (!x.isEmpty() && !r.contains(x)) r.add(x); }
+        return r;
+    }
+    void pickFilter(boolean model) {
+        java.util.TreeSet<String> opts = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (File f : Gallery.list(this, mode)) { JSONObject m = Gallery.meta(f); if (model) { if (!m.optString("model").isEmpty()) opts.add(m.optString("model")); } else opts.addAll(loras(m)); }
+        final List<String> o = new ArrayList<>(); o.add(model ? L.s("Все модели", "All models") : L.s("Все LoRA", "All LoRAs")); o.addAll(opts);
+        builder().setTitle(model ? L.s("Модель", "Model") : "LoRA").setItems(o.toArray(new String[0]), (d, i) -> {
+            String v = i == 0 ? "" : o.get(i); if (model) fModel = v; else fLora = v; fill();
+        }).show();
     }
 
     FrameLayout makeCell(final File f) {
@@ -191,7 +235,10 @@ public class History extends Base {
                 btn(L.s("Поделиться", "Share"), CARD, TXT, () -> Gallery.share(this, f)));
             final Button favB = btn(Gallery.fav(f) ? "★ " + L.s("В избранном", "Favourite") : "☆ " + L.s("В избранное", "Favourite"), CARD, TXT, null);
             favB.setOnClickListener(v -> { boolean nv = !Gallery.fav(f); Gallery.setFav(f, nv); favB.setText(nv ? "★ " + L.s("В избранном", "Favourite") : "☆ " + L.s("В избранное", "Favourite")); fill(); });
-            row(box, favB, btn(L.s("Взять настройки", "Reuse settings"), CARD, TXT, () -> { setResult(RESULT_OK, new Intent().putExtra("prompt", m.optString("prompt")).putExtra("seed", m.optString("seed")).putExtra("w", m.optInt("w", 512)).putExtra("h", m.optInt("h", 768))); d[0].dismiss(); finish(); }));
+            row(box, favB, btn(L.s("Взять настройки", "Reuse settings"), CARD, TXT, () -> {
+                Intent r = new Intent().putExtra("prompt", m.optString("prompt")).putExtra("seed", m.optString("seed")).putExtra("w", m.optInt("w", 512)).putExtra("h", m.optInt("h", 768));
+                for (String k : new String[]{"steps", "cfg", "sampler", "scheduler", "negative", "id"}) if (m.has(k)) r.putExtra(k, m.optString(k));
+                setResult(RESULT_OK, r); d[0].dismiss(); finish(); }));
             row(box, btn(L.s("В корзину", "Move to trash"), CARD, BAD, () -> { Gallery.trash(this, f); d[0].dismiss(); fill(); }), null);
         }
         ScrollView sv = new ScrollView(this); sv.addView(box);

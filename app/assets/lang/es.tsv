@@ -317,3 +317,26 @@ Catalog	Catálogo
 Import	Importar
 ~%d s	~%d s
 Barlow Semi Condensed font (SIL OFL 1.1)	Fuente Barlow Semi Condensed (SIL OFL 1.1)
+Live preview	Vista previa en vivo
+The picture updates after every step (NPU VAE, ~0.1 s)	La imagen se actualiza en cada paso (VAE en la NPU, ~0,1 s)
+Tags	Etiquetas
+# Tags	# Etiquetas
+Make a picture first	Primero genera una imagen
+Choose an init image first	Primero elige una imagen inicial
+Mask (inpainting)	Máscara (inpainting)
+Paint over what should be redrawn	Pinta encima de lo que se debe redibujar
+Brush	Pincel
+Eraser	Borrador
+Save	Guardar
+↳ Last picture	↳ Última imagen
+✎ Mask	✎ Máscara
+✓ chosen · mask: redraw the painted part	✓ elegida · máscara: se redibuja lo pintado
+4 seeds	4 semillas
+Steps  4 · 8 · 12 · 20	Pasos  4 · 8 · 12 · 20
+Compare (2×2 grid)	Comparar (cuadrícula 2×2)
+%d steps	%d pasos
+Grid saved to the history	Cuadrícula guardada en el historial
+All models	Todos los modelos
+All LoRAs	Todos los LoRA
+Search the prompts…	Buscar en los prompts…
+LoRA cache: %.1f GB · clear	Caché de LoRA: %.1f GB · borrar

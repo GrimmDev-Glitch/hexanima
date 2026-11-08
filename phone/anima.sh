@@ -8,7 +8,7 @@
 # env: STEPS (default 4), PREFIX (quality tags), W/H (default 512x768; the NPU blocks are compiled for this size only)
 # env: CFG (default 1 = off; > 1 runs the DiT twice per step), NEG (negative prompt, used with CFG > 1), SAMPLER / SCHED (sd.cpp names, default euler / discrete)
 # env: INIT (init image png for img2img) + STRENGTH (0..1); HIRES=1 + HIRES_UP (Latent, Lanczos, ... or an ESRGAN file in $S/upscalers) HIRES_SCALE or HIRES_W/HIRES_H, HIRES_STEPS HIRES_DENOISE;
-#      AD (ADetailer detector .safetensors) AD_PROMPT AD_ARGS; UPSCALE (ESRGAN model file: the finished picture is upscaled on the CPU afterwards)
+#      AD (ADetailer detector .safetensors) AD_PROMPT AD_ARGS; UPSCALE (ESRGAN model file: the finished picture is upscaled on the CPU afterwards); PREVIEW (png path for the live step preview)
 # env A (work dir), S (model dir), BIN (dir with libanimad.so/libsdcli.so... = the app's native lib dir; unset = ./animad and ./sd-cli as root setup)
 A=${A:-/data/local/tmp/anima}; S=${S:-/data/local/tmp/sd}; ROOT=$A/req; SQ=$A/sdq
 if [ -n "$BIN" ]; then NA=libanimad.so NS=libsdcli.so; NH="libmegarun.so libvaerun.so libterun.so"; ANIMAD=$BIN/libanimad.so; SDCLI=$BIN/libsdcli.so; export ANIMAD_HOME=$A ANIMAD_BIN=$BIN LIBS=$BIN:/system/lib64:/vendor/lib64 ANIMAD_NOMLOCK=1; else NA=animad NS=sd-cli; NH="megarun vaerun terun"; ANIMAD=./animad; SDCLI=./sd-cli; LIBS=$A; fi
@@ -44,7 +44,8 @@ fi
 if ! pidof $NA >/dev/null; then
   echo "$MKEY" > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
-  if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}"; else unset MEGA_LORA MEGA_LORA_S; fi
+  # lcache: the folded blocks of the last LoRA set; the next load with the same set reads them instead of folding again
+  if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}" MEGA_LORA_CACHE=$A/lcache; else unset MEGA_LORA MEGA_LORA_S MEGA_LORA_CACHE; fi
   cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
   while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done
 fi
@@ -76,9 +77,12 @@ if [ -z "$ANIMA_NOSERVE" ]; then
   printf 'c=%s\na=%s\nk=%s\n' "${CFG:-1}" "${SAMPLER:-euler}" "${SCHED:-discrete}" >> $SQ/job.tmp
   [ -n "$NEG" ] && printf 'g=%s\n' "$(printf '%s' "$NEG" | tr '\n' ' ')" >> $SQ/job.tmp
   [ -n "$INIT" ] && printf 'i=%s\nr=%s\n' "$INIT" "${STRENGTH:-0.6}" >> $SQ/job.tmp
+  [ -n "$INIT" ] && [ -n "$MASK" ] && printf 'm=%s\n' "$MASK" >> $SQ/job.tmp   # inpainting: only the white part of the mask is redrawn
   [ -n "$HIRES" ] && printf 'hz=1\nhu=%s\nhs=%s\nhn=%s\nhd=%s\n' "${HIRES_UP:-Latent}" "${HIRES_SCALE:-1.5}" "${HIRES_STEPS:-4}" "${HIRES_DENOISE:-0.45}" >> $SQ/job.tmp
   [ -n "$HIRES" ] && [ -n "$HIRES_W" ] && printf 'hw=%s\nhh=%s\n' "$HIRES_W" "$HIRES_H" >> $SQ/job.tmp   # exact size (the NPU blocks need patch counts they can run)
   [ -n "$AD" ] && printf 'ad=%s\nap=%s\nax=%s\n' "$AD" "$(printf '%s' "$AD_PROMPT" | tr '\n' ' ')" "${AD_ARGS:-confidence=0.3,denoising_strength=0.4}" >> $SQ/job.tmp
+  # live preview (PREVIEW=<png>): every step is decoded by the NPU VAE (proj = a cheap latent projection when the NPU VAE is off); none while ADetailer runs
+  [ -n "$PREVIEW" ] && [ -z "$AD" ] && printf 'pv=%s\npp=%s\n' "$([ "$V" = 0 ] && echo proj || echo vae)" "$PREVIEW" >> $SQ/job.tmp
   mv $SQ/job.tmp $SQ/job
   while [ ! -f $ROOT/$ID/sd_done ] && [ ! -f $ROOT/$ID/sd_failed ] && [ ! -f $A/cancel ]; do sleep 0.05; done
 else

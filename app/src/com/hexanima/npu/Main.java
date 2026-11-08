@@ -234,8 +234,17 @@ public class Main extends Base {
         prompt.setDropDownHeight(dp(240));
         root.addView(prompt, new LinearLayout.LayoutParams(-1, -2));
         loadTags();
-        tokText = text("", 12, DIM, false); tokText.setGravity(Gravity.END); tokText.setPadding(0, dp(4), dp(6), 0);
-        root.addView(tokText, new LinearLayout.LayoutParams(-1, -2));
+        // under the prompt: [# Tags] [(−)] [(+)] ........ token count
+        LinearLayout tb = new LinearLayout(this); tb.setGravity(Gravity.CENTER_VERTICAL); tb.setPadding(0, dp(6), 0, 0);
+        Button tagsB = button(L.s("# Теги", "# Tags"), FIELD, ACC); tagsB.setTextSize(13); tagsB.setOnClickListener(v -> tagPalette());
+        tb.addView(tagsB, new LinearLayout.LayoutParams(-2, dp(36)));
+        Button wm = button("( − )", FIELD, TXT); wm.setTextSize(13); wm.setOnClickListener(v -> weigh(-.1f));
+        LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(-2, dp(36)); wl.leftMargin = dp(6); tb.addView(wm, wl);
+        Button wp = button("( + )", FIELD, TXT); wp.setTextSize(13); wp.setOnClickListener(v -> weigh(.1f));
+        LinearLayout.LayoutParams wl2 = new LinearLayout.LayoutParams(-2, dp(36)); wl2.leftMargin = dp(6); tb.addView(wp, wl2);
+        tokText = text("", 12, DIM, false); tokText.setGravity(Gravity.END); tokText.setPadding(0, 0, dp(6), 0);
+        tb.addView(tokText, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(tb, new LinearLayout.LayoutParams(-1, -2));
         prompt.addTextChangedListener(watch(s -> countTokens()));
         countTokens();
 
@@ -457,6 +466,15 @@ public class Main extends Base {
             prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
             customOpen = false;
             setRes(d.getIntExtra("w", 512), d.getIntExtra("h", 768));
+            // the sampling of that picture too (stored for the current model), and its model when it is still installed
+            String mid = d.getStringExtra("id"); if (mid != null && ids.contains(mid) && !mid.equals(model) && !busy) setModel(mid);
+            SharedPreferences.Editor pe = prefs().edit();
+            try { if (d.hasExtra("steps")) pe.putInt(Settings.key(this, "steps"), Integer.parseInt(d.getStringExtra("steps"))); } catch (NumberFormatException ignored) { }
+            if (d.hasExtra("cfg")) pe.putString(Settings.key(this, "cfg"), d.getStringExtra("cfg"));
+            if (d.hasExtra("sampler")) pe.putString(Settings.key(this, "sampler"), d.getStringExtra("sampler"));
+            if (d.hasExtra("scheduler")) pe.putString(Settings.key(this, "sched"), d.getStringExtra("scheduler"));
+            if (d.hasExtra("negative")) pe.putString(Settings.key(this, "neg"), d.getStringExtra("negative"));
+            pe.apply(); sampFill = false; refreshSampling();
         } else if (req == 8 && res == RESULT_OK && d != null && d.getData() != null) {
             try (InputStream in = getContentResolver().openInputStream(d.getData()); ByteArrayOutputStream bo = new ByteArrayOutputStream()) {
                 byte[] b = new byte[1 << 16]; int total = 0;
@@ -605,9 +623,73 @@ public class Main extends Base {
             rows.add(row); keys.add((n + " " + title + " " + words).toLowerCase(java.util.Locale.ROOT)); boxes.add(cb);
         }
         count.run();
+        // the folded blocks of the last LoRA set (megarun MEGA_LORA_CACHE): makes the next load as fast as without a LoRA, costs a model's size on storage
+        final File lc = new File(D, "lcache"); long lb = 0; File[] ks = lc.listFiles();
+        if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) lb += f.length(); }
+        if (lb > 0) {
+            TextView cl = link(L.f("Кэш LoRA: %.1f ГБ · очистить", "LoRA cache: %.1f GB · clear", lb / 1e9)); cl.setPadding(dp(2), dp(8), 0, 0);
+            cl.setOnClickListener(x -> { if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) f.delete(); k.delete(); } cl.setVisibility(View.GONE); });
+            v.addView(cl, v.getChildCount() - 1);
+        }
         filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
     }
 
+    // ---- tag palette and the (tag:weight) buttons ----
+    static final String[][] PALETTE = {
+        {"Calidad|Quality", "masterpiece", "best quality", "very aesthetic", "absurdres", "highres", "newest", "detailed", "score_9"},
+        {"Encuadre|Framing", "portrait", "upper body", "cowboy shot", "full body", "close-up", "looking at viewer", "from above", "from below", "from side", "dutch angle", "wide shot"},
+        {"Luz|Lighting", "soft lighting", "cinematic lighting", "dramatic lighting", "rim light", "backlighting", "sunlight", "golden hour", "volumetric lighting", "neon lights", "night"},
+        {"Estilo|Style", "anime coloring", "flat color", "watercolor (medium)", "oil painting (medium)", "sketch", "3d", "realistic", "pixel art", "chibi", "retro artstyle"},
+        {"Expresión|Expression", "smile", "blush", "open mouth", "closed eyes", "serious", "smug", "surprised", "angry", "crying", "wink"},
+        {"Fondo|Background", "simple background", "white background", "outdoors", "indoors", "city", "forest", "beach", "sky", "bedroom", "cherry blossoms"},
+    };
+    boolean hasTag(String t) { for (String x : tokens(prompt.getText().toString())) if (x.equalsIgnoreCase(t) || x.toLowerCase(java.util.Locale.ROOT).matches("\\(" + java.util.regex.Pattern.quote(t.toLowerCase(java.util.Locale.ROOT)) + ":[0-9.]+\\)")) return true; return false; }
+    void toggleTag(String t) {
+        List<String> cur = tokens(prompt.getText().toString()), keep = new ArrayList<>();
+        boolean had = false;
+        for (String x : cur) { if (x.equalsIgnoreCase(t) || x.toLowerCase(java.util.Locale.ROOT).matches("\\(" + java.util.regex.Pattern.quote(t.toLowerCase(java.util.Locale.ROOT)) + ":[0-9.]+\\)")) had = true; else keep.add(x); }
+        if (!had) keep.add(t);
+        prompt.setText(android.text.TextUtils.join(", ", keep)); prompt.setSelection(prompt.getText().length());
+    }
+    /** one-tap tags by category; a lit chip is already in the prompt, tapping it again takes it out */
+    void tagPalette() {
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
+        v.addView(text(L.s("Теги", "Tags"), 20, TXT, true));
+        ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(420)));
+        for (String[] cat : PALETTE) {
+            String[] nm = cat[0].split("\\|");
+            TextView h = text(L.lang.equals("es") ? nm[0] : nm[1], 11, DIM, true); h.setLetterSpacing(.12f); h.setPadding(dp(2), dp(12), 0, dp(6)); list.addView(h);
+            HorizontalScrollView hs = new HorizontalScrollView(this); hs.setHorizontalScrollBarEnabled(false);
+            LinearLayout row = new LinearLayout(this); hs.addView(row); list.addView(hs);
+            for (int i = 1; i < cat.length; i++) {
+                final String t = cat[i];
+                TextView c = text(t, 14, TXT, false); c.setPadding(dp(12), dp(7), dp(12), dp(8));
+                Runnable paint = () -> { boolean on = hasTag(t); GradientDrawable g = bg(on ? SEL : FIELD, 16); if (on) g.setStroke(dp(1.5f), ACC); c.setBackground(g); c.setTextColor(on ? ACC : TXT); };
+                paint.run();
+                c.setOnClickListener(x -> { toggleTag(t); paint.run(); });
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2); lp.rightMargin = dp(6); row.addView(c, lp);
+            }
+        }
+        Button done = button(L.s("Готово", "Done"), ACC, ON_ACC);
+        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, dp(44)); dl.topMargin = dp(10); v.addView(done, dl);
+        AlertDialog d = dialog(v); done.setOnClickListener(x -> d.dismiss());
+    }
+    /** − / +: the selection, or the comma-separated tag at the cursor, becomes (tag:w) with w ± 0.1; back at 1.0 the brackets go away */
+    void weigh(float delta) {
+        String s = prompt.getText().toString();
+        int a = Math.max(0, prompt.getSelectionStart()), b = Math.max(0, prompt.getSelectionEnd()); if (a > b) { int t = a; a = b; b = t; }
+        if (a == b) { a = s.lastIndexOf(',', Math.max(0, a - 1)) + 1; int e = s.indexOf(',', b); b = e < 0 ? s.length() : e; }
+        while (a < b && Character.isWhitespace(s.charAt(a))) a++;
+        while (b > a && Character.isWhitespace(s.charAt(b - 1))) b--;
+        if (a >= b) return;
+        String t = s.substring(a, b); float w = 1f;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\((.*):([0-9.]+)\\)$").matcher(t);
+        if (m.find()) { t = m.group(1); try { w = Float.parseFloat(m.group(2)); } catch (NumberFormatException ignored) { } }
+        w = Math.round((w + delta) * 10) / 10f; w = Math.max(0.1f, Math.min(2f, w));
+        String r = Math.abs(w - 1f) < .01f ? t : "(" + t + ":" + String.format(java.util.Locale.US, "%.1f", w) + ")";
+        prompt.getText().replace(a, b, r); prompt.setSelection(a, a + r.length());
+    }
     // ---- sampling fields under the prompt ----
     interface OnText { void on(String s); }
     static android.text.TextWatcher watch(OnText cb) {
@@ -658,6 +740,7 @@ public class Main extends Base {
         extrasBox = new LinearLayout(this); extrasBox.setOrientation(LinearLayout.VERTICAL);
         extFold = fold(extrasBox, L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS"), "extras");
         LinearLayout c = card(extFold.body); c.setPadding(dp(14), dp(6), dp(14), dp(12));
+        sw(c, L.s("Предпросмотр по шагам", "Live preview"), L.s("Картинка обновляется после каждого шага (NPU VAE, ~0.1 с)", "The picture updates after every step (NPU VAE, ~0.1 s)"), "x_preview", true);
         sw(c, "Hires fix", L.s("Второй проход в большем размере (дольше)", "A second pass at a larger size (slower)"), "x_hires", false);
         LinearLayout hr = new LinearLayout(this);
         hsEdit = smallField(hr, L.s("МАСШТАБ", "SCALE"), "x_hires_scale", "1.5", true);
@@ -677,15 +760,23 @@ public class Main extends Base {
         Button ip = button(L.s("Выбрать", "Choose"), FIELD, ACC); ip.setTextSize(12);
         ip.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), 11));
         ir.addView(ip, new LinearLayout.LayoutParams(-2, dp(36)));
-        Button ix = button("✕", FIELD, TXT); ix.setOnClickListener(v -> { initSrc().delete(); refreshExtras(); });
+        Button ix = button("✕", FIELD, TXT); ix.setOnClickListener(v -> { initSrc().delete(); maskSrc().delete(); refreshExtras(); });
         LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(dp(40), dp(36)); xl.leftMargin = dp(6); ir.addView(ix, xl);
         c.addView(ir);
+        LinearLayout ir2 = new LinearLayout(this); ir2.setPadding(0, dp(6), 0, 0);
+        Button useRes = button(L.s("↳ Последняя картинка", "↳ Last picture"), FIELD, ACC); useRes.setTextSize(12); useRes.setOnClickListener(v -> useResultAsInit());
+        ir2.addView(useRes, new LinearLayout.LayoutParams(0, dp(36), 1));
+        Button maskB = button(L.s("✎ Маска", "✎ Mask"), FIELD, ACC); maskB.setTextSize(12); maskB.setOnClickListener(v -> paintMask());
+        LinearLayout.LayoutParams ml2 = new LinearLayout.LayoutParams(0, dp(36), 1); ml2.leftMargin = dp(6); ir2.addView(maskB, ml2);
+        c.addView(ir2);
         LinearLayout sr = new LinearLayout(this); strEdit = smallField(sr, L.s("СИЛА ИЗМЕНЕНИЯ (0..1)", "DENOISE STRENGTH (0..1)"), "x_strength", "0.6", true); c.addView(sr);
         LinearLayout pr = new LinearLayout(this); pr.setPadding(0, dp(10), 0, 0);
         Button presets = button(L.s("Пресеты", "Presets"), FIELD, ACC); presets.setTextSize(13); presets.setOnClickListener(v -> presets());
         pr.addView(presets, new LinearLayout.LayoutParams(0, dp(40), 1));
         Button qa = button(L.s("+ В очередь", "+ Queue"), FIELD, ACC); qa.setTextSize(13); qa.setOnClickListener(v -> enqueue());
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(0, dp(40), 1); ql.leftMargin = dp(8); pr.addView(qa, ql);
+        Button cmp = button("⊞", FIELD, ACC); cmp.setOnClickListener(v -> compare());
+        LinearLayout.LayoutParams cml = new LinearLayout.LayoutParams(dp(48), dp(40)); cml.leftMargin = dp(8); pr.addView(cmp, cml);
         Button qr = button("▶", FIELD, ACC); qr.setOnClickListener(v -> runQueue());
         LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(dp(48), dp(40)); rl.leftMargin = dp(8); pr.addView(qr, rl);
         c.addView(pr);
@@ -709,9 +800,9 @@ public class Main extends Base {
         extrasBox.setVisibility(isMoss() || model.isEmpty() ? View.GONE : View.VISIBLE);
         List<String> on = new ArrayList<>();
         if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_up", false)) on.add("×2"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
-        if (initSrc().exists()) on.add("img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
+        if (initSrc().exists()) on.add(maskSrc().exists() ? "inpaint" : "img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
         extFold.sum.setText(on.isEmpty() ? L.s("выкл.", "off") : android.text.TextUtils.join(" · ", on)); extFold.sum.setTextColor(on.isEmpty() ? DIM : ACC);
-        initText.setText(initSrc().exists() ? L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)") : L.s("нет: обычная генерация", "none: normal generation"));
+        initText.setText(!initSrc().exists() ? L.s("нет: обычная генерация", "none: normal generation") : maskSrc().exists() ? L.s("✓ выбрана · маска: перерисовать закрашенное", "✓ chosen · mask: redraw the painted part") : L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)"));
         File ad = adModel();
         adText.setText(ad != null ? "✓ " + ad.getName() : L.s("face_yolov8n: загрузится сам (6 МБ)", "face_yolov8n: downloads on first use (6 MB)"));
         queueText.setText(queue.isEmpty() ? L.s("Очередь пуста", "Queue is empty") : L.f("В очереди: %d (нажмите, чтобы посмотреть)", "Queued: %d (tap to see)", queue.size()));
@@ -725,6 +816,105 @@ public class Main extends Base {
             if (sizeError(w2, h2) == null) return new int[]{w2, h2};
         }
         return null;
+    }
+    // ---- inpainting: a mask painted over the init image (white = redraw); kept in the init image's own pixels and fitted like it ----
+    File maskSrc() { return new File(getFilesDir(), "mask_src.png"); }
+    /** the mask scaled + cropped exactly like initFor(w, h) */
+    File maskFor(int w, int h) {
+        if (!maskSrc().exists() || !initSrc().exists()) return null;
+        try {
+            Bitmap b = BitmapFactory.decodeFile(maskSrc().getPath()); if (b == null) return null;
+            float s = Math.max(w / (float) b.getWidth(), h / (float) b.getHeight());
+            Bitmap sc = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * s), Math.round(b.getHeight() * s), true);
+            Bitmap cr = Bitmap.createBitmap(sc, (sc.getWidth() - w) / 2, (sc.getHeight() - h) / 2, w, h);
+            File out = new File(getFilesDir(), "mask_" + w + "x" + h + ".png");
+            try (FileOutputStream o = new FileOutputStream(out)) { cr.compress(Bitmap.CompressFormat.PNG, 100, o); }
+            return out;
+        } catch (Exception e) { return null; }
+    }
+    /** INIT / STRENGTH / MASK for anima.sh */
+    String initEnv(int w, int h) {
+        File init = initFor(w, h); if (init == null) return "";
+        String e = "INIT=" + q(init.getPath()) + " STRENGTH=" + pf("x_strength", .6f) + " ";
+        File m = maskFor(w, h); if (m != null) e += "MASK=" + q(m.getPath()) + " ";
+        return e;
+    }
+    /** the last picture becomes the init image (to inpaint or vary it) */
+    void useResultAsInit() {
+        if (lastFile == null || !lastFile.exists()) { Toast.makeText(this, L.s("Сначала создайте картинку", "Make a picture first"), Toast.LENGTH_SHORT).show(); return; }
+        try (InputStream in = new FileInputStream(lastFile); OutputStream o = new FileOutputStream(initSrc())) { byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); }
+        catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); return; }
+        maskSrc().delete(); refreshExtras();
+    }
+
+    /** finger painting on the init image: brush / eraser, size, clear; the mask is saved at the init image's size (at most 1024 px on the long side) */
+    class MaskView extends View {
+        Bitmap base, mask; android.graphics.Canvas mc; final android.graphics.Paint br = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), ov = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        final android.graphics.RectF dst = new android.graphics.RectF(); float lx, ly, size = .06f; boolean erase;
+        MaskView(Bitmap base, Bitmap old) {
+            super(Main.this); this.base = base;
+            mask = Bitmap.createBitmap(base.getWidth(), base.getHeight(), Bitmap.Config.ARGB_8888); mc = new android.graphics.Canvas(mask);
+            if (old != null) {   // stored as white on black: back to white on transparent
+                Bitmap o = Bitmap.createScaledBitmap(old, base.getWidth(), base.getHeight(), true); int[] px = new int[o.getWidth() * o.getHeight()];
+                o.getPixels(px, 0, o.getWidth(), 0, 0, o.getWidth(), o.getHeight()); for (int i = 0; i < px.length; i++) px[i] = (px[i] & 0xFF) > 127 ? 0xFFFFFFFF : 0;
+                mask.setPixels(px, 0, o.getWidth(), 0, 0, o.getWidth(), o.getHeight());
+            }
+            br.setStyle(android.graphics.Paint.Style.STROKE); br.setStrokeCap(android.graphics.Paint.Cap.ROUND); br.setStrokeJoin(android.graphics.Paint.Join.ROUND); br.setColor(0xFFFFFFFF);
+            ov.setColorFilter(new android.graphics.PorterDuffColorFilter(ACC2, android.graphics.PorterDuff.Mode.SRC_IN)); ov.setAlpha(140);
+        }
+        @Override protected void onDraw(android.graphics.Canvas c) {
+            float s = Math.min(getWidth() / (float) base.getWidth(), getHeight() / (float) base.getHeight());
+            float w = base.getWidth() * s, h = base.getHeight() * s; dst.set((getWidth() - w) / 2, (getHeight() - h) / 2, (getWidth() + w) / 2, (getHeight() + h) / 2);
+            c.drawBitmap(base, null, dst, null); c.drawBitmap(mask, null, dst, ov);
+        }
+        @Override public boolean onTouchEvent(android.view.MotionEvent e) {
+            getParent().requestDisallowInterceptTouchEvent(true);
+            float bx = (e.getX() - dst.left) / dst.width() * base.getWidth(), by = (e.getY() - dst.top) / dst.height() * base.getHeight();
+            br.setStrokeWidth(size * Math.max(base.getWidth(), base.getHeight()));
+            br.setXfermode(erase ? new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) : null);
+            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) { lx = bx; ly = by; }
+            mc.drawLine(lx, ly, bx + .01f, by, br); lx = bx; ly = by; invalidate();
+            return true;
+        }
+        void clear() { mask.eraseColor(0); invalidate(); }
+        boolean empty() { int[] px = new int[mask.getWidth()]; for (int y = 0; y < mask.getHeight(); y += 4) { mask.getPixels(px, 0, mask.getWidth(), 0, y, mask.getWidth(), 1); for (int p : px) if ((p >>> 24) > 0) return false; } return true; }
+        void save(File f) throws IOException {
+            Bitmap out = Bitmap.createBitmap(mask.getWidth(), mask.getHeight(), Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(out);
+            c.drawColor(0xFF000000); c.drawBitmap(mask, 0, 0, null);
+            try (FileOutputStream o = new FileOutputStream(f)) { out.compress(Bitmap.CompressFormat.PNG, 100, o); }
+        }
+    }
+    void paintMask() {
+        if (!initSrc().exists()) { Toast.makeText(this, L.s("Сначала выберите исходную картинку", "Choose an init image first"), Toast.LENGTH_SHORT).show(); return; }
+        Bitmap b0 = BitmapFactory.decodeFile(initSrc().getPath()); if (b0 == null) return;
+        float s = Math.min(1f, 1024f / Math.max(b0.getWidth(), b0.getHeight()));
+        Bitmap base = s < 1 ? Bitmap.createScaledBitmap(b0, Math.round(b0.getWidth() * s), Math.round(b0.getHeight() * s), true) : b0;
+        final MaskView mv = new MaskView(base, maskSrc().exists() ? BitmapFactory.decodeFile(maskSrc().getPath()) : null);
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
+        v.addView(text(L.s("Маска (inpainting)", "Mask (inpainting)"), 20, TXT, true));
+        TextView hint = text(L.s("Закрасьте то, что нужно перерисовать", "Paint over what should be redrawn"), 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
+        v.addView(mv, new LinearLayout.LayoutParams(-1, dp(400)));
+        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL); tools.setPadding(0, dp(8), 0, 0);
+        Button mode = button(L.s("Кисть", "Brush"), SEL, ACC); mode.setTextSize(13);
+        mode.setOnClickListener(x -> { mv.erase = !mv.erase; mode.setText(mv.erase ? L.s("Ластик", "Eraser") : L.s("Кисть", "Brush")); });
+        tools.addView(mode, new LinearLayout.LayoutParams(dp(90), dp(38)));
+        SeekBar sz = new SeekBar(this); sz.setMax(20); sz.setProgress(5); sz.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar b, int p, boolean u) { mv.size = .01f + p * .01f; }
+            public void onStartTrackingTouch(SeekBar b) { } public void onStopTrackingTouch(SeekBar b) { } });
+        tools.addView(sz, new LinearLayout.LayoutParams(0, -2, 1));
+        Button clr = button(L.s("Очистить", "Clear"), FIELD, TXT); clr.setTextSize(13); clr.setOnClickListener(x -> mv.clear());
+        tools.addView(clr, new LinearLayout.LayoutParams(-2, dp(38)));
+        v.addView(tools);
+        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+        Button cancel = button(L.s("Отмена", "Cancel"), FIELD, TXT); bot.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button save = button(L.s("Сохранить", "Save"), ACC, ON_ACC); LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(0, dp(44), 1); sl.leftMargin = dp(8); bot.addView(save, sl);
+        v.addView(bot);
+        AlertDialog d = dialog(v);
+        cancel.setOnClickListener(x -> d.dismiss());
+        save.setOnClickListener(x -> {
+            try { if (mv.empty()) maskSrc().delete(); else mv.save(maskSrc()); } catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
+            d.dismiss(); refreshExtras();
+        });
     }
     /** writes the init image fitted (scale + center crop) to w x h; null if none */
     File initFor(int w, int h) {
@@ -769,9 +959,10 @@ public class Main extends Base {
     boolean tooHot() { return ((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE; }
     String extrasEnv(int w, int h, long t0) {
         StringBuilder e = new StringBuilder();
+        if (prefs().getBoolean("x_preview", true)) e.append("PREVIEW=").append(q(previewFile().getPath())).append(" ");
         if (availMb() < 3000 && (prefs().getBoolean("x_hires", false) || prefs().getBoolean("x_up", false))) {   // the larger passes need room: skip them rather than swap
             ui.post(() -> Toast.makeText(this, L.s("Мало памяти: hires fix и увеличение пропущены для этой картинки", "Low memory: hires fix and upscale skipped for this picture"), Toast.LENGTH_LONG).show());
-            File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
+            e.append(initEnv(w, h));
             return e.toString();
         }
         if (prefs().getBoolean("x_hires", false)) {
@@ -780,7 +971,7 @@ public class Main extends Base {
             else ui.post(() -> Toast.makeText(this, L.s("Hires fix: этот размер уже максимальный для NPU", "Hires fix: this size is already the NPU's largest"), Toast.LENGTH_LONG).show());
         }
         if (prefs().getBoolean("x_ad", false)) { File ad = ensureAd(t0); if (ad != null) e.append("AD=").append(q(ad.getPath())).append(" "); }
-        File init = initFor(w, h); if (init != null) e.append("INIT=").append(q(init.getPath())).append(" STRENGTH=").append(pf("x_strength", .6f)).append(" ");
+        e.append(initEnv(w, h));
         return e.toString();
     }
     /** a local Anima checkpoint: copied into the app, converted on the phone (AnimaImport), then selectable like the catalog models */
@@ -821,6 +1012,7 @@ public class Main extends Base {
             try (InputStream in = getContentResolver().openInputStream(uri)) {
                 Bitmap b = BitmapFactory.decodeStream(in); if (b == null) throw new IOException("not an image");
                 try (FileOutputStream o = new FileOutputStream(initSrc())) { b.compress(Bitmap.CompressFormat.PNG, 100, o); }
+                maskSrc().delete();   // a mask belongs to its picture
             } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show()); }
             ui.post(this::refreshExtras);
         });
@@ -1288,7 +1480,7 @@ public class Main extends Base {
         final String pr0 = prompt.getText().toString().trim();
         if (pr0.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
         // memory guard: the model needs ~4.5 GB when it is not loaded yet, and a generation ~1.5 GB more; with less the phone swaps, heats up and can hang
-        final long need = (loaded || isMoss() ? 0 : 4600) + 1500, have = availMb();
+        final long need = (loaded || isMoss() ? 0 : 4300) + 700, have = availMb();   // measured: the 2.9B model + a 512x768 picture took ~4.5 GB
         if (have < need && !memOk) {
             builder().setTitle(L.s("Мало свободной памяти", "Low free memory"))
                 .setMessage(L.f("Свободно %d МБ, нужно около %d МБ. Без этого телефон начнёт тормозить и сильно греться.", "%d MB free, about %d MB are needed. Without it the phone slows down and gets very hot.", have, need))
@@ -1302,7 +1494,10 @@ public class Main extends Base {
         final boolean randomSeed = newSeed || sd.isEmpty() || sd.equals("-1");   // -1 = random; the seed used is shown under the picture
         long base0 = 0; try { base0 = Long.parseLong(sd); } catch (NumberFormatException ignored) { }
         final long baseSeed = base0;
-        final int n = count, w = resW, h = resH;
+        final int gk = gridKind; gridKind = 0;
+        final int n = gk != 0 ? 4 : count, w = resW, h = resH;
+        final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
+        final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
         busy = true; cancelled = false; curIdx = 0; curN = n;
         setModelUi(loaded, false, "");
         View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
@@ -1315,16 +1510,20 @@ public class Main extends Base {
         final android.content.Context app = getApplicationContext();
         app.startForegroundService(new Intent(app, DownloadService.class).putExtra("mode", "gen"));   // keeps the process alive when the app goes to the background
         final long t0 = System.currentTimeMillis();
+        previewFile().delete();
         ex.submit(() -> {
             int made = 0; Bitmap lastBm = null;
             for (int i = 0; i < n && !cancelled; i++) {
                 curIdx = i;
                 if (i > 0 && tooHot()) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
-                final String seedS = String.valueOf(randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
+                final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
+                if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i];
                 final File f = runOne(pr, seedS, w, h, t0);
+                cfgOv = null; stepsOv = 0;
                 if (f == null) break;
                 made++;
                 final Bitmap bm = BitmapFactory.decodeFile(f.getPath());
+                if (gk != 0 && bm != null) { gridBms.add(bm); gridLabels.add(gk == 1 ? "seed " + seedS : gk == 2 ? "CFG " + GRID_CFG[i] : L.f("%d шагов", "%d steps", GRID_STEPS[i])); }
                 lastBm = bm;
                 ui.post(() -> {
                     lastFile = f; img.setImageBitmap(bm); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
@@ -1333,6 +1532,11 @@ public class Main extends Base {
                     final ScrollView svv = (ScrollView) imgBox.getParent().getParent(); svv.post(() -> svv.smoothScrollTo(0, 0));   // after the image has been laid out
                     saved.setText("seed " + seedS);
                 });
+            }
+            if (gk != 0 && gridBms.size() >= 2 && !cancelled) {
+                final File gf = saveGrid(gridBms, gridLabels, pr, String.valueOf(gridSeed), w, h);
+                final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
+                if (gb != null) { lastBm = gb; ui.post(() -> { lastFile = gf; img.setImageBitmap(gb); saved.setText(L.s("Сетка сохранена в историю", "Grid saved to the history")); }); }
             }
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
@@ -1359,6 +1563,35 @@ public class Main extends Base {
     }
 
     /** one picture: loads the model if needed, runs anima.sh, stores the PNG (with the settings inside) in the history; null on failure or Stop */
+    // ---- comparison grid ----
+    static final String[] GRID_CFG = {"1", "3", "5", "7"};
+    static final int[] GRID_STEPS = {4, 8, 12, 20};
+    int gridKind;          // 0 off, 1 seeds, 2 CFG, 3 steps (set for one generate() call)
+    String cfgOv; int stepsOv;
+    String cfgNow() { return cfgOv != null ? cfgOv : Settings.cfg(this); }
+    boolean cfgOnNow() { try { return Float.parseFloat(cfgNow()) > 1.001f; } catch (NumberFormatException e) { return false; } }
+    void compare() {
+        if (busy || isMoss() || model.isEmpty()) return;
+        String[] k = {L.s("4 сида", "4 seeds"), "CFG  1 · 3 · 5 · 7", L.s("Шаги  4 · 8 · 12 · 20", "Steps  4 · 8 · 12 · 20")};
+        builder().setTitle(L.s("Сравнить (сетка 2×2)", "Compare (2×2 grid)")).setItems(k, (d, i) -> { gridKind = i + 1; generate(false); }).show();
+    }
+    /** the four pictures side by side with a label under each, saved like any other picture */
+    File saveGrid(List<Bitmap> bms, List<String> labels, String prompt, String seedS, int w, int h) {
+        int cw = Math.min(512, bms.get(0).getWidth()), ch = Math.round(cw * bms.get(0).getHeight() / (float) bms.get(0).getWidth()), lh = 44;
+        Bitmap g = Bitmap.createBitmap(cw * 2, (ch + lh) * 2, Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(g); c.drawColor(0xFF1B172F);
+        android.graphics.Paint tp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG); tp.setColor(0xFFE9E6F5); tp.setTextSize(28); tp.setTypeface(F_SEMI); tp.setTextAlign(android.graphics.Paint.Align.CENTER);
+        for (int i = 0; i < bms.size() && i < 4; i++) {
+            int x = (i % 2) * cw, y = (i / 2) * (ch + lh);
+            c.drawBitmap(bms.get(i), null, new android.graphics.Rect(x, y, x + cw, y + ch), new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG));
+            c.drawText(labels.get(i), x + cw / 2f, y + ch + 31, tp);
+        }
+        try {
+            ByteArrayOutputStream bo = new ByteArrayOutputStream(); g.compress(Bitmap.CompressFormat.PNG, 100, bo);
+            JSONObject meta = new JSONObject().put("prompt", prompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("grid", android.text.TextUtils.join(" | ", labels));
+            return Gallery.save(this, PngMeta.embed(bo.toByteArray(), meta), meta);
+        } catch (Exception e) { return null; }
+    }
+
     File runOne(String pr, String seedS, int w, int h, long t0) {
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
@@ -1374,7 +1607,7 @@ public class Main extends Base {
         final String f = D + "/last.png";
         final boolean[] done = {false};
         final int[] base = count();
-        final int steps = Settings.steps(this), calls = Settings.calls(this);   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
+        final int steps = stepsOv > 0 ? stepsOv : Settings.steps(this), calls = Math.max(1, Settings.calls(this) * steps / Math.max(1, Settings.steps(this)));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
@@ -1387,7 +1620,7 @@ public class Main extends Base {
             }
         });
         poll.start();
-        final String samp = "CFG=" + q(Settings.cfg(this)) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (Settings.cfgOn(this) ? " NEG=" + q(Settings.negative(this)) : "");
+        final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) : "");
         su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
         done[0] = true;
         try { poll.join(); } catch (InterruptedException ignored) { }
@@ -1399,8 +1632,8 @@ public class Main extends Base {
         if (prefs().getBoolean("x_up", false) && !cancelled) { byte[] up = upscale2x(png, w, h, t0); if (up != null) { png = up; upscaled = true; } }
         try {
             JSONObject meta = new JSONObject().put("prompt", fullPrompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
-                .put("steps", steps).put("cfg", Settings.cfg(this)).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
-            if (Settings.cfgOn(this) && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
+                .put("steps", steps).put("cfg", cfgNow()).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
+            if (cfgOnNow() && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
             if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
             if (upscaled) meta.put("upscale", "RealESRGAN x2");
@@ -1472,7 +1705,17 @@ public class Main extends Base {
     }
 
     /** pct is the progress of the current picture; with several pictures the bar and the text cover the whole batch */
+    File previewFile() { return new File(D, "preview.png"); }
+    long pvTime;
+    /** live preview: sd-cli renames a fresh preview.png into place after every step; show it while the picture is being made */
+    void showPreview(long t0) {
+        File pv = previewFile(); long m = pv.lastModified();
+        if (!busy || m == 0 || m == pvTime || m < t0) return;
+        pvTime = m; final Bitmap b = BitmapFactory.decodeFile(pv.getPath()); if (b == null) return;
+        ui.post(() -> { if (!busy) return; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); });
+    }
     void setProgressUi(int pct, String msg, long t0) {
+        showPreview(t0);
         final int all = (curIdx * 100 + pct) / curN;
         final String pre = curN > 1 ? "(" + (curIdx + 1) + "/" + curN + ")  " : "";
         final String t = L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (System.currentTimeMillis() - t0) / 1000.0);

@@ -1,4 +1,6 @@
 #include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <dirent.h>
 // HMX block runner (replaces chainrun): holds the 28 fp16 crouton block weights in rpcmem and runs them on the DSP with the mega kernels.
 // stdin: "run X_IN EMB LORA CTX X_OUT [GH GW]" -> "done <ms>"; "quit".   X_IN/X_OUT fp32 [D][T], EMB fp32[2048], LORA fp32[6144], CTX fp32 [1024][512]
 // usage: megarun HMXDIR [FIRST COUNT]
@@ -97,18 +99,38 @@ int main(int argc, char** argv) {
   std::vector<uint8_t*> wts(count);
   { char p[512]; snprintf(p, sizeof p, "%s/blk%02d.bin", dir.c_str(), first); struct stat st; if (!stat(p, &st) && (size_t)st.st_size == WQ_TOTAL) g_q8 = true; }   // q8 weight files are recognised by size
   const size_t wtot = g_q8 ? WQ_TOTAL : W_TOTAL, wmodw = g_q8 ? WQ_MODW : W_MODW;
+  // LoRA cache (MEGA_LORA_CACHE=<dir>): blocks already folded with this exact LoRA set (files, sizes, dates, strengths) are read from <dir>/<key>/
+  // instead of folding again; after a fold the blocks are written there in the background (only the last set is kept)
+  std::string cdir; bool cached = false;
+  const char* lv0 = getenv("MEGA_LORA");
+  if (lv0 && *lv0 && getenv("MEGA_LORA_CACHE")) {
+    std::string k = dir + "|" + lv0 + "|" + (getenv("MEGA_LORA_S") ? getenv("MEGA_LORA_S") : "");
+    std::string all = lv0;
+    for (size_t p = 0; p < all.size();) {
+      size_t q = all.find('|', p); if (q == std::string::npos) q = all.size();
+      std::string item = all.substr(p, q - p); p = q + 1; size_t s = item.rfind('*'); if (s != std::string::npos) item.resize(s);
+      struct stat st; if (!stat(item.c_str(), &st)) k += "|" + std::to_string((long long)st.st_size) + ":" + std::to_string((long long)st.st_mtime);
+    }
+    uint64_t h = 1469598103934665603ull; for (unsigned char c : k) { h ^= c; h *= 1099511628211ull; }
+    char hx[24]; snprintf(hx, sizeof hx, "%016llx", (unsigned long long)h);
+    cdir = std::string(getenv("MEGA_LORA_CACHE")) + "/" + hx;
+    cached = true;
+    for (int i = 0; i < count && cached; i++) { char p[600]; snprintf(p, sizeof p, "%s/blk%02d.bin", cdir.c_str(), first + i); struct stat st; cached = !stat(p, &st) && (size_t)st.st_size == wtot; }
+  }
   double t0 = now();
   for (int i = 0; i < count; i++) {
-    char p[512]; snprintf(p, sizeof p, "%s/blk%02d.bin", dir.c_str(), first + i);
+    char p[600]; snprintf(p, sizeof p, "%s/blk%02d.bin", cached ? cdir.c_str() : dir.c_str(), first + i);
     wts[i] = (uint8_t*)rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, wtot);
     int fd = open(p, O_RDONLY); if (fd < 0 || !wts[i]) { fprintf(stderr, "cannot load %s\n", p); return 1; }
     size_t got = 0; while (got < wtot) { ssize_t r = read(fd, wts[i] + got, wtot - got); if (r <= 0) break; got += r; }
     posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED); close(fd);
     if (got != wtot) { fprintf(stderr, "short read %s\n", p); return 1; }
   }
-  fprintf(stderr, "megarun: weights loaded %.1fs\n", now() - t0);
+  fprintf(stderr, "megarun: weights loaded %.1fs%s\n", now() - t0, cached ? " (LoRA cache)" : "");
+  if (cached) fprintf(stderr, "megarun: LoRA from cache %s, blocks %d..%d\n", cdir.c_str(), first, first + count - 1);
+  bool folded = false;
   // user LoRAs (Anima 2B), folded into the fp16 weights in RAM (lora_fold.h): MEGA_LORA = "file*strength|file*strength|..." (a bare file takes MEGA_LORA_S, default 1)
-  if (const char* lv = getenv("MEGA_LORA")) {
+  if (const char* lv = cached ? nullptr : getenv("MEGA_LORA")) {
     const float s0 = getenv("MEGA_LORA_S") ? (float)atof(getenv("MEGA_LORA_S")) : 1.f;
     std::string all = lv;
     for (size_t p = 0; p < all.size();) {
@@ -121,6 +143,7 @@ int main(int argc, char** argv) {
       const int model_blocks = stat(p40, &st40) == 0 ? 40 : 28, lora_n = lora_blocks(L);   // 2B LoRAs on 2.9B models (and back) through FROM2B
       int nm = 0; bool fit = true;
       for (int i = 0; i < count && fit; i++) { int src = lora_source(first + i, model_blocks, lora_n); if (src < 0) continue; int k = lora_fold_block(L, s, src, wts[i], g_q8); if (k < 0) fit = false; else nm += k; }
+      if (nm > 0) folded = true;
       if (!fit) fprintf(stderr, "megarun: LoRA %s does not fit this model (shapes), partly applied\n", item.c_str());
       fprintf(stderr, "megarun: LoRA %s: %d matrices of blocks %d..%d, strength %.2f, %.1fs\n", item.c_str(), nm, first, first + count - 1, s, now() - tl);
     }
@@ -143,6 +166,33 @@ int main(int argc, char** argv) {
     int fd = rpcmem_to_fd(wts[i]);
     dma_buf_sync_ sy = {(1ull << 2) | 3};   // DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW
     ioctl(fd, DMA_BUF_IOCTL_SYNC_, &sy);
+  }
+  if (folded && !cdir.empty()) {   // save the folded blocks for the next load (the DSP only reads them, so a CPU thread can copy them out meanwhile)
+    std::thread([cdir, wts, wtot, first, count]() {
+      const std::string root = cdir.substr(0, cdir.rfind('/')), mine = cdir.substr(cdir.rfind('/') + 1);
+      mkdir(root.c_str(), 0700);
+      if (DIR* d = opendir(root.c_str())) {   // keep only this LoRA set: other keys are removed
+        for (struct dirent* e; (e = readdir(d));) {
+          std::string n = e->d_name; if (n == "." || n == ".." || n == mine) continue;
+          std::string sub = root + "/" + n;
+          if (DIR* s = opendir(sub.c_str())) { for (struct dirent* f; (f = readdir(s));) if (f->d_name[0] != '.') unlink((sub + "/" + f->d_name).c_str()); closedir(s); }
+          rmdir(sub.c_str());
+        }
+        closedir(d);
+      }
+      mkdir(cdir.c_str(), 0700);
+      struct statvfs vs; if (statvfs(cdir.c_str(), &vs) || (double)vs.f_bavail * vs.f_frsize < (double)wtot * count + 2e9) { fprintf(stderr, "megarun: LoRA cache skipped (storage)\n"); return; }
+      double tw = now();
+      for (int i = 0; i < count; i++) {
+        char p[600], t[620]; snprintf(p, sizeof p, "%s/blk%02d.bin", cdir.c_str(), first + i); snprintf(t, sizeof t, "%s.tmp", p);
+        int fd = open(t, O_WRONLY | O_CREAT | O_TRUNC, 0600); if (fd < 0) return;
+        size_t put = 0; while (put < wtot) { ssize_t r = write(fd, wts[i] + put, wtot - put); if (r <= 0) break; put += r; }
+        posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED); close(fd);
+        if (put != wtot) { unlink(t); return; }
+        rename(t, p);
+      }
+      fprintf(stderr, "megarun: LoRA cache written, blocks %d..%d, %.1fs\n", first, first + count - 1, now() - tw);
+    }).detach();
   }
   printf("ready\n"); fflush(stdout);
   int cur_gh = -1, cur_gw = -1;
