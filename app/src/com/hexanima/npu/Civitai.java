@@ -89,6 +89,8 @@ final class Civitai {
     /** the main .safetensors file of a version (or the first file) */
     static JSONObject mainFile(JSONObject version) {
         JSONArray fs = version.optJSONArray("files"); if (fs == null || fs.length() == 0) return null;
+        // the model itself first: some versions also carry their text encoder or VAE (Anima "base-v1.0" lists qwen_3_06b_base.safetensors)
+        for (int i = 0; i < fs.length(); i++) { JSONObject f = fs.optJSONObject(i); if (f != null && "Model".equalsIgnoreCase(f.optString("type")) && f.optString("name").endsWith(".safetensors")) return f; }
         for (int i = 0; i < fs.length(); i++) { JSONObject f = fs.optJSONObject(i); if (f != null && f.optBoolean("primary") && f.optString("name").endsWith(".safetensors")) return f; }
         for (int i = 0; i < fs.length(); i++) { JSONObject f = fs.optJSONObject(i); if (f != null && f.optString("name").endsWith(".safetensors")) return f; }
         return fs.optJSONObject(0);
