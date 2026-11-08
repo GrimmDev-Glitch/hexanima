@@ -47,11 +47,12 @@ final class AnimaLora {
     }
 
     static final class Check {
-        boolean ok; String why = ""; int blocks, mats, rank, maxBlock; boolean te;
+        boolean ok; String why = ""; int blocks, mats, rank, maxBlock; boolean te, lycoris;
         String message() {
             if (!ok) return why;
             boolean big = maxBlock >= 28;   // made for the 40-block 2.9B models
-            StringBuilder s = new StringBuilder(L.f("Подходит: ранг %d, блоков %d из %d (%s)", "Compatible: rank %d, %d of %d blocks (%s)", rank, blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B"));
+            StringBuilder s = new StringBuilder(rank > 0 ? L.f("Подходит: ранг %d, блоков %d из %d (%s)", "Compatible: rank %d, %d of %d blocks (%s)", rank, blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B")
+                : L.f("Подходит (LyCORIS): блоков %d из %d (%s)", "Compatible (LyCORIS): %d of %d blocks (%s)", blocks, big ? 40 : 28, big ? "Anima 2.9B" : "Anima 2B"));
             if (te) s.append("\n").append(L.s("Часть для текстового энкодера не применяется", "The text-encoder part is not applied"));
             return s.toString();
         }
@@ -64,7 +65,11 @@ final class AnimaLora {
         for (String m : new String[]{"self_attn_q_proj", "self_attn_k_proj", "self_attn_v_proj", "self_attn_output_proj", "cross_attn_q_proj", "cross_attn_output_proj"}) MATS.put(m, new int[]{2048, 2048});
         MATS.put("cross_attn_k_proj", new int[]{1024, 2048}); MATS.put("cross_attn_v_proj", new int[]{1024, 2048});
         MATS.put("mlp_layer1", new int[]{2048, 8192}); MATS.put("mlp_layer2", new int[]{8192, 2048});
+        for (String m : new String[]{"self_attn", "cross_attn", "mlp"}) { MATS.put("adaln_modulation_" + m + "_1", new int[]{2048, 256}); MATS.put("adaln_modulation_" + m + "_2", new int[]{256, 6144}); }
     }
+    /** key prefixes before the block number (kohya, diffusers / ComfyUI, LyCORIS, others) and the suffix of the first key of each update */
+    static final String[] PREFIXES = {"lora_unet_blocks_", "diffusion_model.blocks.", "lycoris_blocks_", "transformer.blocks.", "blocks."};
+    static final String[] FIRST = {".lora_down.weight", ".lora_A.weight", ".lokr_w1", ".lokr_w1_a", ".hada_w1_a"};
 
     static Check check(File f) {
         JSONObject h;
@@ -77,28 +82,37 @@ final class AnimaLora {
         Check c = new Check(); Set<Integer> blocks = new HashSet<>(); boolean other = false;
         for (Iterator<String> it = h.keys(); it.hasNext(); ) {
             String k = it.next(); if (k.equals("__metadata__")) continue;
-            if (k.startsWith("lora_te")) { c.te = true; continue; }
-            if (k.startsWith("lora_unet_input_blocks") || k.startsWith("lora_unet_down_blocks") || k.startsWith("lora_unet_double_blocks") || k.startsWith("lora_unet_single_blocks") || k.startsWith("lora_unet_joint_blocks")) { other = true; continue; }
-            if (!k.startsWith("lora_unet_blocks_") || !k.endsWith(".lora_down.weight")) continue;
-            String base = k.substring("lora_unet_blocks_".length(), k.length() - ".lora_down.weight".length());
-            int us = base.indexOf('_'); if (us < 0) continue;
-            int b; try { b = Integer.parseInt(base.substring(0, us)); } catch (NumberFormatException e) { continue; }
-            int[] io = MATS.get(base.substring(us + 1)); if (io == null) continue;
-            JSONObject d = h.optJSONObject(k), u = h.optJSONObject(k.replace(".lora_down.", ".lora_up."));
-            if (d == null || u == null) continue;
+            if (k.startsWith("lora_te") || k.startsWith("text_encoder") || k.startsWith("te.") || k.contains("llm_adapter")) { c.te = true; continue; }
+            if (k.startsWith("lora_unet_input_blocks") || k.startsWith("lora_unet_down_blocks") || k.startsWith("lora_unet_double_blocks") || k.startsWith("lora_unet_single_blocks")
+                || k.startsWith("lora_unet_joint_blocks") || k.contains("double_blocks.") || k.contains("single_blocks.") || k.contains("down_blocks.")) { other = true; continue; }
+            // the first key of each update: kohya .lora_down, diffusers .lora_A, LoKr .lokr_w1(_a), LoHa .hada_w1_a
+            String sfx = null; for (String x : FIRST) if (k.endsWith(x)) { sfx = x; break; }
+            if (sfx == null) continue;
+            String pre = null; for (String x : PREFIXES) if (k.startsWith(x)) { pre = x; break; }
+            if (pre == null) continue;
+            String rest = k.substring(pre.length(), k.length() - sfx.length());
+            int i = 0; while (i < rest.length() && Character.isDigit(rest.charAt(i))) i++;
+            if (i == 0 || i + 1 >= rest.length()) continue;
+            int b = Integer.parseInt(rest.substring(0, i));
+            int[] io = MATS.get(rest.substring(i + 1).replace('.', '_')); if (io == null) continue;
+            JSONObject d = h.optJSONObject(k);
+            if (d == null) continue;
             String dt = d.optString("dtype");
             if (!dt.equals("F32") && !dt.equals("F16") && !dt.equals("BF16")) return fail(L.s("Неподдерживаемый формат весов, нужны F32, F16 или BF16.", "Unsupported weight format: F32, F16 or BF16 are needed."));
-            org.json.JSONArray ds = d.optJSONArray("shape"), uss = u.optJSONArray("shape");
-            if (ds == null || uss == null) continue;
-            int r = ds.optInt(0);
-            if (ds.optInt(1) != io[0] || uss.optInt(0) != io[1])
-                return fail(L.s("Размеры слоёв не совпадают с Anima 2B. Скорее всего это LoRA для другой модели или версии.", "Layer sizes do not match Anima 2B. It is probably a LoRA for another model or version."));
+            if (sfx.equals(".lora_down.weight") || sfx.equals(".lora_A.weight")) {   // low rank: check the shapes against the layer
+                JSONObject u = h.optJSONObject(k.substring(0, k.length() - sfx.length()) + (sfx.equals(".lora_down.weight") ? ".lora_up.weight" : ".lora_B.weight"));
+                org.json.JSONArray ds = d.optJSONArray("shape"), uss = u == null ? null : u.optJSONArray("shape");
+                if (ds == null || uss == null) continue;
+                if (ds.optInt(1) != io[0] || uss.optInt(0) != io[1])
+                    return fail(L.s("Размеры слоёв не совпадают с Anima 2B. Скорее всего это LoRA для другой модели или версии.", "Layer sizes do not match Anima 2B. It is probably a LoRA for another model or version."));
+                c.rank = Math.max(c.rank, ds.optInt(0));
+            } else c.lycoris = true;
             if (b < 0 || b >= 40) return fail(L.s("В LoRA есть блоки, которых нет в Anima 2B / 2.9B.", "The LoRA has blocks that Anima 2B / 2.9B do not have."));
-            blocks.add(b); c.mats++; c.rank = Math.max(c.rank, r); c.maxBlock = Math.max(c.maxBlock, b);
+            blocks.add(b); c.mats++; c.maxBlock = Math.max(c.maxBlock, b);
         }
         if (c.mats == 0) return fail(other ? L.s("Это LoRA для другой модели (SDXL / Illustrious, FLUX или похожей). Для Anima она не подходит.", "This LoRA is for another model (SDXL / Illustrious, FLUX or similar). It does not fit Anima.")
                 : c.te ? L.s("В файле только LoRA для текстового энкодера. Такие пока не поддерживаются.", "The file only has text-encoder LoRA weights. Those are not supported yet.")
-                : L.s("Файл не похож на LoRA для Anima: не найдены слои lora_unet_blocks_N_*.", "This file does not look like an Anima LoRA: the lora_unet_blocks_N_* layers are missing."));
+                : L.s("Файл не похож на LoRA для Anima: не найдены слои блоков DiT.", "This file does not look like an Anima LoRA: no DiT block layers were found."));
         c.ok = true; c.blocks = blocks.size(); return c;
     }
 }

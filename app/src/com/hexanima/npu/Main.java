@@ -1011,7 +1011,25 @@ public class Main extends Base {
     /** anima.sh environment for the extras that are on */
     boolean memOk, hotStop;   // the memory warning was answered / a batch stopped because the phone got too hot
     long availMb() { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem / 1048576; }
-    boolean tooHot() { return ((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE; }
+    /** battery temperature in °C (Xiaomi phones report thermal status 0 even with the CPU at 80+ °C; the battery sensor is what an app can read) */
+    float batteryC() { Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED)); return b == null ? 0 : b.getIntExtra("temperature", 0) / 10f; }
+    boolean tooHot() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm.getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE) return true;
+        if (android.os.Build.VERSION.SDK_INT >= 30) { float hr = pm.getThermalHeadroom(0); if (!Float.isNaN(hr) && hr >= 0.95f) return true; }
+        return batteryC() >= 42f;
+    }
+    /** between pictures: wait (up to 3 min) until the battery is back under 39 °C; false = stopped or still hot */
+    boolean waitCool(long t0) {
+        for (int i = 0; i < 60 && !cancelled; i++) {
+            float c = batteryC(); if (c < 39f && !tooHotStatus()) return true;
+            final String m = L.f("Охлаждение телефона… %.1f °C", "Letting the phone cool down… %.1f °C", c);
+            ui.post(() -> status.setText(m));
+            try { Thread.sleep(3000); } catch (InterruptedException e) { return false; }
+        }
+        return !cancelled && !tooHot();
+    }
+    boolean tooHotStatus() { return ((PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus() >= PowerManager.THERMAL_STATUS_SEVERE; }
     String extrasEnv(int w, int h, long t0) {
         StringBuilder e = new StringBuilder();
         if (prefs().getBoolean("x_preview", true)) e.append("PREVIEW=").append(q(previewFile().getPath())).append(" ");
@@ -1572,7 +1590,7 @@ public class Main extends Base {
             int made = 0; Bitmap lastBm = null;
             for (int i = 0; i < n && !cancelled; i++) {
                 curIdx = i;
-                if (i > 0 && tooHot()) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
+                if (i > 0 && tooHot() && !waitCool(t0)) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i];
                 final File f = runOne(pr, seedS, w, h, t0);
@@ -1664,23 +1682,26 @@ public class Main extends Base {
         }
         final String f = D + "/last.png";
         final boolean[] done = {false};
+        final long[] tStep1 = {0}; remainS = -1;
         final int[] base = count();
         final int steps = stepsOv > 0 ? stepsOv : Settings.steps(this), calls = Math.max(1, Settings.calls(this) * steps / Math.max(1, Settings.steps(this)));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
                 int[] c = count();
-                int st = c[0] - base[0];
-                if (c[1] > base[1]) setProgressUi(97, L.s("Сохраняю…", "Saving…"), t0);
-                else if (st >= calls) setProgressUi(92, L.s("Декодирование…", "Decoding…"), t0);
-                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", st * steps / calls + 1, steps), t0);  // adapter line = step 1 started
+                int st = c[0] - base[0];   // DiT calls done (the live preview also decodes after every step, so the VAE lines do not mean "finished")
+                long nowMs = System.currentTimeMillis();
+                if (st >= 1 && tStep1[0] == 0) tStep1[0] = nowMs;
+                remainS = st >= 2 && st < calls ? (int) Math.ceil((nowMs - tStep1[0]) / 1000.0 / (st - 1) * (calls - st) + 0.5) : -1;   // from the pace of the calls after the first
+                if (st >= calls) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
+                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", Math.min(steps, st * steps / calls + 1), steps), t0);  // adapter line = step 1 started
                 else setProgressUi(8, L.s("Кодирование текста…", "Encoding the text…"), t0);
             }
         });
         poll.start();
         final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) : "");
         su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
-        done[0] = true;
+        done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
         byte[] png = new byte[0];
@@ -1727,7 +1748,7 @@ public class Main extends Base {
         });
         poll.start();
         su("rm -f " + q(raw.getPath()) + "; " + loraEnv + "M=" + q(M.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
-        done[0] = true;
+        done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
         try {
@@ -1769,7 +1790,7 @@ public class Main extends Base {
         });
         poll.start();
         su("rm -f " + q(raw.getPath()) + "; Q=" + q(Q.getPath()) + " VAE=" + Qwen.vaeCtx(home, w, h) + " sh " + D + "/qwen.sh " + q(ids.getPath()) + " " + drop + " " + w + " " + h + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + edArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
-        done[0] = true;
+        done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
         try {
@@ -1806,6 +1827,7 @@ public class Main extends Base {
 
     /** pct is the progress of the current picture; with several pictures the bar and the text cover the whole batch */
     File previewFile() { return new File(D, "preview.png"); }
+    volatile int remainS = -1;   // seconds left for the current picture, from the pace of the DiT calls (-1 = unknown)
     long pvTime;
     /** live preview: sd-cli renames a fresh preview.png into place after every step; show it while the picture is being made */
     void showPreview(long t0) {
@@ -1818,7 +1840,8 @@ public class Main extends Base {
         showPreview(t0);
         final int all = (curIdx * 100 + pct) / curN;
         final String pre = curN > 1 ? "(" + (curIdx + 1) + "/" + curN + ")  " : "";
-        final String t = L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (System.currentTimeMillis() - t0) / 1000.0);
+        final int rem = remainS;
+        final String t = rem > 0 ? L.f("%s  ·  осталось ~%d с", "%s  ·  ~%d s left", pre + msg, rem) : L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (System.currentTimeMillis() - t0) / 1000.0);
         ui.post(() -> { bar.setProgress(all); status.setText(t); });
     }
 }

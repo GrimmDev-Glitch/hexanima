@@ -175,6 +175,14 @@ final class Models {
         if (out.exists() && (size < 0 || out.length() == size)) { if (cb != null) cb.on(out.length()); return; }
         File part = new File(out.getPath() + ".part");
         out.getParentFile().mkdirs();
+        // large files: several ranges at once (ParDl); a server without ranges falls through to the single stream below
+        if (size > (32L << 20) && !(new File(out.getPath() + ".part").exists() && !new File(out.getPath() + ".part.map").exists())) {
+            if (ParDl.get(url, part, size, (d, t) -> { if (cb != null) cb.on(d); }, cancel)) {
+                if (sha != null && !sha.isEmpty() && !sha256(part).equalsIgnoreCase(sha)) { part.delete(); throw new IOException("sha256 mismatch " + url); }
+                if (!part.renameTo(out)) throw new IOException("rename " + out);
+                return;
+            }
+        }
         for (int attempt = 0; ; attempt++) {
             try {
                 long have = part.exists() ? part.length() : 0;
@@ -185,7 +193,7 @@ final class Models {
                     if (code == 200 && have > 0) { part.delete(); have = 0; }   // server ignored Range
                     else if (code != 200 && code != 206) throw new IOException("HTTP " + code + " " + url);
                     try (InputStream in = c.getInputStream(); FileOutputStream o = new FileOutputStream(part, have > 0)) {
-                        byte[] b = new byte[1 << 16]; long n = have;
+                        byte[] b = new byte[1 << 18]; long n = have;
                         for (int r; (r = in.read(b)) > 0; ) {
                             if (cancel != null && cancel.get()) throw new InterruptedIOException("cancelled");
                             o.write(b, 0, r); n += r; if (cb != null) cb.on(n);

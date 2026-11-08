@@ -625,7 +625,8 @@ int main(int argc, char** argv) {
                     did = true;
                 }
             }
-            if (!did) usleep(5000);
+            static int idle = 0; idle = did ? 0 : idle + 1;   // idle server: poll every 5 ms for 2 s after a job, then every 50 ms (keeps the CPU asleep, less heat)
+            if (!did) usleep(idle < 400 ? 5000 : 50000);
             if (!access((dir + "/quit").c_str(), F_OK)) break;
         }
     } else {

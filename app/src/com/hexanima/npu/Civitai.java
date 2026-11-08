@@ -110,8 +110,15 @@ final class Civitai {
         String ct = h.getContentType();
         if (ct != null && ct.startsWith("text/html")) throw new IOException(L.s("Civitai вернул страницу входа: нужен ключ API", "Civitai returned a login page: an API key is needed"));
         long total = h.getContentLengthLong() > 0 ? h.getContentLengthLong() : size;
+        // the storage URL needs no credentials: large files go through several ranges at once (ParDl)
+        if (total > (32L << 20) && !u.contains("civitai.com")) {
+            h.disconnect();
+            try { if (ParDl.get(u, part, total, pg == null ? null : (d, t) -> pg.at(d, t), cancel)) { out.delete(); if (!part.renameTo(out)) throw new IOException("rename failed"); return; } }
+            catch (IOException e) { if (cancel == null || !cancel.get()) throw e; part.delete(); new File(part.getPath() + ".map").delete(); throw e; }
+            h = open(c, u);   // no ranges: one stream as before
+        }
         try (InputStream in = h.getInputStream(); OutputStream o = new FileOutputStream(part)) {
-            byte[] b = new byte[1 << 16]; long done = 0, last = 0;
+            byte[] b = new byte[1 << 18]; long done = 0, last = 0;
             for (int n; (n = in.read(b)) > 0; ) {
                 if (cancel != null && cancel.get()) throw new IOException("cancelled");
                 o.write(b, 0, n); done += n;
