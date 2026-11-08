@@ -234,6 +234,10 @@ public class Main extends Base {
         prompt.setDropDownHeight(dp(240));
         root.addView(prompt, new LinearLayout.LayoutParams(-1, -2));
         loadTags();
+        tokText = text("", 12, DIM, false); tokText.setGravity(Gravity.END); tokText.setPadding(0, dp(4), dp(6), 0);
+        root.addView(tokText, new LinearLayout.LayoutParams(-1, -2));
+        prompt.addTextChangedListener(watch(s -> countTokens()));
+        countTokens();
 
         // sampling, right under the prompt (Anima models; stored in the same prefs as before): negative prompt, steps, CFG, clip skip, sampler, scheduler
         sampBox = new LinearLayout(this); sampBox.setOrientation(LinearLayout.VERTICAL);
@@ -241,23 +245,23 @@ public class Main extends Base {
         negEdit = field("lowres, worst quality, bad anatomy…");
         negEdit.setText(Settings.negative(this)); negEdit.setMinLines(2); negEdit.setGravity(Gravity.TOP); negEdit.setBackground(bg(CARD, 14));
         negEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        negEdit.addTextChangedListener(watch(s -> prefs().edit().putString("neg", s).apply()));
+        negEdit.addTextChangedListener(watch(s -> prefs().edit().putString(Settings.key(this, "neg"), s).apply()));
         sampBox.addView(negEdit);
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL);
-        stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt("steps", v).apply(); } catch (NumberFormatException e) { } });
-        cfgEdit = numField(nr, "CFG", Settings.cfg(this), true, s -> { try { float v = Float.parseFloat(s.trim().replace(',', '.')); if (v >= 1 && v <= 30) prefs().edit().putString("cfg", s.trim().replace(',', '.')).apply(); } catch (NumberFormatException e) { } });
-        clipEdit = numField(nr, "CLIP SKIP", String.valueOf(prefs().getInt("clipskip", 1)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 12) prefs().edit().putInt("clipskip", v).apply(); } catch (NumberFormatException e) { } });
+        stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt(Settings.key(this, "steps"), v).apply(); } catch (NumberFormatException e) { } });
+        cfgEdit = numField(nr, "CFG", Settings.cfg(this), true, s -> { try { float v = Float.parseFloat(s.trim().replace(',', '.')); if (v >= 1 && v <= 30) prefs().edit().putString(Settings.key(this, "cfg"), s.trim().replace(',', '.')).apply(); } catch (NumberFormatException e) { } });
+        clipEdit = numField(nr, "CLIP SKIP", String.valueOf(Settings.clipSkip(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 12) prefs().edit().putInt("sdxl_clipskip", v).apply(); } catch (NumberFormatException e) { } });
         sampBox.addView(nr);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL); ar.setPadding(0, dp(8), 0, 0);
         samplerBtn = button("", CARD, TXT); samplerBtn.setAllCaps(false);
-        samplerBtn.setOnClickListener(v -> pickFrom(L.s("Сэмплер", "Sampler"), Settings.SAMPLERS, Settings.SAMPLER_NAMES, Settings.sampler(this), x -> { prefs().edit().putString("sampler", x).apply(); refreshSampling(); }));
+        samplerBtn.setOnClickListener(v -> pickFrom(L.s("Сэмплер", "Sampler"), Settings.SAMPLERS, Settings.SAMPLER_NAMES, Settings.sampler(this), x -> { prefs().edit().putString(Settings.key(this, "sampler"), x).apply(); refreshSampling(); }));
         ar.addView(samplerBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
         schedBtn = button("", CARD, TXT); schedBtn.setAllCaps(false);
-        schedBtn.setOnClickListener(v -> pickFrom(L.s("Планировщик", "Scheduler"), Settings.SCHEDULERS, Settings.SCHEDULER_NAMES, Settings.scheduler(this), x -> { prefs().edit().putString("sched", x).apply(); refreshSampling(); }));
+        schedBtn.setOnClickListener(v -> pickFrom(L.s("Планировщик", "Scheduler"), Settings.SCHEDULERS, Settings.SCHEDULER_NAMES, Settings.scheduler(this), x -> { prefs().edit().putString(Settings.key(this, "sched"), x).apply(); refreshSampling(); }));
         LinearLayout.LayoutParams scl = new LinearLayout.LayoutParams(0, dp(44), 1); scl.leftMargin = dp(8); ar.addView(schedBtn, scl);
         Button sreset = button("↺", CARD, TXT); sreset.setOnClickListener(v -> {
-            prefs().edit().putInt("steps", 4).putString("cfg", "1").putString("sampler", "euler").putString("sched", "discrete").apply();
-            stepsEdit.setText("4"); cfgEdit.setText("1"); refreshSampling();
+            prefs().edit().remove(Settings.key(this, "steps")).remove(Settings.key(this, "cfg")).remove(Settings.key(this, "sampler")).remove(Settings.key(this, "sched")).apply();
+            sampFill = false; refreshSampling();
         });
         LinearLayout.LayoutParams srl = new LinearLayout.LayoutParams(dp(48), dp(44)); srl.leftMargin = dp(8); ar.addView(sreset, srl);
         sampBox.addView(ar);
@@ -489,15 +493,17 @@ public class Main extends Base {
 
     /** LoRA library of the selected family: tap inserts <lora:name:1.0> and its trigger words into the prompt; long tap removes the file; Civitai to find more */
     void loraLibrary() {
-        final boolean sdxl = false;   // SDXL models come with the SDXL engine; the dir is already filled by Civitai downloads
-        final File dir = sdxl ? Civitai.sdxlDir(getFilesDir(), "lora") : AnimaLora.dir(getFilesDir());
+        final boolean sdxl = isSdxl();   // the selected model's family: Anima 2B LoRAs or SDXL-family ones
+        final File dir = sdxl ? Sdxl.loras(getFilesDir()) : AnimaLora.dir(getFilesDir());
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
-        v.addView(text(L.s("Библиотека LoRA (Anima 2B)", "LoRA library (Anima 2B)"), 18, TXT, true));
+        v.addView(text(sdxl ? L.s("Библиотека LoRA (SDXL / Illustrious)", "LoRA library (SDXL / Illustrious)") : L.s("Библиотека LoRA (Anima 2B)", "LoRA library (Anima 2B)"), 18, TXT, true));
         TextView hint = text(L.s("Нажмите: вставить в промпт. Долгое нажатие: удалить.", "Tap: insert into the prompt. Long tap: delete."), 12, DIM, false); hint.setPadding(0, dp(6), 0, dp(8)); v.addView(hint);
         ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
         v.addView(sv, new LinearLayout.LayoutParams(-1, dp(320)));
         final android.app.AlertDialog[] dlg = new android.app.AlertDialog[1];
-        List<String> names = AnimaLora.names(getFilesDir());
+        List<String> names = new ArrayList<>(); File[] lf = dir.listFiles();
+        if (lf != null) for (File f : lf) if (f.getName().endsWith(".safetensors") && !f.getName().startsWith("new.")) names.add(f.getName().substring(0, f.getName().length() - 12));
+        java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
         if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или выберите файл ниже на главном экране.", "Empty: download LoRAs from Civitai or pick a file on the main screen."), 14, DIM, false));
         for (String n : names) {
             File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); String words = Civitai.words(f);
@@ -541,19 +547,45 @@ public class Main extends Base {
         int i = Math.max(0, java.util.Arrays.asList(values).indexOf(cur));
         builder().setTitle(title).setSingleChoiceItems(names, i, (d, k) -> { d.dismiss(); cb.on(values[k]); }).show();
     }
+    TextView tokText;
+    /** rough token count of prompt + quality tags (Danbooru-style text: ~3.6 characters per token; <lora:...> tags are removed before encoding).
+     *  Anima: the NPU text encoder and Anima itself take 512 tokens. SDXL: sd.cpp splits long prompts into 75-token CLIP chunks, so there is no hard limit. */
+    void countTokens() {
+        if (tokText == null || prompt == null) return;
+        String p = prompt.getText().toString().replaceAll("(?i)<lora:[^>]*>", "");
+        int n = (int) Math.ceil((p.length() + (isMoss() || isSdxl() ? 0 : Settings.prefix(this).length())) / 3.6);
+        if (isSdxl()) { tokText.setText(L.f("≈%d токенов (CLIP, блоки по 75)", "≈%d tokens (CLIP, 75-token chunks)", n)); tokText.setTextColor(DIM); }
+        else { int lim = isMoss() ? 480 : 512; tokText.setText(L.f("≈%d / %d токенов", "≈%d / %d tokens", n, lim)); tokText.setTextColor(n > lim ? BAD : n > lim * 0.85 ? WARN : DIM); }
+    }
+    String sampFam; boolean sampFill;   // which family's values the fields show (Anima and SDXL keep their own)
     void refreshSampling() {
         if (sampBox == null || samplerBtn == null) return;
+        boolean sdxl = isSdxl();
+        String fam = sdxl ? "sdxl" : "anima";
+        if (!fam.equals(sampFam) || !sampFill) {   // model family switched (or reset): show its values; setText re-enters here with sampFill already true
+            sampFam = fam; sampFill = true;
+            stepsEdit.setText(String.valueOf(Settings.steps(this))); cfgEdit.setText(Settings.cfg(this)); negEdit.setText(Settings.negative(this)); clipEdit.setText(String.valueOf(Settings.clipSkip(this)));
+        }
         samplerBtn.setText(Settings.samplerName(Settings.sampler(this)) + "  ▾");
         schedBtn.setText(Settings.schedulerName(Settings.scheduler(this)) + "  ▾");
-        boolean anima = !isMoss();
-        clipEdit.setEnabled(false); clipEdit.setAlpha(.4f);   // Anima / MOSS encode text with Qwen, not CLIP: clip skip is for the SDXL (Illustrious) models
-        sampBox.setVisibility(anima && !model.isEmpty() ? View.VISIBLE : View.GONE);
-        String n = Settings.defaultSampling(this) ? L.s("По умолчанию: модели обучены на 4 шага, Euler, CFG 1.", "Defaults: the models are distilled for 4 steps, Euler, CFG 1.")
+        clipEdit.setEnabled(sdxl); clipEdit.setAlpha(sdxl ? 1f : .4f);   // Anima / MOSS encode text with Qwen, not CLIP: clip skip is for the SDXL models
+        sampBox.setVisibility(!isMoss() && !model.isEmpty() ? View.VISIBLE : View.GONE);
+        String n;
+        if (sdxl) n = L.f("SDXL на процессоре: ~%d с на картинку при этих настройках (без NPU). Clip skip 2 — обычный для Illustrious / Pony.",
+                "SDXL on the CPU: ~%d s per picture with these settings (no NPU). Clip skip 2 is the usual one for Illustrious / Pony.", sdxlEstimate());
+        else {
+            n = Settings.defaultSampling(this) ? L.s("По умолчанию: модели обучены на 4 шага, Euler, CFG 1.", "Defaults: the models are distilled for 4 steps, Euler, CFG 1.")
                 : L.f("Вызовов DiT: %d (по умолчанию 4, из них 2 в половинном размере)", "DiT calls: %d (default 4, two of them at half size)", Settings.calls(this));
-        if (Settings.cfgOn(this)) n += "\n" + L.s("CFG больше 1: вдвое медленнее, используется негативный промпт.", "CFG above 1: twice as slow, the negative prompt is used.");
-        if (Settings.twoCalls(Settings.sampler(this))) n += "\n" + L.s("Сэмплер 2-го порядка: вдвое медленнее и с 4 шагами даёт зернистость.", "2nd-order sampler: twice as slow, grainy with 4 steps.");
-        sampNote.setText(n + "\n" + L.s("Clip skip — только для моделей SDXL (Anima использует Qwen3, не CLIP).", "Clip skip is for SDXL models only (Anima uses Qwen3, not CLIP)."));
+            if (Settings.cfgOn(this)) n += "\n" + L.s("CFG больше 1: вдвое медленнее, используется негативный промпт.", "CFG above 1: twice as slow, the negative prompt is used.");
+            if (Settings.twoCalls(Settings.sampler(this))) n += "\n" + L.s("Сэмплер 2-го порядка: вдвое медленнее и с 4 шагами даёт зернистость.", "2nd-order sampler: twice as slow, grainy with 4 steps.");
+            n += "\n" + L.s("Clip skip — только для моделей SDXL (Anima использует Qwen3, не CLIP).", "Clip skip is for SDXL models only (Anima uses Qwen3, not CLIP).");
+        }
+        sampNote.setText(n);
+        countTokens();
+        if (genBtn != null && !busy) genBtn.setText(genLabel());
     }
+    boolean isSdxl() { return Sdxl.is(model); }
+    long sdxlEstimate() { return Math.round(Settings.calls(this) * Sdxl.secPerCall(resW, resH) + 12); }
     void pickLora() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
         startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 9);
@@ -707,8 +739,14 @@ public class Main extends Base {
 
     boolean isMoss() { return Moss.is(model); }
     /** the size presets of the selected model: Anima's list, or MOSS-Image's own presets (any size with sides multiple of 16 works) */
-    java.util.List<int[]> sizeList() { return java.util.Arrays.asList(isMoss() ? Moss.PRESETS : SIZES); }
+    java.util.List<int[]> sizeList() { return java.util.Arrays.asList(isMoss() ? Moss.PRESETS : isSdxl() ? Sdxl.PRESETS : SIZES); }
     String mossSizeError(int w, int h) { return Moss.sizeError(w, h); }
+    static String sdxlSizeError(int w, int h) {
+        if (w < 512 || h < 512) return L.s("SDXL: минимум 512 по каждой стороне", "SDXL: at least 512 on each side");
+        if (w % 64 != 0 || h % 64 != 0) return L.s("SDXL: ширина и высота должны быть кратны 64", "SDXL: width and height must be multiples of 64");
+        if ((long) w * h > 1536L * 1536) return L.s("SDXL: слишком большой размер (максимум 1536×1536)", "SDXL: too large (at most 1536×1536)");
+        return null;
+    }
 
     // ---- model state --------------------------------------------------------------------------
     String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }
@@ -746,7 +784,7 @@ public class Main extends Base {
     String genLabel() {
         if (model.isEmpty()) return L.s("Скачать модель", "Get a model");
         double sm = isMoss() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;   // the default 4 steps cost ~2.6 full DiT calls (two run at half size)
-        long est = Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0)) * count;
+        long est = (isSdxl() ? sdxlEstimate() : Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0))) * count;
         return count > 1 ? L.f("Генерировать ×%d  ·  ~%d с", "Generate ×%d  ·  ~%d s", count, est) : L.f("Генерировать  ·  ~%d с", "Generate  ·  ~%d s", est);
     }
 
@@ -763,12 +801,12 @@ public class Main extends Base {
         ui.post(() -> {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
-            if (loraBox != null) { loraBox.setVisibility(model.isEmpty() ? View.GONE : View.VISIBLE); refreshLora(); }
+            if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isSdxl() ? View.GONE : View.VISIBLE); refreshLora(); }   // SDXL: LoRAs come from the prompt tags
             refreshSampling();
             state.setText(working ? msg : isMoss() ? L.s("MOSS-Image: текст, DiT и VAE работают на NPU; веса читаются с накопителя при каждой картинке", "MOSS-Image: text encoder, DiT and VAE run on the NPU; the weights are streamed from storage for every picture") : isLoaded ? L.s("Модель загружена в NPU, генерация стартует сразу", "Model is loaded on the NPU, generation starts at once")
                 : L.s("Модель выгружена: при генерации загрузится сама (~5 с)", "Model is unloaded: it loads itself when you generate (~5 s)"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
-            loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss());
+            loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss() && !isSdxl());
             loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);
             countBtn.setEnabled(!busy); countBtn.setAlpha(busy ? .5f : 1f);
             boolean can = busy ? !cancelled : !working;   // while a picture is made the main button is "Stop"
@@ -796,8 +834,12 @@ public class Main extends Base {
 
     void setModel(String m) {
         if (m.equals(model) || busy) return;   // no model switch mid-generation
+        boolean famChange = Sdxl.is(m) != Sdxl.is(model);
         model = m;
+        prefs().edit().putString("model", model).apply();   // the sampling fields read their family from it
+        if (famChange && Sdxl.is(m)) { resW = 832; resH = 1216; } else if (famChange && !Moss.is(m)) { resW = 512; resH = 768; }
         setRes(resW, resH);
+        refreshSampling();
         if (loaded) {   // the loaded server holds the other model's weights
             setModelUi(true, true, L.s("Меняю модель…", "Switching model…"));
             ex.submit(() -> { su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); });
@@ -826,6 +868,7 @@ public class Main extends Base {
     void refreshModels() {
         ids = store.installed();
         model = ids.isEmpty() ? "" : ids.contains(model) ? model : ids.get(0);
+        prefs().edit().putString("model", model).apply();
         setRes(resW, resH);
         setModelUi(loaded, false, "");
     }
@@ -870,6 +913,7 @@ public class Main extends Base {
         cancelled = true;
         setModelUi(loaded, false, "");
         if (isMoss()) ex2.submit(() -> ctlSh.run("sh " + D + "/moss.sh stop < /dev/null >/dev/null 2>&1"));
+        else if (isSdxl()) ex2.submit(() -> ctlSh.run("pkill -f 'libsdcli.so -m ' ; true"));   // the SDXL run (the Anima server runs sd-cli with --diffusion-model, it is left alone)
         else ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
     }
 
@@ -877,7 +921,7 @@ public class Main extends Base {
         if (model.isEmpty()) { openModels(); return; }
         int cw = 0, ch = 0;
         try { cw = Integer.parseInt(wEdit.getText().toString().trim()); ch = Integer.parseInt(hEdit.getText().toString().trim()); } catch (NumberFormatException e) { }
-        String bad = isMoss() ? mossSizeError(cw, ch) : sizeError(cw, ch);
+        String bad = isMoss() ? mossSizeError(cw, ch) : isSdxl() ? sdxlSizeError(cw, ch) : sizeError(cw, ch);
         if (bad != null) { Toast.makeText(this, bad, Toast.LENGTH_LONG).show(); return; }
         if (cw != resW || ch != resH) setRes(cw, ch);
         final String pr = prompt.getText().toString().trim();
@@ -939,6 +983,7 @@ public class Main extends Base {
     /** one picture: loads the model if needed, runs anima.sh, stores the PNG (with the settings inside) in the history; null on failure or Stop */
     File runOne(String pr, String seedS, int w, int h, long t0) {
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
+        if (isSdxl()) return runOneSdxl(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
         AnimaLora.Tags tg = AnimaLora.tags(getFilesDir(), pr);
         pr = tg.prompt; tagLoras = tg.items;
@@ -985,6 +1030,60 @@ public class Main extends Base {
     }
 
     /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
+    /** one SDXL picture on the CPU (Sdxl): converts the checkpoint on first use, frees the NPU model's RAM, runs sd-cli with TAESDXL and the SDXL LoRA dir */
+    File runOneSdxl(String pr, String seedS, int w, int h, long t0) {
+        final File home = getFilesDir(), dir = Sdxl.dir(home), gg = Sdxl.gguf(home, model), log = new File(dir, "sdxl.log"), out = new File(dir, "last.png");
+        final String LIBS = "LD_LIBRARY_PATH=\"$BIN:/system/lib64\" ";
+        if (loaded) { setProgressUi(1, L.s("Освобождаю память NPU…", "Freeing the NPU model's memory…"), t0); su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); }
+        if (!gg.exists()) {   // first use: q8_0 GGUF on the phone (~20 s), the original checkpoint is removed
+            setProgressUi(2, L.s("Подготовка модели (один раз, ~30 с)…", "Preparing the model (once, ~30 s)…"), t0);
+            File src = Sdxl.src(home, model), tmp = new File(gg.getPath() + ".part");
+            su(LIBS + "\"$BIN/libsdcli.so\" -M convert -m " + q(src.getPath()) + " -o " + q(tmp.getPath()) + " --type q8_0 -t 6 < /dev/null > " + q(log.getPath()) + " 2>&1", false);
+            if (cancelled) { tmp.delete(); return null; }
+            if (!tmp.exists() || tmp.length() < (1L << 30) || !tmp.renameTo(gg)) { tmp.delete(); ui.post(() -> Toast.makeText(this, L.s("Не удалось подготовить модель SDXL (лог files/sdxl/sdxl.log)", "Could not prepare the SDXL model (log files/sdxl/sdxl.log)"), Toast.LENGTH_LONG).show()); return null; }
+            src.delete();
+        }
+        if (!Sdxl.taesd(home).exists()) {
+            setProgressUi(3, L.s("Загрузка декодера TAESDXL (10 МБ)…", "Downloading the TAESDXL decoder (10 MB)…"), t0);
+            try { Models.fetch(Sdxl.TAESDXL_URL, Sdxl.taesd(home), -1, null, null, new java.util.concurrent.atomic.AtomicBoolean()); }
+            catch (Exception e) { ui.post(() -> Toast.makeText(this, "TAESDXL: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+        }
+        Sdxl.loras(home).mkdirs();
+        final int steps = Settings.steps(this), calls = Settings.calls(this);
+        final boolean[] done = {false};
+        Thread poll = new Thread(() -> {
+            while (!done[0]) {
+                try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
+                String s = su("tr '\\r' '\\n' < " + q(log.getPath()) + " | grep -oE '[0-9]+/[0-9]+ - ' | tail -1; grep -c 'sampling completed' " + q(log.getPath()), true);
+                try {
+                    String[] ln = s.trim().split("\\s+");
+                    if (ln.length >= 2 && !ln[ln.length - 1].equals("0")) { setProgressUi(95, L.s("Декодирование…", "Decoding…"), t0); continue; }
+                    if (ln.length >= 2 && ln[0].contains("/")) { String[] a = ln[0].split("/"); int st = Integer.parseInt(a[0]), tot = Integer.parseInt(a[1]); setProgressUi(8 + 86 * st / Math.max(1, tot), L.f("Шаг %d/%d (CPU)", "Step %d/%d (CPU)", Math.min(st + 1, tot), tot), t0); }
+                    else setProgressUi(6, L.s("Кодирование текста (CLIP)…", "Encoding the text (CLIP)…"), t0);
+                } catch (Exception ignored) { }
+            }
+        });
+        poll.start();
+        long sd = -1; try { sd = Long.parseLong(seedS.trim()); } catch (NumberFormatException ignored) { }
+        if (sd < 0) sd = new Random().nextInt(Integer.MAX_VALUE);
+        final String seedUsed = String.valueOf(sd);
+        String p = pr.replace('\n', ' '), neg = Settings.negative(this).replace('\n', ' ');
+        su("cd " + q(dir.getPath()) + " && rm -f last.png && " + LIBS + "\"$BIN/libsdcli.so\" -m " + q(gg.getPath()) + " --taesd " + q(Sdxl.taesd(home).getPath()) + " --lora-model-dir " + q(Sdxl.loras(home).getPath())
+            + " -p " + q(p) + " -n " + q(neg) + " --cfg-scale " + Settings.cfg(this) + " --sampling-method " + Settings.sampler(this) + " --scheduler " + Settings.scheduler(this)
+            + " --steps " + steps + " --clip-skip " + Settings.clipSkip(this) + " -W " + w + " -H " + h + " -s " + seedUsed + " -t " + Sdxl.THREADS + " -o last.png < /dev/null > " + q(log.getPath()) + " 2>&1", false);
+        done[0] = true;
+        try { poll.join(); } catch (InterruptedException ignored) { }
+        if (cancelled) return null;
+        byte[] png = new byte[0];
+        try { png = Models.readBytes(out); } catch (Exception ignored) { }
+        if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) { ui.post(() -> Toast.makeText(this, L.s("SDXL: ошибка (лог files/sdxl/sdxl.log)", "SDXL: failed (log files/sdxl/sdxl.log)"), Toast.LENGTH_LONG).show()); return null; }
+        try {
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedUsed).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
+                .put("steps", steps).put("cfg", Settings.cfg(this)).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this)).put("clip_skip", Settings.clipSkip(this)).put("negative", neg);
+            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+        } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
+    }
+
     File runOneMoss(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), M = Moss.dir(home), ids = new File(M, "ids.i32"), raw = new File(M, "img.f32");
         setProgressUi(3, L.s("Токенизация…", "Tokenising…"), t0);

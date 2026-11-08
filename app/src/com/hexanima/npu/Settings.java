@@ -34,12 +34,16 @@ public class Settings extends Base {
     static final String[] SCHEDULER_NAMES = {"Normal (discrete)", "SGM Uniform", "Simple", "Karras", "Exponential", "Beta", "KL optimal", "Smoothstep", "Bong tangent"};
     static String samplerName(String s) { int i = java.util.Arrays.asList(SAMPLERS).indexOf(s); return i < 0 ? s : SAMPLER_NAMES[i]; }
     static String schedulerName(String s) { int i = java.util.Arrays.asList(SCHEDULERS).indexOf(s); return i < 0 ? s : SCHEDULER_NAMES[i]; }
-    static int steps(Context c) { return prefs(c).getInt("steps", 4); }
-    static String cfg(Context c) { return prefs(c).getString("cfg", "1"); }
+    /** sampling prefs are kept per family: the Anima keys as before, "sdxl_" + key for the SDXL models (other defaults: 24 steps, CFG 5, Euler a, clip skip 2) */
+    static boolean sdxl(Context c) { return Sdxl.is(prefs(c).getString("model", "")); }
+    static String key(Context c, String k) { return (sdxl(c) ? "sdxl_" : "") + k; }
+    static int clipSkip(Context c) { return prefs(c).getInt("sdxl_clipskip", 2); }
+    static int steps(Context c) { return prefs(c).getInt(key(c, "steps"), sdxl(c) ? 24 : 4); }
+    static String cfg(Context c) { return prefs(c).getString(key(c, "cfg"), sdxl(c) ? "5" : "1"); }
     static boolean cfgOn(Context c) { try { return Float.parseFloat(cfg(c)) > 1.001f; } catch (Exception e) { return false; } }
-    static String sampler(Context c) { return prefs(c).getString("sampler", "euler"); }
-    static String scheduler(Context c) { return prefs(c).getString("sched", "discrete"); }
-    static String negative(Context c) { return prefs(c).getString("neg", ""); }
+    static String sampler(Context c) { return prefs(c).getString(key(c, "sampler"), sdxl(c) ? "euler_a" : "euler"); }
+    static String scheduler(Context c) { return prefs(c).getString(key(c, "sched"), "discrete"); }
+    static String negative(Context c) { return prefs(c).getString(key(c, "neg"), sdxl(c) ? "lowres, worst quality, bad quality, bad anatomy, bad hands, jpeg artifacts, watermark" : ""); }
     static boolean twoCalls(String sampler) { return sampler.equals("heun") || sampler.equals("dpm2") || sampler.equals("dpm++2s_a") || sampler.equals("res_2s"); }
     /** DiT calls per picture (progress estimate): CFG and 2nd-order samplers double them */
     static int calls(Context c) { return steps(c) * (cfgOn(c) ? 2 : 1) * (twoCalls(sampler(c)) ? 2 : 1); }

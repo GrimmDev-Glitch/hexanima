@@ -72,9 +72,10 @@ final class Models {
         File[] ds = anima.listFiles();
         if (ds != null) for (File d : ds) if (d.getName().startsWith("m_") && modelInstalled(d.getName().substring(2))) out.add(d.getName().substring(2));
         java.util.Collections.sort(out);
+        out.addAll(Sdxl.installed(home));   // SDXL-family checkpoints from Civitai (CPU)
         return out;
     }
-    String name(String id) { try { return new JSONObject(read(new File(modelDir(id), "meta.json"))).getString("name"); } catch (Exception e) { return id; } }
+    String name(String id) { if (Sdxl.is(id)) return Sdxl.name(home, id) + "  ·  SDXL (CPU)"; try { return new JSONObject(read(new File(modelDir(id), "meta.json"))).getString("name"); } catch (Exception e) { return id; } }
 
     /** seconds per picture at 512x768 (from the catalog at install time; models installed before that get the measured value of their size class) */
     int speed(String id) { try { int v = new JSONObject(read(new File(modelDir(id), "meta.json"))).optInt("speed", 0); if (v > 0) return v; } catch (Exception e) { } return id.contains("29") ? 12 : 7; }
