@@ -162,6 +162,7 @@
   - **Prueba en el Poco F6 Pro:**
     - Una foto (regresión): misma calidad que antes, 102 s.
     - Dos referencias, «el pescador de la imagen 1 sostiene al zorro de la imagen 2», 1024×768: una sola escena nueva en 133 s, con ViT de 3 s por imagen. El zorro y el pescador conservan su aspecto; ya no sale el collage de la primera versión.
+    - Tres referencias (pescador, hombre de la bufanda azul y zorro), «los dos hombres se abrazan y saltan en una playa soleada y el zorro salta a su lado»: escena completamente nueva en 135 s, con ViT de unos 2 s por imagen. Los dos hombres conservan su ropa y rasgos (cambia algo la cara del segundo) y el zorro salta junto a ellos.
 
 ## MOSS en V73 (experimental)
 
