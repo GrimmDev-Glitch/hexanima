@@ -222,6 +222,14 @@ final class Civitai {
         try { JSONObject model = model(c, m.optLong("model_id")); m.put("tags", model.optJSONArray("tags") != null ? model.optJSONArray("tags") : new JSONArray()); try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); } return true; }
         catch (Exception e) { return false; }
     }
+    /** stores trigger words typed by the user (creates the JSON for a locally imported file) */
+    static void setWords(File f, String csv) {
+        try {
+            JSONObject m = meta(f); if (m == null) m = new JSONObject().put("name", f.getName().replaceAll("(?i)\\.safetensors$", ""));
+            JSONArray a = new JSONArray(); for (String t : csv.split(",")) { t = t.trim(); if (!t.isEmpty()) a.put(t); }
+            m.put("words", a); try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); }
+        } catch (Exception ignored) { }
+    }
     /** "word1, word2" of a library file (empty if unknown) */
     static String words(File f) {
         JSONObject m = meta(f); if (m == null) return ""; JSONArray w = m.optJSONArray("words"); if (w == null) return "";

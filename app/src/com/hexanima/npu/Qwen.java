@@ -114,6 +114,27 @@ final class Qwen {
         } catch (Exception ignored) { return false; }
     }
 
+    static void setOverlayTriggers(File overlay, String csv) {
+        try {
+            File mf = new File(overlay, "manifest.json"); JSONObject manifest = new JSONObject(Models.read(mf));
+            JSONObject adapter = manifest.optJSONObject("adapter"); if (adapter == null) { adapter = new JSONObject(); manifest.put("adapter", adapter); }
+            JSONArray a = new JSONArray(); for (String t : csv.split(",")) { t = t.trim(); if (!t.isEmpty()) a.put(t); }
+            adapter.put("trigger_words", a);
+            try (java.io.FileWriter w = new java.io.FileWriter(mf)) { w.write(manifest.toString()); }
+        } catch (Exception ignored) { }
+    }
+
+    /** edit output: the preset closest to the photo's shape, at about the area the user picked (never much larger) */
+    static int[] editSize(int srcW, int srcH, int w, int h) {
+        double ratio = srcW / (double) srcH, area = (double) w * h, best = Double.POSITIVE_INFINITY; int[] pick = {w, h};
+        for (int[] s : PRESETS) {
+            double a = (double) s[0] * s[1]; if (a > area * 1.15) continue;
+            double score = Math.abs(Math.log((s[0] / (double) s[1]) / ratio)) * 3 + Math.abs(Math.log(a / area));
+            if (score < best) { best = score; pick = s; }
+        }
+        return new int[]{pick[0], pick[1]};
+    }
+
     static String overlayTriggers(File overlay) {
         try {
             JSONObject manifest = new JSONObject(Models.read(new File(overlay, "manifest.json")));

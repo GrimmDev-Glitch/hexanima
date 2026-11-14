@@ -622,3 +622,12 @@ Could not store the overlay	No se pudo guardar el overlay
 Could not store the LoRA	No se pudo guardar la LoRA
 Delete "%s"? The overlay and the original file are removed.	¿Eliminar «%s»? Se borran el overlay y el archivo original.
 Long-press a LoRA to copy its trigger words or delete it	Mantén pulsada una LoRA para copiar sus activadores o eliminarla
+Edit trigger words…	Editar palabras activadoras…
+Add trigger words to the prompt	Añadir activadoras al prompt
+No trigger words: use "Edit trigger words…"	Sin palabras activadoras: usa «Editar palabras activadoras…»
+e.g. 3dstyle, character x	p. ej. estilo3d, personaje x
+Trigger words: %s	Activadoras: %s
+Words or a phrase that activate the LoRA, comma separated. "Add trigger words to the prompt" puts them in the prompt.	Palabras o frase que activan la LoRA, separadas por comas. Se añaden al prompt con «Añadir activadoras al prompt».
+LoRA strength (0 to 2)	Intensidad de la LoRA (0 a 2)
+Photo's shape	Forma de la foto
+The edit comes out portrait, landscape or square like the photo, at about the size you picked. Turn it off to use exactly the picked size.	La edición sale vertical, horizontal o cuadrada como la foto, con un tamaño parecido al elegido. Desactívalo para usar exactamente el tamaño elegido.

@@ -116,6 +116,11 @@
 - Endurecimiento release: el manifiesto no fija `android:debuggable`; `app/build.sh` solo pasa `--debug-mode` a builds debug y exige firma externa para release. Falta empaquetar y comprobar el APK final firmado.
 - El 13 de noviembre se recompiló `HexAnima Dev` tras conectar la devolución de triggers MOSS desde Civitai. APK `com.hexanima.npu.dev`, versión `1.5.2-v73`, firma de desarrollo ya instalada; se actualizó el perfil principal preservando datos y abrió Main sin excepción fatal. Esta es una comprobación de compilación/arranque, no la prueba end-to-end de Civitai.
 
+- 14 nov 2026 · LoRAs y ediciones de Qwen:
+  - **Intensidad con el teclado:** al tocar el número junto al deslizador se puede escribir un valor de 0 a 2.
+  - **Palabras activadoras propias:** en Anima, MOSS y Qwen, la pulsación larga sobre una LoRA permite editar sus activadoras (o una frase activadora) y añadirlas al prompt, también para LoRAs que no traen ninguna.
+  - **Forma de la foto:** las ediciones de Qwen salen por defecto con la orientación de la foto, al preset más parecido y con un tamaño cercano al elegido. Antes, una foto vertical editada a 1024×768 salía horizontal y recortada. El interruptor «Forma de la foto» permite usar exactamente el tamaño elegido.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

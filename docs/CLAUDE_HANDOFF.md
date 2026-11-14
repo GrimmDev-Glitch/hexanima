@@ -67,6 +67,20 @@ Actualización del 14 nov 2026:
 - **Pendientes pequeños de interfaz:** «✕» en la imagen generada para volver a «Tu imagen aparecerá aquí» (sin borrarla del Historial); deslizador antes/después desde el Historial; el selector muestra Qwen como «2B».
 - **Capturas:** guardar en `docs/screenshots/` una de cada función nueva, para el README y las notas del release.
 
+## Añadidos del usuario (14 nov 2026, tarde)
+
+- **Hecho en Dev (sin release):** la intensidad de la LoRA de Qwen se puede escribir con el teclado tocando el número. Con una pulsación larga se editan las palabras activadoras (o una frase activadora) de cualquier LoRA de Qwen, MOSS o Anima y se añaden al prompt. Las ediciones de Qwen salen por defecto con la forma de la foto (vertical, horizontal o cuadrada, con un tamaño parecido al elegido), con el interruptor «Forma de la foto» para usar exactamente el tamaño elegido. Mage y las futuras ediciones de MOSS y Anima deben seguir la misma regla.
+- **Calidad (detalles deformes y pixelados al ampliar):** diagnóstico, en las últimas ediciones del teléfono:
+  - Salían a 1024×768 horizontal aunque la foto era vertical o cuadrada: se recortaba arriba y abajo y el modelo reinventaba la parte perdida. Ya corregido con «Forma de la foto».
+  - El resultado ronda 0,4–0,8 Mpx: al ampliarlo en el visor se ve pixelado. Ahí entran el escalador (Real-ESRGAN / UltraSharp) y el detailer de caras y manos (sugerencias 1 y 2).
+  - 4 pasos destilados más LoRA: ojos, orejas, dedos y pelo pierden definición. En gate/proj la LoRA del usuario se fusiona por SVD con Lightning a rango 64. Probar la misma edición sin LoRA y a intensidad 0,6–0,8 para separar la causa.
+- **Varias imágenes de referencia (amplía el bloque 8):** «personaje de la imagen 1 con la ropa de la imagen 2». También partir de una hoja de referencia o de la imagen de un personaje para cambiar de estilo (3D, anime…) o de pose sin perder su identidad. En Anima, Qwen, MOSS o Mage, donde cada runner lo permita.
+- **Correcciones después de generar:** especificación aparte en `docs/IMAGE_CORRECTIONS_FLOW.md` (y `docs/CLAUDE_IMAGE_CORRECTIONS_PROMPT.md`). Cara, Manos, Detalles, Ruido, Resolución y Otros, con alternativas, comparación, «Usar esta» y deshacer.
+- **Estilo de la imagen de ChatGPT** (ilustración anime brillante, colores saturados, líneas limpias): evaluar Anima con un prompt de estilo y LoRAs de estilo de Civitai. Si no basta, buscar un modelo anime que corra en la NPU V73.
+- **Modelos de LLM Hub** (son SD 1.5 en QNN: Absolute Reality, Realisian V6, Realistic Vision Hyper, SweetMix, Anything V5, ChilloutMix, CrossKemono, CuteYukiMix, DarkSushi, DreamShaper V8, HyperSpire, Majicmix Realistic V7, MeinaMix V12, Mistoon Anime V3, Nai Anime V2, NeverEndingDream, QteaMix):
+  - HexAnima no tiene hoy un runner de SD 1.5. Habría que añadir una familia nueva, con un runner QNN de SD 1.5 (UNet, VAE, CLIP) y su catálogo.
+  - Antes de integrar: revisar el origen de las conversiones para V73 (8 Gen 2), la licencia del runner y de cada modelo, y probar en el teléfono.
+
 ## Sugerencias y mejoras propuestas por Claude (al final de la lista; el usuario decide cuáles se hacen)
 
 **Calidad de imagen**

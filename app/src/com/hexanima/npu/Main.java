@@ -232,6 +232,7 @@ public class Main extends Base {
         qwenStrRow.addView(text(L.s("Intensidad", "Strength"), 14, TXT, false));
         qwenStr = new SeekBar(this); qwenStr.setMax(40); qwenStrRow.addView(qwenStr, new LinearLayout.LayoutParams(0, -2, 1));
         qwenStrVal = text("1.00", 14, TXT, true); qwenStrVal.setGravity(Gravity.CENTER); qwenStrVal.setBackground(bg(CARD, 12)); qwenStrRow.addView(qwenStrVal, new LinearLayout.LayoutParams(dp(64), dp(38)));
+        qwenStrVal.setOnClickListener(x -> { if (!qwenFolding) typeQwenStrength(); });
         qwenStr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar b, int p, boolean u) { qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); }
             public void onStartTrackingTouch(SeekBar b) { }
@@ -536,6 +537,7 @@ public class Main extends Base {
         LinearLayout.LayoutParams emc = new LinearLayout.LayoutParams(0, dp(38), 1); emc.leftMargin = dp(8); em.addView(editMaskClear, emc);
         editBox.addView(em);
         editOpts = new LinearLayout(this); editOpts.setOrientation(LinearLayout.VERTICAL);
+        sw(editOpts, L.s("Forma de la foto", "Photo's shape"), L.s("La edición sale vertical, horizontal o cuadrada como la foto, con un tamaño parecido al elegido. Desactívalo para usar exactamente el tamaño elegido.", "The edit comes out portrait, landscape or square like the photo, at about the size you picked. Turn it off to use exactly the picked size."), "qwen_keep_aspect", true);
         sw(editOpts, L.s("Alta fidelidad", "High fidelity"), L.s("La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.", "The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory."), "qwen_hifi", false);
         sw(editOpts, L.s("Guardar comparación", "Save a comparison"), L.s("Además de la edición, guarda la original y la editada lado a lado; usa ‹ › sobre la imagen para verla.", "Besides the edit, saves the original and the edit side by side; use ‹ › above the picture to see it."), "qwen_compare", false);
         editBox.addView(editOpts);
@@ -1007,7 +1009,8 @@ public class Main extends Base {
     }
     /** long tap on a library LoRA: category, trigger words, and (Anima) delete */
     void loraMenu(String title, File f, String words, Runnable delete, Runnable reopen) {
-        List<String> items = new ArrayList<>(); items.add(L.f("Categoría: %s…", "Category: %s…", Civitai.catName(Civitai.category(f)))); items.add(L.s("Copiar palabras activadoras", "Copy trigger words")); if (delete != null) items.add(L.s("Удалить", "Delete"));
+        List<String> items = new ArrayList<>(); items.add(L.f("Categoría: %s…", "Category: %s…", Civitai.catName(Civitai.category(f)))); items.add(L.s("Copiar palabras activadoras", "Copy trigger words"));
+        items.add(L.s("Editar palabras activadoras…", "Edit trigger words…")); items.add(L.s("Añadir activadoras al prompt", "Add trigger words to the prompt")); if (delete != null) items.add(L.s("Удалить", "Delete"));
         builder().setTitle(title).setItems(items.toArray(new String[0]), (d, i) -> {
             if (i == 0) {
                 String[] names = new String[Civitai.CATS.length + 1]; names[0] = Civitai.catName("");
@@ -1016,7 +1019,26 @@ public class Main extends Base {
             } else if (i == 1) {
                 if (words.isEmpty()) { Toast.makeText(this, L.s("Sin palabras activadoras declaradas", "No trigger words declared"), Toast.LENGTH_SHORT).show(); return; }
                 android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText("LoRA triggers", words));
-            } else if (delete != null) delete.run();
+            } else if (i == 2) editTriggers(title, words, s -> { Civitai.setWords(f, s); reopen.run(); });
+            else if (i == 3) { if (words.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else appendPromptWords(words); }
+            else if (delete != null) delete.run();
+        }).show();
+    }
+    /** text box for the trigger words / trigger prompt of a LoRA (comma separated) */
+    void editTriggers(String title, String words, java.util.function.Consumer<String> save) {
+        EditText e = new EditText(this); e.setText(words); e.setHint(L.s("p. ej. estilo3d, personaje x", "e.g. 3dstyle, character x")); e.setMinLines(2); e.setTextColor(TXT); e.setSelection(e.getText().length());
+        FrameLayout fl = new FrameLayout(this); fl.setPadding(dp(20), dp(8), dp(20), 0); fl.addView(e);
+        builder().setTitle(L.f("Activadoras: %s", "Trigger words: %s", title)).setMessage(L.s("Palabras o frase que activan la LoRA, separadas por comas. Se añaden al prompt con «Añadir activadoras al prompt».", "Words or a phrase that activate the LoRA, comma separated. \"Add trigger words to the prompt\" puts them in the prompt."))
+            .setView(fl).setNegativeButton(L.s("Cancelar", "Cancel"), null).setPositiveButton(L.s("Guardar", "Save"), (d, k) -> save.accept(e.getText().toString().trim())).show();
+    }
+    /** strength typed with the keyboard (0–2) */
+    void typeQwenStrength() {
+        EditText e = new EditText(this); e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL); e.setText(qwenStrVal.getText()); e.setTextColor(TXT); e.setSelectAllOnFocus(true);
+        FrameLayout fl = new FrameLayout(this); fl.setPadding(dp(20), dp(8), dp(20), 0); fl.addView(e);
+        builder().setTitle(L.s("Intensidad de la LoRA (0 a 2)", "LoRA strength (0 to 2)")).setView(fl).setNegativeButton(L.s("Cancelar", "Cancel"), null).setPositiveButton("OK", (d, k) -> {
+            float v; try { v = Float.parseFloat(e.getText().toString().replace(',', '.')); } catch (Exception x) { return; }
+            v = Math.max(0f, Math.min(2f, v)); v = Math.round(v * 100f) / 100f;
+            qwenStr.setProgress(Math.round(v / 0.05f)); qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", v)); refoldQwen(v);
         }).show();
     }
     /** files downloaded before the tags were stored: one tap fetches their Civitai tags */
@@ -2233,8 +2255,10 @@ public class Main extends Base {
         list.setOnItemLongClickListener((parent, view, which, id) -> {   // copy trigger words, or delete the overlay (and the original file it was converted from)
             if (which == 0) return true;
             final String nm = names.get(which - 1); final File ov = new File(root, nm);
-            builder().setTitle(Qwen.overlayName(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Eliminar", "Delete")}, (d2, k) -> {
-                if (k == 0) {
+            builder().setTitle(Qwen.overlayName(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Editar palabras activadoras…", "Edit trigger words…"), L.s("Añadir activadoras al prompt", "Add trigger words to the prompt"), L.s("Eliminar", "Delete")}, (d2, k) -> {
+                if (k == 1) editTriggers(Qwen.overlayName(ov), Qwen.overlayTriggers(ov), s -> Qwen.setOverlayTriggers(ov, s));
+                else if (k == 2) { String t = Qwen.overlayTriggers(ov); if (t.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else { appendPromptWords(t); dialog.dismiss(); } }
+                else if (k == 0) {
                     String trigger = Qwen.overlayTriggers(ov);
                     if (trigger.isEmpty()) Toast.makeText(this, L.s("Este overlay no tiene palabras activadoras guardadas", "This overlay has no saved trigger words"), Toast.LENGTH_LONG).show();
                     else { android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clipboard != null) { clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Qwen trigger words", trigger)); Toast.makeText(this, L.s("Palabras activadoras copiadas", "Trigger words copied"), Toast.LENGTH_SHORT).show(); } }
@@ -2695,7 +2719,7 @@ public class Main extends Base {
         final File maskFile = Qwen.editMask(home);
         final Qwen.DetailCrop detail = edit && maskFile.isFile() ? Qwen.detailCrop(src, maskFile) : null;
         final Bitmap condition = detail != null ? detail.image : src;
-        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : new int[]{w, h};
+        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : edit && prefs().getBoolean("qwen_keep_aspect", true) ? Qwen.editSize(src.getWidth(), src.getHeight(), w, h) : new int[]{w, h};
         final int runW = detailDims[0], runH = detailDims[1];
         setProgressUi(2, edit ? L.s("Подготовка фото…", "Preparing the photo…") : L.s("Токенизация…", "Tokenising…"), t0);
         int drop; String edArg = "";
@@ -2740,8 +2764,8 @@ public class Main extends Base {
             byte[] png = Qwen.png(raw, runW, runH); raw.delete();
             if (edit && maskFile.isFile()) png = detail != null
                 ? Qwen.applyDetailMask(png, src, maskFile, detail, runW, runH, w, h)
-                : Qwen.applyEditMask(png, src, maskFile, w, h);
-            int finalW = edit && maskFile.isFile() ? src.getWidth() : w, finalH = edit && maskFile.isFile() ? src.getHeight() : h;
+                : Qwen.applyEditMask(png, src, maskFile, runW, runH);
+            int finalW = edit && maskFile.isFile() ? src.getWidth() : runW, finalH = edit && maskFile.isFile() ? src.getHeight() : runH;
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", finalW).put("h", finalH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null).put("hifi", prefs().getBoolean("qwen_hifi", false));
             File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
