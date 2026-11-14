@@ -119,7 +119,7 @@
 - 14 nov 2026 · LoRAs y ediciones de Qwen:
   - **Intensidad con el teclado:** al tocar el número junto al deslizador se puede escribir un valor de 0 a 2.
   - **Palabras activadoras propias:** en Anima, MOSS y Qwen, la pulsación larga sobre una LoRA permite editar sus activadoras (o una frase activadora) y añadirlas al prompt, también para LoRAs que no traen ninguna.
-  - **Forma de la foto:** las ediciones de Qwen salen por defecto con la orientación de la foto, al preset más parecido y con un tamaño cercano al elegido. Antes, una foto vertical editada a 1024×768 salía horizontal y recortada. El interruptor «Forma de la foto» permite usar exactamente el tamaño elegido.
+  - **Forma de la foto:** las ediciones de Qwen salen por defecto con la orientación de la foto, al preset más parecido y con un tamaño cercano al elegido. Antes, una foto vertical editada a 1024×768 salía horizontal y recortada. El interruptor «Forma de la foto» permite usar exactamente el tamaño elegido. Probado en el Poco F6 Pro: foto vertical 576×1024 con el tamaño 1024×768 elegido → edición 576×1024 en 102 s (alta fidelidad), sin recortes.
 
 ## MOSS en V73 (experimental)
 
