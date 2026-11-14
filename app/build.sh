@@ -15,6 +15,8 @@ if [[ "${BUILD_DEV:-0}" == 1 ]]; then APK_NAME=hexanima-dev.apk; fi
 cp ../phone/anima.sh assets/anima.sh
 cp ../phone/moss.sh assets/moss.sh
 cp ../phone/qwen.sh assets/qwen.sh
+# every L.s/L.f English string needs its Spanish line in assets/lang/es.tsv (tools/check_translations.py lists the missing ones)
+if command -v python3 >/dev/null; then python3 ../tools/check_translations.py >&2 || { echo "Untranslated strings: add them to app/assets/lang/es.tsv" >&2; exit 1; }; fi
 SDK=${ANDROID_SDK_ROOT:-$HOME/anima-npu/sdk/android}
 [[ -d "$SDK/build-tools/34.0.0" ]] || { echo "Android SDK not found: $SDK" >&2; exit 2; }
 
