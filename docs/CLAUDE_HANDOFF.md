@@ -49,6 +49,12 @@ Actualización del 14 nov 2026:
   - Pantallas: principal, Historial, visor, Modelos y catálogo, Civitai, Ajustes, Info y Bienvenida.
   - Diálogos: selectores de modelo, tamaño y LoRA; máscara; antes/después; plantillas; etiquetas; ZIP; renombrar; diálogos del sistema que salen con el aspecto por defecto de Android.
   - Elementos sueltos: interruptores, barras de progreso, toasts y menús emergentes.
+- **Mejorar fotos existentes con un escalador (pedido por el usuario):**
+  - Empezar con **Real-ESRGAN General x4v3** (unos 3,5 MB, GPU/CPU): la opción más fácil de probar, como en LLM Hub.
+  - Después, en NPU, comparar con **UltraSharp Realistic Upscaler** sobre la misma foto, ampliando ojos y manos, y quedarse con el que conserve mejor párpados, iris y dedos.
+  - Avisar en la interfaz que, si la foto original está muy borrosa, el escalador puede inventar detalles.
+  - Encaja con la sugerencia 2 (ampliación ×2 en la NPU para Qwen y MOSS).
+- **Caché de codificaciones de texto (upstream 1.5.4): pendiente.** Primero hay que reconstruir un árbol stable-diffusion.cpp que reproduzca el `libsdcli.so` actual; ver CHANGES.md.
 - **Nueva familia solicitada (después de la lista actual):** vídeo con LTX-Video 2B 0.9.8 Distilled en NPU V73, texto a vídeo e imagen a vídeo, con controles de pasos, ancho, alto, fotogramas, velocidad de fotogramas (fps), semilla y prompt negativo opcional. Hay que evaluar la viabilidad: DiT de vídeo, VAE causal de vídeo, memoria, tiempos y codificación MP4 en el teléfono.
 - **Pendientes pequeños de interfaz:** «✕» en la imagen generada para volver a «Tu imagen aparecerá aquí» (sin borrarla del Historial); deslizador antes/después desde el Historial; el selector muestra Qwen como «2B».
 - **Capturas:** guardar en `docs/screenshots/` una de cada función nueva, para el README y las notas del release.

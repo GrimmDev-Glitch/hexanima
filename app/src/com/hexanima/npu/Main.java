@@ -78,6 +78,7 @@ public class Main extends Base {
     LinearLayout qwenLoraBox; TextView qwenLoraName; Button qwenLoraPick, qwenLoraDrop;
     Fold sampFold, loraFold, extFold;
     LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
+    LinearLayout pageBar, imgTools;   // ‹ 2 / 3 › over a batch picture (swiping needs a quick fling; the buttons always work)
     TextView pageTag;   // "2 / 3" over a batch picture: the caption under a tall picture is off screen
     TextView clearX;   // small ✕ over the shown picture: back to the placeholder (the picture stays in the History)
     LinearLayout editOpts, editRow; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
@@ -266,16 +267,20 @@ public class Main extends Base {
             }
         });
         img.setOnTouchListener((v, e) -> batchGestures.onTouchEvent(e));
-        android.widget.FrameLayout imgFrame = new android.widget.FrameLayout(this);
-        imgFrame.addView(img, new android.widget.FrameLayout.LayoutParams(-1, -2));
-        clearX = text("✕", 15, 0xFFFFFFFF, true); clearX.setGravity(Gravity.CENTER); clearX.setBackground(bg(0x99000000, 16)); clearX.setVisibility(View.GONE);
+        // toolbar between the model state and the picture: ‹ 1/3 › on the left (batches only), favourite / download / share / ✕ on the right
+        imgTools = new LinearLayout(this); imgTools.setGravity(Gravity.CENTER_VERTICAL); imgTools.setPadding(0, 0, 0, dp(8)); imgTools.setVisibility(View.GONE);
+        pageBar = new LinearLayout(this); pageBar.setGravity(Gravity.CENTER_VERTICAL); pageBar.setBackground(bg(CARD, 14)); pageBar.setVisibility(View.GONE);
+        TextView prevB = text("‹", 22, ACC, true), nextB = text("›", 22, ACC, true);
+        for (TextView pb : new TextView[]{prevB, nextB}) { pb.setGravity(Gravity.CENTER); pb.setPadding(dp(14), 0, dp(14), dp(3)); }
+        prevB.setOnClickListener(v -> showBatchPage(batchDisplayIndex - 1)); nextB.setOnClickListener(v -> showBatchPage(batchDisplayIndex + 1));
+        pageTag = text("", 13, TXT, true); pageTag.setGravity(Gravity.CENTER); pageTag.setMinWidth(dp(92)); pageTag.setSingleLine(true);   // fixed width: the arrows stay put while the text changes
+        pageBar.addView(prevB, new LinearLayout.LayoutParams(-2, dp(40))); pageBar.addView(pageTag); pageBar.addView(nextB, new LinearLayout.LayoutParams(-2, dp(40)));
+        imgTools.addView(pageBar, new LinearLayout.LayoutParams(-2, dp(40)));
+        imgTools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+        clearX = text("✕", 16, TXT, true); clearX.setGravity(Gravity.CENTER); clearX.setBackground(bg(CARD, 14)); clearX.setVisibility(View.GONE);
         clearX.setOnClickListener(v -> clearShown());
-        android.widget.FrameLayout.LayoutParams xl = new android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.END); xl.topMargin = dp(10); xl.rightMargin = dp(10);
-        imgFrame.addView(clearX, xl);
-        pageTag = text("", 12, 0xFFFFFFFF, true); pageTag.setBackground(bg(0x99000000, 12)); pageTag.setPadding(dp(10), dp(3), dp(10), dp(4)); pageTag.setVisibility(View.GONE);
-        android.widget.FrameLayout.LayoutParams ptl = new android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START); ptl.topMargin = dp(14); ptl.leftMargin = dp(12);
-        imgFrame.addView(pageTag, ptl);
-        imgBox.addView(imgFrame, new LinearLayout.LayoutParams(-1, -2));
+        root.addView(imgTools);
+        imgBox.addView(img, new LinearLayout.LayoutParams(-1, -2));
         root.addView(imgBox, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout resRow = new LinearLayout(this);
         resRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -302,8 +307,9 @@ public class Main extends Base {
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) {
             x.setVisibility(View.GONE);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
-            resRow.addView(x, lp);
+            if (x == againBtn) resRow.addView(x, lp); else imgTools.addView(x, lp);   // "again" stays by the seed; the file actions go to the toolbar
         }
+        LinearLayout.LayoutParams cxl = new LinearLayout.LayoutParams(dp(46), dp(40)); cxl.leftMargin = dp(6); imgTools.addView(clearX, cxl);
         editRow.setVisibility(View.GONE); root.addView(resRow); root.addView(editRow);
 
         // prompt
@@ -368,7 +374,12 @@ public class Main extends Base {
         stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt(Settings.key(this, "steps"), v).apply(); } catch (NumberFormatException e) { } });
         cfgEdit = numField(nr, "CFG", Settings.cfg(this), true, s -> { try { float v = Float.parseFloat(s.trim().replace(',', '.')); if (v >= 1 && v <= 30) prefs().edit().putString(Settings.key(this, "cfg"), s.trim().replace(',', '.')).apply(); } catch (NumberFormatException e) { } });
         sampFold.body.addView(nr);
-        LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL); ar.setPadding(0, dp(8), 0, 0);
+        infoOn((TextView) ((LinearLayout) stepsEdit.getParent()).getChildAt(0), L.s("Pasos", "Steps"), L.s("Cuántas veces el modelo refina la imagen. Los modelos turbo están hechos para 4 pasos; los modelos base suelen necesitar 20–30. Más pasos tardan más y no siempre mejoran el detalle.", "How many times the model refines the picture. Turbo models are made for 4 steps; base models usually need 20–30. More steps take longer and do not always add detail."));
+        infoOn((TextView) ((LinearLayout) cfgEdit.getParent()).getChildAt(0), "CFG", L.s("Cuánto sigue el modelo al prompt frente al prompt negativo. Con 1 el negativo no se usa y cada paso cuesta la mitad. Los modelos y LoRAs turbo están hechos para CFG 1; los modelos base suelen ir bien con 3–5.", "How strongly the model follows the prompt against the negative prompt. At 1 the negative is not used and each step costs half. Turbo models and LoRAs are made for CFG 1; base models usually work well at 3–5."));
+        TextView smCap = text(L.s("SAMPLER · PLANIFICADOR", "SAMPLER · SCHEDULER"), 11, DIM, true); smCap.setLetterSpacing(.12f); smCap.setPadding(dp(4), dp(10), 0, 0);
+        infoOn(smCap, L.s("Sampler y planificador", "Sampler and scheduler"), L.s("El sampler decide cómo se quita el ruido en cada paso y el planificador cómo se reparten los pasos entre mucho y poco ruido. Euler con «Normal» es lo más seguro. Los samplers de 2.º orden duplican el tiempo. Si no estás seguro, deja los valores por defecto (↺).", "The sampler decides how the noise is removed at each step and the scheduler how the steps are spread from heavy to light noise. Euler with Normal is the safest. Second-order samplers double the time. If unsure, keep the defaults (↺)."));
+        sampFold.body.addView(smCap);
+        LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL); ar.setPadding(0, dp(4), 0, 0);
         samplerBtn = button("", CARD, TXT); samplerBtn.setAllCaps(false);
         samplerBtn.setOnClickListener(v -> pickFrom(L.s("Сэмплер", "Sampler"), Settings.SAMPLERS, Settings.SAMPLER_NAMES, Settings.sampler(this), x -> { prefs().edit().putString(Settings.key(this, "sampler"), x).apply(); refreshSampling(); }));
         ar.addView(samplerBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
@@ -442,7 +453,8 @@ public class Main extends Base {
         root.addView(customRow);
 
         // seed
-        root.addView(label(L.s("SEED  ·  -1 = случайный", "SEED  ·  -1 = random")));
+        TextView seedLabel = label(L.s("SEED  ·  -1 = случайный", "SEED  ·  -1 = random")); root.addView(seedLabel);
+        infoOn(seedLabel, "Seed", L.s("El número que fija el ruido inicial. La misma semilla con el mismo prompt, modelo y ajustes da la misma imagen; -1 elige una al azar en cada imagen. El dado pone una nueva.", "The number that fixes the starting noise. The same seed with the same prompt, model and settings gives the same picture; -1 picks a random one for every picture. The die sets a new one."));
         LinearLayout sr = new LinearLayout(this);
         sr.setGravity(Gravity.CENTER_VERTICAL);
         seed = field("-1");
@@ -509,7 +521,7 @@ public class Main extends Base {
         editBox.addView(em);
         editOpts = new LinearLayout(this); editOpts.setOrientation(LinearLayout.VERTICAL);
         sw(editOpts, L.s("Alta fidelidad", "High fidelity"), L.s("La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.", "The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory."), "qwen_hifi", false);
-        sw(editOpts, L.s("Guardar comparación", "Save a comparison"), L.s("Además de la edición, guarda la original y la editada lado a lado; desliza la imagen para verla.", "Besides the edit, saves the original and the edit side by side; swipe the picture to see it."), "qwen_compare", false);
+        sw(editOpts, L.s("Guardar comparación", "Save a comparison"), L.s("Además de la edición, guarda la original y la editada lado a lado; usa ‹ › sobre la imagen para verla.", "Besides the edit, saves the original and the edit side by side; use ‹ › above the picture to see it."), "qwen_compare", false);
         editBox.addView(editOpts);
         root.addView(editBox);
         refreshEdit();
@@ -607,7 +619,7 @@ public class Main extends Base {
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
         refreshGeneratedEditAction();
         JSONObject m = Gallery.meta(f);
-        saved.setText(L.f("Última imagen · seed %s", "Last image · seed %s", m.optString("seed", "?")));
+        saved.setText(m.has("grid") ? L.f("Última cuadrícula · %d imágenes", "Last grid · %d pictures", m.optInt("count", 0)) : m.optBoolean("compare") ? L.s("Última comparación", "Last comparison") : L.f("Última imagen · seed %s", "Last image · seed %s", m.optString("seed", "?")));
     }
 
     /** every 2 s: RAM strip, thermal / battery / chip warnings; every 10 s the model state (the idle watchdog may have unloaded it) */
@@ -713,6 +725,7 @@ public class Main extends Base {
     void showImg(boolean on) {
         img.setVisibility(on ? View.VISIBLE : View.GONE);
         if (clearX != null) clearX.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (imgTools != null) imgTools.setVisibility(on ? View.VISIBLE : View.GONE);
     }
     /** take the shown picture off the main screen; it stays in the History and does not come back on the next start */
     void clearShown() {
@@ -728,10 +741,11 @@ public class Main extends Base {
         if (pageTag != null) {
             int n = batchFiles.size(); boolean grid = batchGridFile != null && batchGridFile.isFile();
             boolean show = lastFile != null && img.getVisibility() == View.VISIBLE && (n > 1 || (n == 1 && grid));
-            pageTag.setVisibility(show ? View.VISIBLE : View.GONE);
-            if (show) pageTag.setText(batchDisplayIndex >= n ? (n == 1 ? L.s("Original | editada", "Original | edited") : L.f("Cuadrícula · %d", "Grid · %d", n)) + "  ‹ ›" : (batchDisplayIndex + 1) + " / " + n + "  ‹ ›");
+            pageBar.setVisibility(show ? View.VISIBLE : View.GONE);
+            if (show) pageTag.setText(batchDisplayIndex >= n ? (n == 1 ? L.s("Original | editada", "Original | edited") : L.f("Cuadrícula · %d", "Grid · %d", n)) : (batchDisplayIndex + 1) + " / " + n);
         }
-        if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && lastFile != batchGridFile ? View.VISIBLE : View.GONE);
+        boolean sheet = lastFile != null && (lastFile == batchGridFile || Gallery.meta(lastFile).has("grid") || Gallery.meta(lastFile).optBoolean("compare"));   // a contact sheet or a comparison is not a picture to edit
+        if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && !sheet ? View.VISIBLE : View.GONE);
         if (compareBtn != null) compareBtn.setVisibility(lastFile != null && lastFile != batchGridFile && Qwen.beforeFile(getFilesDir(), lastFile).isFile() ? View.VISIBLE : View.GONE);
         if (editRow != null) editRow.setVisibility(editGeneratedBtn.getVisibility() == View.VISIBLE || compareBtn.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
     }
@@ -1661,6 +1675,11 @@ public class Main extends Base {
         }
     }
     TextView negTokText;
+    /** a faint ⓘ after a caption; tapping the caption explains the setting in plain words (the same text for every model) */
+    void infoOn(TextView caption, String title, String body) {
+        caption.setText(android.text.TextUtils.concat(caption.getText(), "  ⓘ")); caption.setClickable(true);
+        caption.setOnClickListener(v -> builder().setTitle(title).setMessage(body).setPositiveButton("OK", null).show());
+    }
     boolean sampFill;   // the fields were filled from the prefs (again after a reset)
     void refreshSampling() {
         if (sampBox == null || samplerBtn == null) return;
@@ -1670,6 +1689,7 @@ public class Main extends Base {
         int cut = Settings.cfgCut(this);
         cutBtn.setText((cut >= 100 ? L.s("CFG: на всех шагах", "CFG: on every step") : L.f("CFG: первые %d %% шагов", "CFG: first %d %% of the steps", cut)) + "  ▾");
         cutBtn.setVisibility(Settings.cfgOn(this) ? View.VISIBLE : View.GONE);
+        cfgEdit.setAlpha(Settings.turbo(this) ? .45f : 1f);   // still editable, but a turbo model is made for CFG 1
         sampBox.setVisibility(!isMoss() && !isQwen() && !isMage() && !model.isEmpty() ? View.VISIBLE : View.GONE);
         // MOSS runs its distilled 4 steps; only RealSkin with the DMD add-on installed gets a choice (4 rapid-moss / 8 DMD)
         if (mossStepsBox != null) mossStepsBox.setVisibility(isMoss() && Moss.isRs(model) && canUseRsDmd() ? View.VISIBLE : View.GONE);
@@ -2265,14 +2285,14 @@ public class Main extends Base {
             if (gk != 0 && gridBms.size() >= 2 && !cancelled) {
                 final File gf = saveGrid(gridBms, gridLabels, pr, String.valueOf(gridSeed), w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · swipe to view images")); refreshGeneratedEditAction(); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · ‹ › to view the pictures")); refreshGeneratedEditAction(); }); }
             } else if (gk == 0 && madeFiles.size() == 1 && pendingCompare != null && pendingCompare.isFile() && !cancelled) {
                 final File cf = pendingCompare;
-                ui.post(() -> { batchGridFile = cf; batchDisplayIndex = 0; saved.setText(L.s("Edición · desliza para ver la comparación", "Edit · swipe to see the comparison")); refreshGeneratedEditAction(); });
+                ui.post(() -> { batchGridFile = cf; batchDisplayIndex = 0; saved.setText(L.s("Edición · usa ‹ › para ver la comparación", "Edit · ‹ › to see the comparison")); refreshGeneratedEditAction(); });
             } else if (gk == 0 && madeFiles.size() > 1) {
                 final File gf = saveBatchGrid(madeFiles, pr, w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · swipe to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · ‹ › to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();

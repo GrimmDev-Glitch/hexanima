@@ -420,7 +420,7 @@ Checkpoints	Modelos
 Choose a source photo first	Primero elige una foto de origen
 Civitai refused access (check the API key)	Civitai denegó el acceso (revisa la clave API)
 Civitai returned a login page: an API key is needed	Civitai devolvió una página de inicio de sesión: se necesita una clave API
-Comparison grid · swipe to view images	Cuadrícula comparativa · desliza para ver las imágenes
+Comparison grid · ‹ › to view the pictures	Cuadrícula comparativa · ‹ › para ver las imágenes
 Conversion failed: %s	Falló la conversión: %s
 Converting blocks	Convirtiendo bloques
 Converting for the NPU…	Convirtiendo para la NPU…
@@ -438,7 +438,7 @@ Free Anima RAM	Liberar RAM de Anima
 Free HexAnima memory	Liberar memoria de HexAnima
 Generation steps: %d  ▾	Pasos de generación: %d  ▾
 Grid · %d images	Cuadrícula · %d imágenes
-Grid · %d images · swipe to browse	Cuadrícula · %d imágenes · desliza para recorrerlas
+Grid · %d images · ‹ › to browse	Cuadrícula · %d imágenes · usa ‹ › para recorrerlas
 HexAnima RAM: ~%d MB	RAM de HexAnima: ~%d MB
 Highest rated	Mejor valorados
 Image %d of %d · seed %s	Imagen %d de %d · seed %s
@@ -559,7 +559,7 @@ RealSkin: 4-step rapid-moss or 8-step DMD (more detail, about 1.6× slower).	Rea
 High fidelity	Alta fidelidad
 The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory.	La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.
 Save a comparison	Guardar comparación
-Besides the edit, saves the original and the edit side by side; swipe the picture to see it.	Además de la edición, guarda la original y la editada lado a lado; desliza la imagen para verla.
+Besides the edit, saves the original and the edit side by side; use ‹ › above the picture to see it.	Además de la edición, guarda la original y la editada lado a lado; usa ‹ › sobre la imagen para verla.
 Before/after	Antes/después
 Original	Original
 Edited	Editada
@@ -569,7 +569,7 @@ Save side by side	Guardar lado a lado
 Comparison saved to the history	Comparación guardada en el historial
 Could not save the comparison	No se pudo guardar la comparación
 High fidelity does not fit this size: using the standard reference	Alta fidelidad no cabe con este tamaño: se usa la referencia normal
-Edit · swipe to see the comparison	Edición · desliza para ver la comparación
+Edit · ‹ › to see the comparison	Edición · usa ‹ › para ver la comparación
 Original | edited	Original | editada
 Keep metadata in the picture	Guardar metadatos en la imagen
 Prompt, seed and model inside the PNG. Off, the PNG carries none of them; the app's History keeps its own copy.	Prompt, semilla y modelo dentro del PNG. Desactivado, el PNG no los lleva; el historial de la app guarda su propia copia.
@@ -581,3 +581,11 @@ ZIP with %d pictures	ZIP con %d imágenes
 Making the ZIP…	Creando ZIP…
 Saved to Downloads/HexAnima/%s	Guardado en Descargas/HexAnima/%s
 Grid · %d	Cuadrícula · %d
+Last grid · %d pictures	Última cuadrícula · %d imágenes
+Last comparison	Última comparación
+How many times the model refines the picture. Turbo models are made for 4 steps; base models usually need 20–30. More steps take longer and do not always add detail.	Cuántas veces el modelo refina la imagen. Los modelos turbo están hechos para 4 pasos; los modelos base suelen necesitar 20–30. Más pasos tardan más y no siempre mejoran el detalle.
+How strongly the model follows the prompt against the negative prompt. At 1 the negative is not used and each step costs half. Turbo models and LoRAs are made for CFG 1; base models usually work well at 3–5.	Cuánto sigue el modelo al prompt frente al prompt negativo. Con 1 el negativo no se usa y cada paso cuesta la mitad. Los modelos y LoRAs turbo están hechos para CFG 1; los modelos base suelen ir bien con 3–5.
+The number that fixes the starting noise. The same seed with the same prompt, model and settings gives the same picture; -1 picks a random one for every picture. The die sets a new one.	El número que fija el ruido inicial. La misma semilla con el mismo prompt, modelo y ajustes da la misma imagen; -1 elige una al azar en cada imagen. El dado pone una nueva.
+SAMPLER · SCHEDULER	SAMPLER · PLANIFICADOR
+Sampler and scheduler	Sampler y planificador
+The sampler decides how the noise is removed at each step and the scheduler how the steps are spread from heavy to light noise. Euler with Normal is the safest. Second-order samplers double the time. If unsure, keep the defaults (↺).	El sampler decide cómo se quita el ruido en cada paso y el planificador cómo se reparten los pasos entre mucho y poco ruido. Euler con «Normal» es lo más seguro. Los samplers de 2.º orden duplican el tiempo. Si no estás seguro, deja los valores por defecto (↺).
