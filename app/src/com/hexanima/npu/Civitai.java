@@ -1,8 +1,12 @@
 package com.hexanima.npu;
 
 import android.content.Context;
+import android.content.ContentValues;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -16,7 +20,7 @@ import org.json.JSONObject;
 
 /** Civitai (civitai.com / civitai.red) public REST API: model search, model details, file downloads. The user's own API key (Settings) is sent as a
  *  Bearer header to civitai.com only (never to the storage host a download redirects to); without it, files marked +18 or "login required" cannot be downloaded.
- *  Only Anima files are offered (they run on the NPU): LoRAs go to files/anima/lora (usable at once), checkpoints are converted on the phone (AnimaImport).
+ *  Anima files install directly, MOSS A/B LoRAs install after validation, and Qwen 2.1 LoRAs are exported for host conversion into V73 overlays.
  *  Next to every file a <name>.json keeps what the app shows later (Civitai ids, base model, trigger words, preview). */
 final class Civitai {
     static final String API = "https://civitai.com/api/v1/";
@@ -24,7 +28,12 @@ final class Civitai {
 
     /** the one base model the app runs (SDXL-family models have no NPU path on the phone and were too slow and hot on the CPU) */
     static final String BASE = "Anima";
+    static final String MOSS_BASE = "MOSS Image";
+    static final String QWEN_BASE = "Qwen 2.1";
     static boolean anima(String base) { return base != null && base.toLowerCase(Locale.ROOT).startsWith("anima"); }
+    static boolean moss(String base) { return base != null && base.toLowerCase(Locale.ROOT).replace('-', ' ').contains("moss image"); }
+    static boolean qwen(String base) { return QWEN_BASE.equalsIgnoreCase(base == null ? "" : base.trim()); }
+    static File qwenRawDir(File home) { return new File(new File(home, "qwen"), "civitai_raw"); }
 
 
     static HttpURLConnection open(Context c, String url) throws IOException {
@@ -133,8 +142,42 @@ final class Civitai {
     static File target(File home, String type, String base, String fileName, String[] msg) {
         boolean lora = type.equalsIgnoreCase("LORA") || type.equalsIgnoreCase("LoCon") || type.equalsIgnoreCase("DoRA");
         if (lora && anima(base)) return new File(AnimaLora.dir(home), AnimaLora.fileName(fileName));
+        if (lora && moss(base)) return new File(MossLora.civitaiDir(home), AnimaLora.fileName(fileName));
+        if (lora && qwen(base) && fileName.toLowerCase(Locale.ROOT).endsWith(".safetensors")) return new File(qwenRawDir(home), AnimaLora.fileName(fileName));
         if (type.equalsIgnoreCase("Checkpoint") && anima(base)) return new File(AnimaImport.importDir(home), AnimaLora.fileName(fileName));   // converted on the phone after the download (AnimaImport)
-        msg[0] = L.f("База «%s» не поддерживается: только модели и LoRA для Anima (они работают на NPU)", "Base model \"%s\" is not supported: only Anima models and LoRAs (they run on the NPU)", base); return null;
+        if (qwen(base)) {
+            msg[0] = type.equalsIgnoreCase("Checkpoint")
+                ? L.s("Los checkpoints Qwen de Civitai aún no se pueden convertir a un pack V73.", "Qwen checkpoints from Civitai cannot yet be converted into a V73 pack.")
+                : L.s("Para Qwen V73 solo se guardan archivos Safetensors LoRA para convertirlos en el PC.", "For Qwen V73, only Safetensors LoRA files can be saved for conversion on the PC.");
+            return null;
+        }
+        msg[0] = moss(base)
+            ? L.s("Para MOSS solo se pueden usar LoRA A/B compatibles; los checkpoints y LoKR/LoHa aún no están admitidos.", "For MOSS, only compatible A/B LoRAs can be used; checkpoints and LoKR/LoHa are not supported yet.")
+            : L.f("База «%s» не поддерживается: только модели и LoRA для Anima, LoRA A/B для MOSS-Image или LoRA Qwen 2.1 для конвертации V73", "Base model \"%s\" is not supported: only Anima models/LoRAs, MOSS-Image A/B LoRAs or Qwen 2.1 LoRAs for V73 conversion can be used", base); return null;
+    }
+
+    /** Copy a downloaded Qwen source file into public Downloads so it can be transferred to the PC converter over USB. */
+    static String exportQwenToDownloads(Context context, File source) throws IOException {
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, source.getName());
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/HexAnima/Civitai");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = context.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new IOException(L.s("No se pudo crear el archivo en Descargas", "Could not create the file in Downloads"));
+        try {
+            try (InputStream in = new BufferedInputStream(new FileInputStream(source)); OutputStream out = new BufferedOutputStream(context.getContentResolver().openOutputStream(uri, "w"))) {
+                if (out == null) throw new IOException("cannot open Downloads output");
+                byte[] b = new byte[1 << 20]; for (int n; (n = in.read(b)) > 0; ) out.write(b, 0, n);
+            }
+            values.clear(); values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            if (context.getContentResolver().update(uri, values, null, null) <= 0) throw new IOException("cannot finalize Downloads file");
+            return "Downloads/HexAnima/Civitai/" + source.getName();
+        } catch (Exception e) {
+            context.getContentResolver().delete(uri, null, null);
+            if (e instanceof IOException) throw (IOException)e;
+            throw new IOException(e);
+        }
     }
 
     /** sidecar <name>.json: what the library shows and inserts into the prompt */

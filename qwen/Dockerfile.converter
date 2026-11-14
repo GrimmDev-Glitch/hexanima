@@ -1,0 +1,8 @@
+FROM python:3.11-slim
+
+# Host-side Qwen GGUF/LoRA export; no Android or DSP toolchain required here.
+RUN python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.7.1
+RUN python -m pip install --no-cache-dir numpy==2.2.6 safetensors==0.5.3 gguf==0.16.3
+RUN python -m pip install --no-cache-dir 'huggingface_hub[hf_xet]>=0.36,<2'
+
+WORKDIR /work

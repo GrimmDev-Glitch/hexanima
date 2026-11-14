@@ -5,7 +5,14 @@ import diffusers.models.autoencoders.autoencoder_kl_qwenimage21 as A
 from diffusers import AutoencoderKLQwenImage21
 out, H = sys.argv[1], int(sys.argv[2]); W = int(sys.argv[3]) if len(sys.argv) > 3 else H
 def conv(self, x, cache_x=None): return F.conv2d(x, self.weight, self.bias, self.stride, (self._padding[2], self._padding[0]), self.dilation, self.groups)   # padding as a conv attribute, not a dynamic Pad op
-def rms(self, x): g = self.gamma.reshape(-1, 1, 1); return x * torch.rsqrt(x.pow(2).sum(1, keepdim=True) + 1e-24) * self.scale * g + (self.bias if isinstance(self.bias, float) else self.bias.reshape(-1, 1, 1))
+def rms(self, x):
+    g = self.gamma.reshape(-1, 1, 1)
+    mode = os.environ.get("RMS_INPUT_SCALE", "1")
+    if mode == "adaptive":
+        scaled = torch.where(x.abs().amax(dim=1, keepdim=True) > 8.0, x / 256.0, x)
+    else:
+        scaled = x / float(mode)
+    return scaled * torch.rsqrt(scaled.pow(2).sum(1, keepdim=True) + 1e-24) * self.scale * g + (self.bias if isinstance(self.bias, float) else self.bias.reshape(-1, 1, 1))
 def attn(self, x):
     identity = x; b, c, h, w = [int(v) for v in x.shape]; y = self.norm(x)
     qkv = self.to_qkv(y).reshape(b, 3, c, h * w); q, k, v = (qkv[:, i].transpose(1, 2)[:, None] for i in range(3))
@@ -18,21 +25,60 @@ def dupup(self, x, first_chunk=False):   # rank <= 4: channel gather + pixel_shu
     return F.pixel_shuffle(torch.index_select(x, 1, idx), fs)
 A.QwenImage21CausalConv3d.forward = conv; A.QwenImage21RMS_norm.forward = rms; A.QwenImage21AttentionBlock.forward = attn; A.QwenImage21Resample.forward = resample; A.QwenImage21DupUp3D.forward = dupup
 A.QwenImage21Upsample.forward = lambda self, x: F.interpolate(x, scale_factor=2.0, mode='nearest')   # nearest-exact x2 == nearest x2
+_activation_scale = 1.0
+def residual(self, x, feat_cache=None, feat_idx=None):
+    h = self.conv_shortcut(x)
+    y = self.nonlinearity(self.norm1(x))
+    y = self.conv1(y)
+    y = self.nonlinearity(self.norm2(y))
+    y = self.dropout(y)
+    y = self.conv2(y)
+    return y / _activation_scale + h
+A.QwenImage21ResidualBlock.forward = residual
 vae = AutoencoderKLQwenImage21.from_pretrained("ref/vae_dir", torch_dtype=torch.float32).eval()
 class D(torch.nn.Module):
     def __init__(s, v): super().__init__(); s.pq = v.post_quant_conv; s.dec = v.decoder
     def forward(s, z):
         st = int(os.environ.get("STAGE", "99"))
-        if st == 99: return s.dec(s.pq(z), first_chunk=True)
+        global _activation_scale
+        act_scale = float(os.environ.get("ACTIVATION_SCALE", "1"))
         d = s.dec; x = d.conv_in(s.pq(z))
         if st >= 1: x = d.mid_block(x)
         for i, ub in enumerate(d.up_blocks):
-            if st >= 2 + i: x = ub(x, first_chunk=True)
+            if st >= 2 + i:
+                if i == 3 and act_scale != 1.0: x = x / act_scale
+                _activation_scale = act_scale if i >= 3 else 1.0
+                stop = os.environ.get("STOP_AFTER_RESNET", "")
+                if stop and stop.startswith(f"{i}:"):
+                    parts = stop.split(":")
+                    count = int(parts[1])
+                    for j, resnet in enumerate(ub.resnets, start=1):
+                        if j == count and len(parts) > 2:
+                            if parts[2] == "shortcut": return resnet.conv_shortcut(x)
+                            y = resnet.norm1(x)
+                            if parts[2] == "norm1": return y
+                            y = resnet.nonlinearity(y)
+                            y = resnet.conv1(y)
+                            if parts[2] == "conv1": return y
+                            y = resnet.nonlinearity(resnet.norm2(y))
+                            if parts[2] == "norm2": return y
+                            y = resnet.dropout(y)
+                            y = resnet.conv2(y)
+                            return y
+                        x = resnet(x)
+                        if j == count: return x
+                x = ub(x, first_chunk=True)
+                _activation_scale = 1.0
         if st >= 7: x = d.conv_out(d.nonlinearity(d.norm_out(x)))
         return x
 m = D(vae).eval()
 for p in m.parameters(): p.requires_grad_(False)
-z = torch.randn(1, 64, H, W)
+if os.environ.get("Z_INPUT"):
+    import numpy as np
+    z_np = np.fromfile(os.environ["Z_INPUT"], dtype="<f4").reshape(1, 64, H, W)
+    z = torch.from_numpy(z_np.copy())
+else:
+    z = torch.randn(1, 64, H, W)
 with torch.no_grad():
     ref = m(z)
     import importlib; full = None

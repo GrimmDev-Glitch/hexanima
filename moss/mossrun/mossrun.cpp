@@ -81,14 +81,21 @@ static size_t read_into(const std::string& path, uint8_t* dst, size_t maxb, bool
 // stream a list of pack files through the two g_te buffers: a loader thread reads file i+1 while use(i) runs on the DSP
 #include <functional>
 static int g_keep_blocks = 0;
-static std::string g_ovl;   // MOSS_LORA=dir: user-LoRA patches (blkNN.ovl) laid over the DiT packs' rank-128 LoRA slots after each read
+static int g_maxsteps = 4;   // 4-step rapid-moss or the optional 8-step DMD adapter
+static std::string g_ovl, g_lokr;   // MOSS_LORA patches turbo slots; MOSS_LOKR adds factored weights to the same streamed block buffer
+static bool apply_one_ovl(const std::string& dir, const std::string& pack, uint8_t* dst, size_t maxb) {
+  if (dir.empty() || pack.find("/dit/") == std::string::npos) return false;
+  std::string nm = pack.substr(pack.rfind('/') + 1); nm = dir + "/" + nm.substr(0, nm.size() - 4) + ".ovl";
+  FILE* f = fopen(nm.c_str(), "rb"); if (!f) { fprintf(stderr, "no overlay %s\n", nm.c_str()); return false; }
+  uint32_t n = 0; if (fread(&n, 4, 1, f) != 1) { fclose(f); return false; }
+  bool lokr = false;
+  for (uint32_t i = 0; i < n; i++) { uint64_t o; uint32_t l; if (fread(&o, 8, 1, f) != 1 || fread(&l, 4, 1, f) != 1 || o + l > maxb || fread(dst + o, 1, l, f) != l) break; if (o == DIT_PACK && l >= 4 && !memcmp(dst + o, "MLKR", 4)) lokr = true; }
+  fclose(f); return lokr;
+}
 static void apply_ovl(const std::string& pack, uint8_t* dst, size_t maxb) {
-  if (g_ovl.empty() || pack.find("/dit/") == std::string::npos) return;
-  std::string nm = pack.substr(pack.rfind('/') + 1); nm = g_ovl + "/" + nm.substr(0, nm.size() - 4) + ".ovl";
-  FILE* f = fopen(nm.c_str(), "rb"); if (!f) { fprintf(stderr, "no overlay %s\n", nm.c_str()); return; }
-  uint32_t n = 0; if (fread(&n, 4, 1, f) != 1) { fclose(f); return; }
-  for (uint32_t i = 0; i < n; i++) { uint64_t o; uint32_t l; if (fread(&o, 8, 1, f) != 1 || fread(&l, 4, 1, f) != 1 || o + l > maxb || fread(dst + o, 1, l, f) != l) break; }
-  fclose(f);
+  if (pack.find("/dit/") == std::string::npos) return;
+  if (maxb >= (size_t)DIT_PACK + 4) memset(dst + DIT_PACK, 0, 4);  // don't reuse the previous block's sidecar
+  apply_one_ovl(g_ovl, pack, dst, maxb); apply_one_ovl(g_lokr, pack, dst, maxb);
 }   // the first g_keep_blocks DiT packs stay in the page cache between steps (their reads become memcpy)
 static bool stream_files(const std::vector<std::string>& files, Buf* bufs, const std::function<bool(int, Buf&)>& use, int keep_first = 0) {
   std::mutex mu; std::condition_variable cv; int ready = -1, freed = -2; std::atomic<bool> fail(false); const int n = (int)files.size();
@@ -118,7 +125,7 @@ static Layout make_layout(int ntok, int hid, int midcols, bool rows) {
   Layout L; memset(&L, 0, sizeof L); const size_t ns = ntok / 32; size_t off = 0;
   struct E { int id; size_t b; } ent[] = {
     {M_X, (size_t)ntok * hid * 4}, {M_COS, ns * 8192}, {M_SIN, ns * 8192}, {M_H, (size_t)ntok * (hid > 4096 ? hid : 4096) * 2},
-    {M_Q, (size_t)ntok * hid * 2}, {M_K, (size_t)ntok * hid * 2}, {M_V, (size_t)ntok * hid * 2}, {M_O, (size_t)ntok * hid * 2}, {M_T, (size_t)ntok * hid * 2},
+    {M_Q, (size_t)ntok * hid * 2}, {M_K, (size_t)ntok * hid * 2}, {M_V, (size_t)ntok * hid * 2}, {M_O, (size_t)ntok * hid * 2}, {M_T, (size_t)ntok * (hid > 4096 ? hid : 4096) * 2},
     {M_MID, (size_t)ntok * midcols * 2}, {M_ROWS, rows ? (size_t)ntok * 25000 * 4 : 4096}, {M_CS, (size_t)ntok * 64 * 4},
     {M_LQ, ns * 12 * 2048}, {M_LO, ns * 4 * 2048}, {M_LU, ns * 4 * 2048}, {M_LD, ns * 4 * 2048}};
   for (auto& e : ent) { L.meta[e.id] = (int)off; off += up4k(e.b); }
@@ -281,6 +288,30 @@ static void upsample2(const f32* src, int h, int w, f32* dst) {   // [128][h][w]
       const f32* p = src + (size_t)c * h * w; dst[((size_t)c * 2 * h + y) * 2 * w + x] = (1 - ty) * ((1 - tx_) * p[ya * w + xa] + tx_ * p[ya * w + xb]) + ty * ((1 - tx_) * p[yb * w + xa] + tx_ * p[yb * w + xb]); } } });
 }
 
+static void latent_output(const f32* x0, int H, int W, std::vector<f32>& zo) {
+  const f32* bm = g_glue.f("bn.mean"); const f32* bv = g_glue.f("bn.var"); const int H2 = 2 * H, W2 = 2 * W;
+  zo.resize((size_t)32 * H2 * W2);
+  for (int c = 0; c < 128; c++) { const float sc = sqrtf(bv[c] + 1e-4f), mu = bm[c]; const int cc = c / 4, pi = (c / 2) % 2, pj = c % 2;
+    for (int h = 0; h < H; h++) for (int w = 0; w < W; w++) zo[((size_t)cc * H2 + 2 * h + pi) * W2 + 2 * w + pj] = x0[(size_t)c * H * W + h * W + w] * sc + mu; }
+}
+
+static bool write_atomic(const std::string& path, const std::vector<f32>& data) {
+  const std::string tmp = path + ".tmp"; FILE* f = fopen(tmp.c_str(), "wb"); if (!f) return false;
+  bool ok = fwrite(data.data(), sizeof(f32), data.size(), f) == data.size(); fflush(f); fsync(fileno(f)); fclose(f);
+  if (!ok || rename(tmp.c_str(), path.c_str())) { remove(tmp.c_str()); return false; }
+  return true;
+}
+
+static void wait_preview_ack(const char* path, int step) {
+  if (!path || !*path) return;
+  for (int i = 0; i < 300; i++) {   // allow the phone's VAE preview up to 30 seconds, then keep generation moving
+    FILE* f = fopen(path, "rb"); int ack = 0; if (f) { fscanf(f, "%d", &ack); fclose(f); }
+    if (ack >= step) return;
+    usleep(100000);
+  }
+  fprintf(stderr, "preview %d timed out; continuing generation\n", step);
+}
+
 static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned seed, int steps, const std::string& outz) {
   double tall = now(); std::vector<f32> tx;
   if (load_tx(ids, tx)) fprintf(stderr, "te: cached\n"); else { if (!encode_text(ids, tx)) return false; save_tx(ids, tx); }
@@ -289,7 +320,7 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
   const bool low = LR > 0 && LR < steps && H % 2 == 0 && W % 2 == 0; const int Hl = H / 2, Wl = W / 2, Nl = Hl * Wl;   // first LR steps on a half-size latent (a quarter of the tokens)
   if (g_blobD_ntok < ntok) {
     if (g_blobD.p) { unmap_buf(g_blobD); rpcmem_free(g_blobD.p); }
-    g_LD = make_layout(ntok, 3072, 8192, false); g_blobD = make_buf(g_LD.total, true); if (!g_blobD.p) return false; memset(g_blobD.p, 0, g_LD.total); g_blobD_ntok = ntok;
+    g_LD = make_layout(ntok, 3072, 16384, false); g_blobD = make_buf(g_LD.total, true); if (!g_blobD.p) return false; memset(g_blobD.p, 0, g_LD.total); g_blobD_ntok = ntok;
   }
   uint8_t* blob = g_blobD.p; const Layout& L = g_LD;
   std::vector<f32> bands(16); for (int i = 0; i < 16; i++) bands[i] = g_glue.f("rope.bands")[i];
@@ -305,6 +336,7 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
   int meta[M_NMETA]; for (int i = 0; i < M_NMETA; i++) meta[i] = L.meta[i];
   meta[M_NW] = 3; meta[M_NCB] = 96; meta[M_MODE] = 0;
   for (int s = 0; s < steps; s++) {
+    fprintf(stderr, "step_start %d\n", s + 1); fflush(stderr);
     double ts = now(), tA = ts, tB, tC, tD, tE;
     const bool lowstep = low && s < LR;
     const int Hs = lowstep ? Hl : H, Ws = lowstep ? Wl : W, Ni = Hs * Ws, Ns = Ni + T, ntokS = (Ns + 31) / 32 * 32, nsS = ntokS / 32;
@@ -324,7 +356,7 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
     rows_to_x32(rows.data(), Ns, 3072, (f32*)(blob + L.meta[M_X]), nsS);
     sync_clean(g_blobD); tD = now();
     std::vector<std::string> df; for (int k = 0; k < NLAYER_DIT; k++) { char p[512]; snprintf(p, sizeof p, "%s/dit/blk%02d.bin", g_dir.c_str(), k); df.push_back(p); }
-    if (!stream_files(df, g_te, [&](int k, Buf& b) { meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; return call(L, meta, b, 0, g_blobD, modv.data(), 18432) == 0; }, g_keep_blocks)) return false;
+    if (!stream_files(df, g_te, [&](int k, Buf& b) { meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; meta[M_LOKR] = !memcmp(b.p + DIT_PACK, "MLKR", 4) ? DIT_PACK : 0; return call(L, meta, b, 0, g_blobD, modv.data(), 18432) == 0; }, g_keep_blocks)) return false;
     sync_inval(g_blobD); tE = now();
     x32_to_rows((const f32*)(blob + L.meta[M_X]), Ni, 3072, outrows.data());
     par_for(Ni / 16 + 1, [&](int blk) { for (int t = blk * 16; t < std::min(Ni, blk * 16 + 16); t++) {
@@ -333,13 +365,19 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
       for (int o = 0; o < 128; o++) { const f32* w = Wfin + (size_t)o * 3072; float a = 0; for (int i = 0; i < 3072; i++) a += w[i] * r[i]; v[(size_t)o * Ni + t] = a; } } });
     for (size_t i = 0; i < (size_t)128 * Ni; i++) x0s[i] = zs[i] - v[i];
     fprintf(stderr, "  step %d%s: mix+embed %.0f ms, time/mod %.0f ms, to-x32 %.0f ms, DSP blocks %.0f ms, head+sampler %.0f ms\n", s, lowstep ? " (low-res)" : "", (tB - tA) * 1e3, (tC - tB) * 1e3, (tD - tC) * 1e3, (tE - tD) * 1e3, (now() - tE) * 1e3);
+    const char* previewPath = getenv("MOSS_PREVIEW_Z");
+    const char* previewAck = getenv("MOSS_PREVIEW_ACK"); bool previewPending = false;
+    if (previewPath && *previewPath && previewAck && *previewAck) {
+      if (lowstep) upsample2(x0l.data(), Hl, Wl, x0.data());
+      std::vector<f32> preview; latent_output(x0.data(), H, W, preview);
+      if (write_atomic(previewPath, preview)) previewPending = true;
+      else fprintf(stderr, "could not write preview latent at step %d\n", s + 1);
+    }
     printf("step %d %.0f\n", s, (now() - ts) * 1000); fflush(stdout);
+    if (previewPending) wait_preview_ack(previewAck, s + 1);
   }
   // BN denorm + unpatchify -> [32][2H][2W]
-  const f32* bm = g_glue.f("bn.mean"); const f32* bv = g_glue.f("bn.var"); const int H2 = 2 * H, W2 = 2 * W;
-  std::vector<f32> zo((size_t)32 * H2 * W2);
-  for (int c = 0; c < 128; c++) { const float sc = sqrtf(bv[c] + 1e-4f), mu = bm[c]; const int cc = c / 4, pi = (c / 2) % 2, pj = c % 2;
-    for (int h = 0; h < H; h++) for (int w = 0; w < W; w++) zo[((size_t)cc * H2 + 2 * h + pi) * W2 + 2 * w + pj] = x0[(size_t)c * Nimg + h * W + w] * sc + mu; }
+  std::vector<f32> zo; latent_output(x0.data(), H, W, zo);
   FILE* f = fopen(outz.c_str(), "wb"); fwrite(zo.data(), 4, zo.size(), f); fclose(f);
   printf("done %.0f\n", (now() - tall) * 1000); fflush(stdout);
   return true;
@@ -363,14 +401,28 @@ int main(int argc, char** argv) {
       g_LT = make_layout(MAXT, 4096, 12288, true); g_blobTE = make_buf(g_LT.total, true); if (!g_blobTE.p) { printf("error teblob\n"); continue; } memset(g_blobTE.p, 0, g_LT.total);
       { long long avail = 0; FILE* mi = fopen("/proc/meminfo", "r"); char ln[256]; while (mi && fgets(ln, sizeof ln, mi)) if (!strncmp(ln, "MemAvailable:", 13)) avail = atoll(ln + 13) * 1024; if (mi) fclose(mi);
         if (getenv("MOSS_LORA")) g_ovl = getenv("MOSS_LORA");
+        if (getenv("MOSS_LOKR")) g_lokr = getenv("MOSS_LOKR");
         g_keep_blocks = getenv("MOSS_KEEP") ? atoi(getenv("MOSS_KEEP")) : 0;   // measured: keeping blocks in the page cache made steps slower on a 12 GB phone (reclaim stalls), so it is opt-in
         fprintf(stderr, "page cache keeps the first %d DiT blocks (MemAvailable %.1f GB)\n", g_keep_blocks, avail / 1e9); }
       printf("loaded %.1f\n", now() - t0); continue;
     }
+    if (cmd == "mode") {   // mode 4 | mode 8: the DMD add-on swaps glue tensors and the per-block turbo overlay
+      int m = 4; ss >> m;
+      const char* user = getenv("MOSS_LORA");
+      if (m == 8) {
+        if (!g_glue.load(g_dir + "/glue8.bin")) { printf("error glue8\n"); continue; }
+        g_ovl = user && *user ? user : g_dir + "/lora8";
+      } else if (m == 4) {
+        if (!g_glue.load(g_dir + "/glue.bin")) { printf("error glue\n"); continue; }
+        g_ovl = user && *user ? user : "";
+      } else { printf("error mode\n"); continue; }
+      g_maxsteps = m == 8 ? 8 : 4;
+      printf("mode %d\n", m); continue;
+    }
     if (cmd == "gen") {
       std::string idsf, outz; int H, W, steps; unsigned seed; ss >> idsf >> H >> W >> seed >> steps >> outz;
       std::vector<int> ids; { FILE* f = fopen(idsf.c_str(), "rb"); if (!f) { printf("error ids\n"); continue; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); ids.resize(n / 4); if (fread(ids.data(), 4, ids.size(), f) != ids.size()) {} fclose(f); }
-      if (ids.empty() || (int)ids.size() > MAXT || H % 16 || W % 16 || (H / 16) * (W / 16) > 6144 || steps < 1 || steps > 4) { printf("error args\n"); continue; }
+      if (ids.empty() || (int)ids.size() > MAXT || H % 16 || W % 16 || (H / 16) * (W / 16) > 6144 || steps < 1 || steps > g_maxsteps) { printf("error args\n"); continue; }
       if (!generate(ids, H, W, seed, steps, outz)) printf("error gen\n");
     }
   }

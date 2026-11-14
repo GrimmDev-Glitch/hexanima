@@ -78,7 +78,7 @@ public class ModelsActivity extends Base {
         final String base = url.getText().toString().trim().replaceAll("/*$", "") + "/";
         getSharedPreferences("anima", 0).edit().putString("base", base).apply();
         io.submit(() -> {
-            try { final List<Models.Item> cat = store.catalog(base); if (Compat.dspArch().equals("v73")) cat.removeIf(it -> it.moss || it.qwen);   /* MOSS-Image and Qwen-Image have no V73 build yet (their own DSP kernels and VAE contexts) */ for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); }); }
+            try { final List<Models.Item> cat = store.catalog(base); Models.ensureMage(cat); for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); }); }
             catch (Exception e) { ui.post(() -> { list.removeAllViews(); list.addView(text(L.f("Каталог недоступен: %s", "Catalog unavailable: %s", e.getMessage()), 13, BAD, false)); }); }
         });
     }
@@ -90,7 +90,7 @@ public class ModelsActivity extends Base {
         final String base = prefBase();
         final boolean needCommonAnima = !store.commonInstalled();
         for (final Models.Item it : items) {
-            final boolean needCommon = needCommonAnima && !it.moss && !it.qwen;
+            final boolean needCommon = needCommonAnima && !it.moss && !it.qwen && !it.mage;
             final boolean have = store.modelInstalled(it.id);
             final boolean busyThis = downloading && it.id.equals(dlId);
             LinearLayout c = card(list);
@@ -103,6 +103,7 @@ public class ModelsActivity extends Base {
             String d = L.s(it.desc, it.descEn);
             if (!d.isEmpty()) { TextView dv = text(d, 13, DIM, false); dv.setPadding(0, dp(4), 0, 0); c.addView(dv); }
             if (!it.author.isEmpty()) { TextView a = text(L.f("Автор: %s", "By %s", it.author), 12, DIM, false); a.setPadding(0, dp(4), 0, 0); c.addView(a); }
+            if (it.qwen && !it.runtimeAvailable && !have) c.addView(text(L.s("Los contextos V73 de Qwen todavía no están publicados o no se pudieron consultar.", "The Qwen V73 contexts are not published yet or could not be checked."), 12, WARN, false));
             if (busyThis) {
                 ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(1000);
                 pb.setProgressTintList(android.content.res.ColorStateList.valueOf(ACC)); pb.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(FIELD));
@@ -111,8 +112,8 @@ public class ModelsActivity extends Base {
                 Button x = button(L.s("Отменить", "Cancel"), FIELD, TXT); x.setOnClickListener(v -> cancel.set(true));
                 LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(-1, dp(42)); xl.topMargin = dp(8); c.addView(x, xl);
             } else {
-                String label = have ? L.s("Удалить", "Delete") : L.f("Скачать  %s ГБ", "Download  %s GB", gb(it.size + (needCommon ? store.commonSize : 0)));
-                Button bt = button(label, have ? FIELD : ACC, have ? BAD : ON_ACC); bt.setEnabled(!downloading); bt.setAlpha(downloading ? .5f : 1f);
+                String label = have ? L.s("Удалить", "Delete") : !it.runtimeAvailable ? L.s("Ожидание контекстов V73", "Waiting for V73 contexts") : L.f("Скачать  %s ГБ", "Download  %s GB", gb(it.size + (needCommon ? store.commonSize : 0)));
+                Button bt = button(label, have ? FIELD : ACC, have ? BAD : ON_ACC); bt.setEnabled(!downloading && (have || it.runtimeAvailable)); bt.setAlpha(downloading || !have && !it.runtimeAvailable ? .5f : 1f);
                 bt.setOnClickListener(v -> {
                     if (have) { store.delete(it.id); deleted = it.id; render(); }
                     else start(base, it, needCommon);
@@ -125,7 +126,7 @@ public class ModelsActivity extends Base {
         else if (!store.commonInstalled() && hasAnima()) { TextView n = text(L.f("К первой модели добавятся общие файлы (%s ГБ): текстовый энкодер и VAE. Они качаются один раз.", "The first model also fetches the shared files (%s GB): text encoder and VAE, once.", gb(store.commonSize)), 12, DIM, false); n.setPadding(dp(2), 0, 0, 0); list.addView(n); }
     }
 
-    boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen) return true; return false; }
+    boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen && !it.mage) return true; return false; }
 
     void start(String base, Models.Item it, boolean needCommon) {
         if (!Compat.chipAllowed(this)) {   // an unsupported chip: the models will not run, so ask before 4 GB are downloaded

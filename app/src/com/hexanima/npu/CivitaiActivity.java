@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Civitai browser (Anima models and LoRAs only: they run on the NPU): search by name or paste a civitai.com / civitai.red link or id, filter by type (LoRA / checkpoint), sort and +18,
+/** Civitai browser: Anima models / LoRAs and compatible MOSS A/B LoRAs; search by name or paste a civitai.com / civitai.red link or id, filter by family, type, sort and +18,
  *  open a model, pick a version and download it into the app's libraries (see Civitai). +18 content and "login required" files need the user's own
  *  Civitai API key, entered in Settings; without a key +18 results are not requested at all. */
 public class CivitaiActivity extends Base {
@@ -27,7 +27,7 @@ public class CivitaiActivity extends Base {
     final ExecutorService net = Executors.newFixedThreadPool(3);
     final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     final AtomicBoolean cancel = new AtomicBoolean();
-    LinearLayout typeRow, sortRow;
+    LinearLayout familyRow, typeRow, sortRow;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -42,6 +42,7 @@ public class CivitaiActivity extends Base {
         Button go = button("🔍", ACC, ON_ACC); go.setOnClickListener(v -> search(true));
         LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(dp(52), dp(46)); gl.leftMargin = dp(8); sr.addView(go, gl);
         col.addView(sr);
+        familyRow = chips(col, L.s("FAMILIA", "FAMILY"), new String[]{"Anima", "MOSS-Image", "Qwen 2.1"}, new String[]{Civitai.BASE, Civitai.MOSS_BASE, Civitai.QWEN_BASE}, base, v -> { base = v; search(true); });
         typeRow = chips(col, L.s("ТИП", "TYPE"), new String[]{"LoRA", L.s("Модели", "Checkpoints")}, TYPES, type, v -> { type = v; search(true); });
         sortRow = chips(col, L.s("СОРТИРОВКА", "SORT"), new String[]{L.s("Популярные", "Most downloaded"), L.s("Лучшие", "Highest rated"), L.s("Новые", "Newest")}, SORTS, sort, v -> { sort = v; search(true); });
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL); nr.setPadding(dp(2), dp(10), 0, dp(4));
@@ -84,8 +85,8 @@ public class CivitaiActivity extends Base {
                 "Needed for +18 and \"login required\" files. Create it on civitai.com → Account settings → API Keys and paste it here. It stays on this phone and is only sent to civitai.com."), 13, DIM, false);
         t.setPadding(0, dp(8), 0, dp(10)); v.addView(t);
         EditText k = field("…"); k.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD); k.setText(Civitai.key(this)); v.addView(k);
-        Button open = button(L.s("Открыть civitai.com/user/account", "Open civitai.com/user/account"), FIELD, ACC); open.setTextSize(13);
-        open.setOnClickListener(x -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://civitai.com/user/account"))));
+        Button open = button(L.s("Открыть civitai.red/user/account", "Open civitai.red/user/account"), FIELD, ACC); open.setTextSize(13);
+        open.setOnClickListener(x -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://civitai.red/user/account"))));
         LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(-2, dp(40)); ol.topMargin = dp(8); v.addView(open, ol);
         builder().setView(v).setPositiveButton(L.s("Сохранить", "Save"), (d, i) -> { getSharedPreferences("anima", 0).edit().putString("civitai_key", k.getText().toString().trim()).apply(); })
             .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
@@ -159,7 +160,7 @@ public class CivitaiActivity extends Base {
         show.run();
         pick.setOnClickListener(x -> builder().setSingleChoiceItems(names, cur[0], (d, i) -> { d.dismiss(); cur[0] = i; show.run(); }).show());
         Button web = button(L.s("Открыть на сайте", "Open on the website"), FIELD, ACC); web.setTextSize(13);
-        web.setOnClickListener(x -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://civitai.com/models/" + m.optLong("id")))));
+        web.setOnClickListener(x -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://civitai.red/models/" + m.optLong("id") + "?modelVersionId=" + vs.optJSONObject(cur[0]).optLong("id")))));
         LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(-2, dp(40)); wl.topMargin = dp(8); v.addView(web, wl);
         builder().setView(v).setPositiveButton(L.s("Скачать", "Download"), (d, i) -> download(m, vs.optJSONObject(cur[0]))).setNegativeButton(L.s("Закрыть", "Close"), null).show();
     }
@@ -167,8 +168,16 @@ public class CivitaiActivity extends Base {
     void download(JSONObject m, JSONObject ver) {
         JSONObject f = Civitai.mainFile(ver);
         if (f == null) { Toast.makeText(this, L.s("У версии нет файла", "This version has no file"), Toast.LENGTH_LONG).show(); return; }
+        final boolean moss = Civitai.moss(ver.optString("baseModel"));
+        final boolean qwen = Civitai.qwen(ver.optString("baseModel"));
+        long fileBytes = (long) (f.optDouble("sizeKB") * 1024);
+        if (moss && fileBytes > (1L << 30)) { builder().setMessage(L.s("Este LoRA supera 1 GB; el importador MOSS no lo admite.", "This LoRA is larger than 1 GB; the MOSS importer does not support it.")).setPositiveButton("OK", null).show(); return; }
+        if (moss && getFilesDir().getUsableSpace() < fileBytes * 2 + 300_000_000L) { builder().setMessage(L.f("Falta espacio para descargar y seleccionar este LoRA: se necesitan unos %s GB libres.", "Not enough free space to download and select this LoRA: about %s GB is needed.", String.format(Locale.US, "%.1f", fileBytes * 2.0 / 1e9))).setPositiveButton("OK", null).show(); return; }
+        if (qwen && getFilesDir().getUsableSpace() < fileBytes * 2 + 300_000_000L) { builder().setMessage(L.f("Falta espacio para descargar y exportar esta LoRA: se necesitan unos %s GB libres.", "Not enough free space to download and export this LoRA: about %s GB is needed.", String.format(Locale.US, "%.1f", fileBytes * 2.0 / 1e9))).setPositiveButton("OK", null).show(); return; }
         String[] why = {""};
-        File out = Civitai.target(getFilesDir(), m.optString("type"), ver.optString("baseModel"), f.optString("name"), why);
+        String fileName = f.optString("name");
+        if (qwen) fileName = "civitai_" + m.optLong("id") + "_" + ver.optLong("id") + "_" + fileName;
+        File out = Civitai.target(getFilesDir(), m.optString("type"), ver.optString("baseModel"), fileName, why);
         if (out == null) { builder().setMessage(why[0]).setPositiveButton("OK", null).show(); return; }
         if (m.optBoolean("nsfw") && Civitai.key(this).isEmpty()) { askKey(); return; }
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(16), dp(20), dp(8));
@@ -195,11 +204,34 @@ public class CivitaiActivity extends Base {
                     AnimaLora.Check c = AnimaLora.check(out);
                     if (!c.ok) { out.delete(); throw new Exception(c.message()); }
                     msg = c.message();
+                } else if (moss && out.getParentFile().equals(MossLora.civitaiDir(getFilesDir()))) {
+                    MossLora.Check c = MossLora.check(getApplicationInfo().nativeLibraryDir, out);
+                    if (!c.ok) throw new Exception(c.message()); // keep the downloaded file in the Civitai library for inspection
+                    Civitai.writeMeta(out, m, ver);
+                    MossLora.select(getFilesDir(), out);
+                    String words = Civitai.words(out);
+                    String info = "✓ " + c.message() + (words.isEmpty() ? "" : "\n" + L.s("Activadores: ", "Triggers: ") + words);
+                    getSharedPreferences("anima", 0).edit().putString("moss_lora_id", "civitai-" + ver.optLong("id"))
+                        .putString("moss_lora_name", m.optString("name")).putString("moss_lora_info", info).putString("moss_lora_file", out.getName()).apply();
+                    msg = L.s("LoRA compatible; seleccionada para MOSS.", "Compatible LoRA; selected for MOSS.") + "\n" + c.message();
+                    if (!words.isEmpty()) msg += "\n" + L.s("Activadores: ", "Triggers: ") + words;
+                } else if (qwen && out.getParentFile().equals(Civitai.qwenRawDir(getFilesDir()))) {
+                    Civitai.writeMeta(out, m, ver);
+                    String words = Civitai.words(out);
+                    String path = Civitai.exportQwenToDownloads(this, out);
+                    String metaPath = Civitai.exportQwenToDownloads(this, Civitai.metaFile(out));
+                    out.delete(); Civitai.metaFile(out).delete();
+                    msg = L.f("Safetensors original y metadatos guardados en %s y %s. Transfiere ambos al PC y ejecuta qwen/convert_civitai_lora.sh; después importa el ZIP V73 desde el selector Qwen.",
+                        "Original Safetensors and metadata saved to %s and %s. Transfer both to the PC and run qwen/convert_civitai_lora.sh, then import its V73 ZIP from the Qwen picker.", path, metaPath);
+                    if (!words.isEmpty()) msg += "\n" + L.s("Activadores para el conversor", "Trigger words for the converter") + ": " + words;
                 } else msg = "";
-                Civitai.writeMeta(out, m, ver);
+                if (!qwen) Civitai.writeMeta(out, m, ver);
                 String tag = out.getName().replaceAll("\\.safetensors$", "");
-                final String done = "✓ " + msg + "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag) + (Civitai.words(out).isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + Civitai.words(out));
-                ui.post(() -> { dl.dismiss(); builder().setTitle(m.optString("name")).setMessage(m.optString("type").equals("Checkpoint") ? "✓ " + out.getName() : done).setPositiveButton("OK", null).show(); });
+                final String done = qwen || moss ? "✓ " + msg : "✓ " + msg + "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag) + (Civitai.words(out).isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + Civitai.words(out));
+                ui.post(() -> {
+                    if (moss) setResult(RESULT_OK, new Intent().putExtra("moss_triggers", Civitai.words(out)));
+                    dl.dismiss(); builder().setTitle(m.optString("name")).setMessage(m.optString("type").equals("Checkpoint") ? "✓ " + out.getName() : done).setPositiveButton("OK", null).show();
+                });
             } catch (Exception e) { ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setTitle(L.s("Не удалось скачать", "Download failed")).setMessage(e.getMessage()).setPositiveButton("OK", null).show(); }); }
         });
     }

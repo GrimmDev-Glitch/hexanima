@@ -90,7 +90,8 @@ Cancelled: the files are kept, you can resume	Cancelado: los archivos se conserv
 Error: %s	Error: %s
 Model downloads	Descargas de modelos
 Downloading model files…	Descargando archivos del modelo…
-Why always 4 steps	Por qué siempre 4 pasos
+Steps and sampling	Pasos y muestreo
+Anima keeps sampling settings per model. Turbo models default to 4 steps, Euler and CFG 1; regular models default to 20 steps, DPM++ 2M and CFG 4. Change them under Sampling, and match the steps to the model or LoRA training. MOSS and Qwen are still fixed at 4 steps in this build.	Anima guarda los ajustes de muestreo por modelo. Los modelos turbo parten de 4 pasos, Euler y CFG 1; los modelos normales, de 20 pasos, DPM++ 2M y CFG 4. Puedes cambiarlos en Muestreo; usa los pasos para los que se entrenó el modelo o su LoRA. MOSS y Qwen siguen fijos en 4 pasos en esta versión.
 The models are distilled (turbo) for exactly 4 steps and the noise schedule is built into the engine. Fewer steps look blurry, more steps do not help and only cost time, so there is no steps setting.	Los modelos están destilados (turbo) para exactamente 4 pasos y el calendario de ruido está integrado en el motor. Con menos pasos la imagen sale borrosa y con más no mejora, solo tarda más, por eso no hay ajuste de pasos.
 Which sizes work	Qué tamaños funcionan
 Width and height are multiples of 16, the patch count (width/16 × height/16) is divisible by 32 and at most 6144. Examples: 512×768, 640×640, 1024×1024, 960×1536. The ⇄ button swaps portrait and landscape. Larger sizes take longer and are decoded in tiles.	El ancho y el alto son múltiplos de 16, el número de parches (ancho/16 × alto/16) es divisible por 32 y como máximo 6144. Ejemplos: 512×768, 640×640, 1024×1024, 960×1536. El botón ⇄ cambia entre vertical y horizontal. Los tamaños grandes tardan más y se decodifican por teselas.
@@ -225,7 +226,7 @@ Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 is required	Ch
 Chip %s · not supported	Chip %s · no compatible
 Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 and 8 Gen 2 (Poco F6 Pro)	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 y 8 Gen 2 (Poco F6 Pro)
 Chip %s is not supported: the models are built for Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2. Download anyway?	El chip %s no es compatible: los modelos están hechos para Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2. ¿Descargar de todos modos?
-Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) and Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro, experimental; MOSS-Image does not run on it yet). No root needed. Other chips are not supported.	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) y Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro, experimental; MOSS-Image todavía no funciona en él). No se necesita root. Otros chips no son compatibles.
+Tested on Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) and Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro; experimental, one full 512×512 MOSS-Image run validated). No root needed. Other chips are not supported.	Probado en Snapdragon 8 Gen 1 / 8+ Gen 1 (Hexagon V69) y Snapdragon 8 Gen 2 (Hexagon V73, Poco F6 Pro; experimental: se validó una generación completa de MOSS-Image a 512×512). No se necesita root. Otros chips no son compatibles.
 Sampling (Anima models)	Muestreo (modelos Anima)
 The models are distilled for 4 steps, Euler, CFG 1. A CFG above 1 makes a picture twice as slow and uses the negative prompt; heun, dpm2, dpm++2s_a and res_2s are twice as slow too.	Los modelos están destilados para 4 pasos, Euler y CFG 1. Un CFG mayor que 1 hace cada imagen el doble de lenta y usa el prompt negativo; heun, dpm2, dpm++2s_a y res_2s también son el doble de lentos.
 Steps	Pasos
@@ -398,3 +399,160 @@ CFG: first %d %% of the steps	CFG: primer %d %% de los pasos
 CFG > 1: ×2 time on %d steps	CFG > 1: ×2 tiempo en %d pasos
 CFG on %d %% of the steps	CFG en el %d %% de los pasos
 CFG on 100 · 80 · 70 · 60 % of the steps	CFG en el 100 · 80 · 70 · 60 % de los pasos
+Pictures per run	Imágenes por tanda
+Enter a number from 1 to 999	Escribe un número del 1 al 999
+Enter a number	Escribe un número
+✎ Area to edit	✎ Área a cambiar
+Clear area	Borrar área
+Qwen edit mask	Máscara de edición de Qwen
+Paint only the area you want to change. The rest of the photo will stay original.	Pinta solo la zona que quieras cambiar. El resto de la foto se conservará.
+\nMask: the painted area changes; the rest of the photo is preserved.	\nMáscara: cambia la zona pintada; el resto de la foto se conserva.
+\nWithout a mask, Qwen may reinterpret the whole photo.	\nSin máscara, Qwen puede reinterpretar toda la foto.
+In the queue: %d	En cola: %d
+Undo	Deshacer
+Redo	Rehacer
+≈%d / %d tokens	≈%d / %d tokens
+A Civitai API key is needed (Settings)	Se necesita una clave API de Civitai (Ajustes)
+Available memory: +~%d MB	Memoria disponible: +~%d MB
+Base model "%s" is not supported: only Anima models and LoRAs (they run on the NPU)	El modelo base «%s» no es compatible: solo se admiten modelos y LoRA de Anima (funcionan en la NPU)
+Cancelled	Cancelado
+Checkpoints	Modelos
+Choose a source photo first	Primero elige una foto de origen
+Civitai refused access (check the API key)	Civitai denegó el acceso (revisa la clave API)
+Civitai returned a login page: an API key is needed	Civitai devolvió una página de inicio de sesión: se necesita una clave API
+Comparison grid · swipe to view images	Cuadrícula comparativa · desliza para ver las imágenes
+Conversion failed: %s	Falló la conversión: %s
+Converting blocks	Convirtiendo bloques
+Converting for the NPU…	Convirtiendo para la NPU…
+Copy trigger words	Copiar palabras activadoras
+Copying…	Copiando…
+Could not open this image	No se pudo abrir esta imagen
+Could not prepare the image: %s	No se pudo preparar la imagen: %s
+Delete %s?	¿Eliminar %s?
+Download failed	Falló la descarga
+Downloading	Descargando
+For +18 and "login required" files. civitai.com → Account settings → API Keys. It stays on this phone and is only sent to civitai.com.	Para contenido +18 y archivos que requieren iniciar sesión. Crea la clave en civitai.com → Ajustes de la cuenta → API Keys y pégala aquí. Se guarda en este teléfono y solo se envía a civitai.com.
+Found: %d	Encontrados: %d
+Free	Libre
+Free Anima RAM	Liberar RAM de Anima
+Free HexAnima memory	Liberar memoria de HexAnima
+Generation steps: %d  ▾	Pasos de generación: %d  ▾
+Grid · %d images	Cuadrícula · %d imágenes
+Grid · %d images · swipe to browse	Cuadrícula · %d imágenes · desliza para recorrerlas
+HexAnima RAM: ~%d MB	RAM de HexAnima: ~%d MB
+Highest rated	Mejor valorados
+Image %d of %d · seed %s	Imagen %d de %d · seed %s
+Import failed	Falló la importación
+Importing a model	Importando un modelo
+Install MOSS-Image first	Instala primero MOSS-Image
+Install Qwen-Image before editing with it	Instala Qwen-Image antes de editar con ella
+Model header…	Encabezado del modelo…
+Model installed: pick it in the model list. If it is not a "turbo" model, use 20–30 steps and CFG 4–5 (or a turbo LoRA on the 2B ones).	Modelo instalado: selecciónalo en la lista. Si no es «turbo», usa 20–30 pasos y CFG 4–5 (o una LoRA turbo en los modelos 2B).
+More	Más
+MOSS steps (1–4)	Pasos de MOSS (1–4)
+MOSS V73 context is missing; stage it with tools/stage_jnilibs.sh.	Falta el contexto MOSS V73; inclúyelo con tools/stage_jnilibs.sh.
+Most downloaded	Más descargados
+Name	Nombre
+Name or a civitai.com / civitai.red link	Nombre o enlace de civitai.com / civitai.red
+Needed for +18 and "login required" files. Create it on civitai.com → Account settings → API Keys and paste it here. It stays on this phone and is only sent to civitai.com.	Se requiere para contenido +18 y archivos con inicio de sesión. Crea la clave en civitai.com → Ajustes de la cuenta → API Keys y pégala aquí. Se guarda en este teléfono y solo se envía a civitai.com.
+Newest	Más recientes
+Not enough space: about %.1f GB more is needed	Falta espacio: se necesitan aproximadamente %.1f GB más
+Nothing found	No se encontraron resultados
+Open civitai.red/user/account	Abrir civitai.red/user/account
+Open on the website	Abrir en el sitio web
+paused %d min	pausado %d min
+Searching…	Buscando…
+SORT	ORDENAR
+The photo and result together are too large: pick a smaller size	La foto y el resultado superan el límite; elige un tamaño menor
+This file needs a login: add your Civitai API key in Settings	Este archivo requiere iniciar sesión: añade tu clave API de Civitai en Ajustes
+This file uses LoHa, which the MOSS loader does not support yet.	Este archivo usa LoHa, que el cargador MOSS todavía no admite.
+This file uses LoKR. The experimental rank-128 conversion loses too much information, so the loader will not activate it and degrade results.	Este archivo usa LoKR, un formato que el cargador de MOSS todavía no admite. No se convierte a una LoRA aproximada para evitar pérdida de calidad.
+This MOSS runner supports 1–4 steps. CFG and alternative samplers are not implemented yet.	Este runner de MOSS admite de 1 a 4 pasos. CFG y los samplers alternativos aún no están implementados.
+This version has no file	Esta versión no contiene ningún archivo
+Trigger words: 	Palabras activadoras:
+Trigger: 	Activador:
+TYPE	TIPO
+Unknown architecture (%d blocks): Anima 2B (28) and 2.9B (40) are supported	Arquitectura desconocida (%d bloques): se admiten Anima 2B (28) y 2.9B (40)
+Unloads Anima from the NPU and releases temporary images from this screen. Android manages other apps' RAM; a regular app cannot force-close them.	Descarga Anima de la NPU y libera las imágenes temporales de esta pantalla. Android administra la RAM de las demás apps; una app normal no puede cerrarlas por la fuerza.
+Wait for generation to finish	Espera a que termine la generación
+Wait for the batch to finish	Espera a que termine la tanda
+Edit with Qwen	Editar con Qwen
+FAMILY	FAMILIA
+For MOSS, only compatible A/B LoRAs can be used; checkpoints and LoKR/LoHa are not supported yet.	Para MOSS solo se pueden usar LoRA A/B compatibles; los checkpoints y LoKR/LoHa aún no están admitidos.
+This LoRA is larger than 1 GB; the MOSS importer does not support it.	Este LoRA supera 1 GB; el importador MOSS no lo admite.
+Not enough free space to download and select this LoRA: about %s GB is needed.	No hay espacio suficiente para descargar y seleccionar este LoRA: se necesitan unos %s GB libres.
+Compatible LoRA; selected for MOSS.	LoRA compatible; seleccionada para MOSS.
+Triggers: 	Activadores:
+Base model "%s" is not supported: only Anima models/LoRAs or MOSS-Image A/B LoRAs can be used	Base «%s» no admitida: solo se pueden usar modelos/LoRA de Anima o LoRA A/B de MOSS-Image
+The Qwen V73 contexts are not published yet or could not be checked.	Los contextos V73 de Qwen todavía no están publicados o no se pudieron consultar.
+Waiting for V73 contexts	Esperando los contextos V73
+RealSkin mode	Modo RealSkin
+RealSkin mode: %s  ▾	Modo RealSkin: %s  ▾
+Base MOSS supports 1–4 steps. RealSkin offers 4-step rapid-moss and 8-step DMD when its add-on is installed; CFG and alternative samplers are not implemented.	MOSS base admite de 1 a 4 pasos. RealSkin ofrece rapid-moss de 4 pasos y DMD de 8 cuando se instala el complemento; CFG y los samplers alternativos no están implementados.
+Photo %d×%d. The prompt says what to change, e.g. "make the sky a sunset". Paint only the area to edit.	Foto %d×%d. Describe qué quieres cambiar, por ejemplo «haz que el cielo parezca de atardecer». Pinta solo la zona que quieras editar.
+\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.	\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.
+\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest.	\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.
+Anima live preview	Vista previa en vivo de Anima
+Compatible: 4×4 LoKr, %d projections in %d of 42 blocks	Compatible: LoKr 4×4, %d proyecciones en %d de 42 bloques
+Could not validate the LoRA	No se pudo validar la LoRA
+Install MOSS-Image 5B first	Primero instala MOSS-Image 5B
+Last image · seed %s	Última imagen · seed %s
+LoKr detected, but disabled until the V73 DSP kernel is validated. Use a compatible MOSS A/B LoRA or generate without LoKr.	Se detectó LoKr, pero está desactivado hasta validar el kernel DSP V73. Usa una LoRA A/B compatible con MOSS o genera sin LoKr.
+No favourites.\nStar a picture to keep it here.	No hay favoritos.\nMarca una imagen con la estrella para guardarla aquí.
+Nothing here yet.\nPictures appear here; they reach the phone gallery only after Download.	Todavía no hay nada aquí.\nLas imágenes aparecerán aquí; solo pasarán a la galería del teléfono al descargarlas.
+Text reused; preparing the first step…	Texto reutilizado; preparando el primer paso…
+The MOSS DMD add-on is incomplete	El complemento MOSS DMD está incompleto
+This file mixes LoKr and A/B LoRA tensors; split them into separate files.	Este archivo mezcla tensores LoKr y LoRA A/B; sepáralos en archivos distintos.
+This LoKr projection is not supported on V73 yet.	Esta proyección LoKr todavía no es compatible con V73.
+This LoKr was marked as a lossy conversion and cannot be enabled. Select the original safetensors file.	Esta LoKr se marcó como una conversión con pérdida y no se puede activar. Selecciona el archivo safetensors original.
+Updates the image while Anima models are generating	Actualiza la imagen mientras se generan imágenes con modelos Anima
+LoRA trigger words added to the prompt	Palabras activadoras de la LoRA añadidas al prompt
+MOSS-Image LoRA library	Biblioteca de LoRAs MOSS-Image
+Choose one compatible A/B LoRA. Set its strength in the LoRA section.	Elige una LoRA A/B compatible. Ajusta su fuerza en la sección LoRA.
+No trigger words declared	No declara palabras activadoras
+Clear selection	Quitar selección
+Could not select the LoRA: %s	No se pudo seleccionar el LoRA: %s
+QWEN LORA	LORA DE QWEN
+Qwen LoRAs	LoRAs de Qwen
+LoRA packs converted for the Qwen V73 runner	Paquetes LoRA convertidos para el runner Qwen V73
+No Qwen V73 LoRA packs are installed. Civitai safetensors must be converted to compatible overlays before use.	No hay paquetes LoRA de Qwen V73 instalados. Los safetensors de Civitai deben convertirse en overlays compatibles antes de usarlos.
+Import Qwen overlay (.zip)	Importar overlay Qwen (.zip)
+Could not open the file picker	No se pudo abrir el selector de archivos
+Importing and verifying the LoRA pack…	Importando y verificando el pack LoRA…
+Qwen overlay imported and selected: %s	Overlay Qwen importado y seleccionado: %s
+Could not import the Qwen overlay: %s	No se pudo importar el overlay Qwen: %s
+Install Qwen-Image 2.1 Turbo before importing a LoRA	Instala Qwen-Image 2.1 Turbo antes de importar una LoRA
+The installed pack is not the expected Qwen V73 base	El pack instalado no es la base Qwen V73 esperada
+Not enough free space to import the LoRA pack	Falta espacio libre para importar el pack LoRA
+The pinned Qwen base manifest is invalid	El manifiesto base de Qwen no es válido
+The pinned Qwen base manifest does not contain 32 blocks	El manifiesto base de Qwen no contiene 32 bloques
+Could not open the ZIP archive	No se pudo abrir el archivo ZIP
+The ZIP contains an unsupported entry: %s	El ZIP contiene una entrada no permitida: %s
+The ZIP contains a duplicate entry: %s	El ZIP contiene una entrada duplicada: %s
+The LoRA pack exceeds the import size limit	El pack LoRA supera el límite de importación
+The ZIP must contain the manifest, glue and all 32 blocks	El ZIP debe incluir el manifiesto, glue y los 32 bloques
+This overlay was made for another Qwen pack or format	Este overlay corresponde a otro pack o formato de Qwen
+The overlay must include all 32 Qwen blocks	El overlay debe incluir los 32 bloques de Qwen
+Qwen block %d failed its base or hash check	Falló la verificación de base o hash del bloque Qwen %d
+Qwen glue failed its base or hash check	Falló la verificación de base o hash del glue Qwen
+The Qwen base manifest does not contain 32 blocks	El manifiesto base de Qwen no contiene 32 bloques
+This overlay has no saved trigger words	Este overlay no tiene palabras activadoras guardadas
+Trigger words copied	Palabras activadoras copiadas
+Long-press a LoRA to copy its trigger words	Mantén pulsada una LoRA para copiar sus activadores
+
+Could not create the file in Downloads	No se pudo crear el archivo en Descargas
+For Qwen V73, only Safetensors LoRA files can be saved for conversion on the PC.	Para Qwen V73 solo se pueden guardar LoRAs Safetensors para convertirlas en el PC.
+Not enough free space to download and export this LoRA: about %s GB is needed.	Falta espacio para descargar y exportar esta LoRA: se necesitan unos %s GB libres.
+Original Safetensors saved to %s. Transfer it to the PC and run qwen/convert_civitai_lora.sh, then import its V73 ZIP from the Qwen picker.	Safetensors original guardado en %s. Transfiérelo al PC y ejecuta qwen/convert_civitai_lora.sh; después importa el ZIP V73 desde el selector Qwen.
+Qwen checkpoints from Civitai cannot yet be converted into a V73 pack.	Los checkpoints Qwen de Civitai aún no se pueden convertir a un pack V73.
+Trigger words for the converter	Activadores para el conversor
+
+Original Safetensors and metadata saved to %s and %s. Transfer both to the PC and run qwen/convert_civitai_lora.sh, then import its V73 ZIP from the Qwen picker.	Safetensors original y metadatos guardados en %s y %s. Transfiere ambos al PC y ejecuta qwen/convert_civitai_lora.sh; después importa el ZIP V73 desde el selector Qwen.
+Base model "%s" is not supported: only Anima models/LoRAs, MOSS-Image A/B LoRAs or Qwen 2.1 LoRAs for V73 conversion can be used	El modelo base «%s» no es compatible: solo se admiten modelos/LoRAs de Anima, LoRAs A/B de MOSS-Image o LoRAs de Qwen 2.1 para convertir a V73.
+None	Ninguna
+Qwen LoRA	LoRA de Qwen
+\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.	\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.
+\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest.	\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.
+Move	Mover
+Empty: download LoRAs from Civitai or import a file.	Vacía: descarga LoRAs de Civitai o importa un archivo.
+RealSkin: 4-step rapid-moss or 8-step DMD (more detail, about 1.6× slower).	RealSkin: rapid-moss de 4 pasos o DMD de 8 pasos (más detalle, ~1,6× más lento).

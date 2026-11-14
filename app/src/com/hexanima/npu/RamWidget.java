@@ -11,10 +11,7 @@ import android.widget.RemoteViews;
 import java.io.File;
 import java.io.FileInputStream;
 
-/** Home-screen widget: free RAM, whether HexAnima's NPU model is loaded (its 4-5 GB are by far the biggest thing an app can free on this phone),
- *  Unload model (anima.sh stop, the same as Unload in the app), Free RAM (the model, then ActivityManager.killBackgroundProcesses for every other app:
- *  Android only stops processes that are safe to stop, never the visible one; the freed MB are shown) and refresh. (Xiaomi exposes no public action
- *  for its own memory cleaner: its "garbage cleanup" one cleans storage.) */
+/** Home-screen widget for monitoring RAM and releasing HexAnima's own resident Anima process. Android controls other apps' process lifecycle. */
 public class RamWidget extends AppWidgetProvider {
     static final String UNLOAD = "com.hexanima.npu.widget.UNLOAD", REFRESH = "com.hexanima.npu.widget.REFRESH", FREE = "com.hexanima.npu.widget.FREE";
     static String last = "";   // result line of the last Free RAM
@@ -61,25 +58,15 @@ public class RamWidget extends AppWidgetProvider {
     }
 
     static long avail(Context c) { ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); ((ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(mi); return mi.availMem; }
-    /** the model, then the background processes of the other apps (not the launcher, keyboard, or anything Android considers in use) */
+    /** Release the resident Anima process and let Android reclaim this process's unused Java objects. */
     static void freeRam(Context c) {
         long before = avail(c);
         if (modelLoaded()) unload(c);
-        freeRamOthers(c);
+        System.gc();
+        try { Thread.sleep(800); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         long freed = Math.max(0, avail(c) - before);
         L.init(c);
-        last = L.f("Освобождено ~%d МБ", "Freed ~%d MB", freed / 1048576);
-    }
-    /** the other apps' background processes only (HexAnima's model stays loaded: the app calls this before a generation) */
-    static void freeRamOthers(Context c) {
-        ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
-        android.content.pm.PackageManager pm = c.getPackageManager();
-        int n = 0;
-        for (android.content.pm.ApplicationInfo a : pm.getInstalledApplications(0)) {
-            if (a.packageName.equals(c.getPackageName())) continue;
-            try { am.killBackgroundProcesses(a.packageName); n++; } catch (Exception ignored) { }
-        }
-        try { Thread.sleep(1500); } catch (InterruptedException ignored) { }   // the system needs a moment to reclaim the memory
+        last = L.f("RAM HexAnima: ~%d МБ", "HexAnima RAM: ~%d MB", freed / 1048576);
     }
 
     static PendingIntent self(Context c, String action, int code) {
@@ -97,7 +84,7 @@ public class RamWidget extends AppWidgetProvider {
         v.setProgressBar(r.getIdentifier("w_bar", "id", pkg), 100, (int) Math.round(100 * (1 - free / total)), false);
         v.setTextViewText(r.getIdentifier("w_model", "id", pkg), (loaded ? L.s("Модель HexAnima в памяти (~4–5 ГБ)", "HexAnima model in memory (~4–5 GB)") : L.s("Модель HexAnima выгружена", "HexAnima model unloaded")) + (last.isEmpty() ? "" : "  ·  " + last));
         int ub = r.getIdentifier("w_unload", "id", pkg), cb = r.getIdentifier("w_clean", "id", pkg), rb = r.getIdentifier("w_refresh", "id", pkg);
-        v.setTextViewText(ub, L.s("Выгрузить модель", "Unload model")); v.setTextViewText(cb, L.s("Освободить ОЗУ", "Free RAM"));
+        v.setTextViewText(ub, L.s("Выгрузить модель", "Unload model")); v.setTextViewText(cb, L.s("Освободить RAM Anima", "Free Anima RAM"));
         v.setOnClickPendingIntent(ub, self(c, UNLOAD, 1));
         v.setOnClickPendingIntent(rb, self(c, REFRESH, 2));
         v.setOnClickPendingIntent(cb, self(c, FREE, 3));

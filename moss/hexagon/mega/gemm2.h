@@ -5,6 +5,8 @@
 /* O[M x N] = A[M x K] * W[K x N]; all fp16 crouton. A,O: [row slab][col block]; W: [n block][k block]. A, W, O in DDR. vtcm: >= 6 MB scratch. */
 void hmx_acc(uint8_t *, uint32_t, uint8_t *, uint32_t);
 void hmx_store(uint8_t *, uint32_t);
+void hmx_scale_init(uint8_t *vtcm);
+#define VT_HMXSCALE ((7u << 20) + 524288)  /* after 384 KB of tables/scratch; GEMM uses at most the first 7 MB */
 typedef struct {   /* optional epilogue run by the pool workers on the finished output tiles (VTCM) */
   int mode;                      /* 0 none (copy to O), 1 residual: x32 += gate*tile (O unused), 2 GELU in place then copy, 3 copy + rope */
   float *x32; const float *gate; /* mode 1: x32 tiles [slab][64], gate[2048] */
@@ -12,6 +14,7 @@ typedef struct {   /* optional epilogue run by the pool workers on the finished 
   const uint16_t *tabs;                 /* mode 5: SiTU tables (3 x 64 KB), scr = 12 vectors per worker */
   const uint16_t *prev;                 /* mode 4: residual with a K-split partial: x += gate*(tile + prev tile) */
   const float *gain, *cosT, *sinT; int rope;   /* mode 3: per-head RMSNorm(+RoPE) on q/k once both panels of a head are written (O = DDR output) */
+  const uint16_t *add; int add_stride_tiles, add_col0; /* optional fp16 tile delta, added before the epilogue; used by the factored LoKr path */
 } gemm_epi_t;
 typedef struct { int lda, ldw, kofs; const uint16_t *A2; int lda2, nk2; } gemm_geo_t;   /* A2: the last nk2 K tiles of every A slab come from a second matrix (LoRA down result), lda2 = tiles per slab row of A2 */   /* tiles per A slab row, tiles per W n-block, first k tile of this (partial) K range */
 void gemm_run_geo(const uint16_t *A, int M, int K, const uint16_t *W, int N, uint16_t *O, uint8_t *vtcm, const gemm_epi_t *epi, const gemm_geo_t *geo);

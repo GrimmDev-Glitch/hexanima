@@ -13,6 +13,7 @@ import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -25,12 +26,18 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
+import android.view.MotionEvent;
 import android.widget.*;
 import java.io.*;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.json.JSONArray;
@@ -56,22 +63,29 @@ public class Main extends Base {
     String model = "";   // id of the selected installed model; anima.sh gets MID/MDIR
     int count = 1;       // pictures per press of Generate
     volatile int curIdx, curN = 1;
+    final Object batchLock = new Object();
+    volatile boolean batchAdjustable;
     boolean statusSeen;
     int tick;
 
     TextView chipName, chipDot, state, status, saved, placeholder, ramTxt, warnTxt, sizeText;
     LinearLayout customRow, imgBox;
     Button loadBtn, genBtn, countBtn;
-    ImageButton dlBtn, shareBtn, favBtn, againBtn;
+    ImageButton dlBtn, shareBtn, favBtn, againBtn; Button editGeneratedBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
+    LinearLayout qwenLoraBox; TextView qwenLoraName; Button qwenLoraPick, qwenLoraDrop;
     Fold sampFold, loraFold, extFold;
-    LinearLayout sampBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn; TextView sampNote;
-    LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
+    LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
+    LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop, editMaskBtn, editMaskClear; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ProgressBar bar, ramBar;
     ImageView img;
     File lastFile;
+    List<File> batchFiles = new ArrayList<>();
+    File batchGridFile;
+    int batchDisplayIndex;
+    android.view.GestureDetector batchGestures;
     boolean customOpen;
 
     /** LoRAs called from the current prompt with <lora:name:weight> (file*weight items), set by runOne */
@@ -93,6 +107,32 @@ public class Main extends Base {
     }
     SharedPreferences prefs() { return getSharedPreferences("anima", 0); }
     void setFavIcon(boolean on) { favBtn.setImageResource(getResources().getIdentifier(on ? "ic_star" : "ic_star_off", "drawable", getPackageName())); favBtn.setImageTintList(on ? null : ColorStateList.valueOf(TXT)); }
+
+    void freeMemoryDialog() {
+        if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        builder().setTitle(L.s("Liberar memoria de HexAnima", "Free HexAnima memory"))
+            .setMessage(L.s("Descarga el modelo Anima de la NPU y libera las imágenes temporales de esta pantalla. Android administra la RAM de las demás aplicaciones; una app normal no puede cerrarlas a la fuerza.",
+                "Unloads Anima from the NPU and releases temporary images from this screen. Android manages other apps' RAM; a regular app cannot force-close them."))
+            .setNegativeButton(L.s("Cancelar", "Cancel"), null)
+            .setPositiveButton(L.s("Liberar", "Free"), (d, w) -> ex2.submit(() -> {
+                long before = RamWidget.avail(this); releaseAppMemory();
+                try { Thread.sleep(800); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                long freed = Math.max(0, RamWidget.avail(this) - before) / 1048576;
+                ui.post(() -> Toast.makeText(this, L.f("Memoria disponible: +~%d MB", "Available memory: +~%d MB", freed), Toast.LENGTH_LONG).show());
+            })).show();
+    }
+
+    /** Release only memory owned by HexAnima; Android reclaims other apps when the system needs it. */
+    void releaseAppMemory() {
+        RamWidget.unload(this); loaded = false;
+        previewFile().delete(); System.gc();
+        ui.post(() -> {
+            if (img != null) { img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE); }
+            if (state != null) setModelUi(false, false, "");
+            RamWidget.updateAll(this);
+            ui.post(ramTick);
+        });
+    }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -125,6 +165,11 @@ public class Main extends Base {
         hist.setTextSize(13);
         hist.setOnClickListener(v -> startActivityForResult(new Intent(this, History.class), 7));
         tr.addView(hist, new LinearLayout.LayoutParams(-2, dp(40)));
+        Button ram = button("RAM", CARD, ACC);
+        ram.setTextSize(12);
+        ram.setOnClickListener(v -> freeMemoryDialog());
+        LinearLayout.LayoutParams ramlp = new LinearLayout.LayoutParams(-2, dp(40)); ramlp.leftMargin = dp(6);
+        tr.addView(ram, ramlp);
         Button more = button("⋯", CARD, TXT);
         more.setTextSize(20);
         more.setOnClickListener(v -> menu(v));
@@ -167,6 +212,27 @@ public class Main extends Base {
         state.setPadding(dp(4), dp(6), 0, dp(12));
         root.addView(state);
 
+        qwenLoraBox = new LinearLayout(this); qwenLoraBox.setOrientation(LinearLayout.VERTICAL);
+        qwenLoraBox.addView(label(L.s("LORA DE QWEN", "QWEN LORA")));
+        LinearLayout qlr = new LinearLayout(this); qlr.setGravity(Gravity.CENTER_VERTICAL);
+        qwenLoraName = text(L.s("Ninguna", "None"), 13, TXT, false); qwenLoraName.setSingleLine(true); qwenLoraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        qwenLoraName.setBackground(bg(CARD, 14)); qwenLoraName.setPadding(dp(12), dp(11), dp(12), dp(11));
+        qlr.addView(qwenLoraName, new LinearLayout.LayoutParams(0, -2, 1));
+        qwenLoraPick = button(L.s("Elegir", "Choose"), CARD, ACC); qwenLoraPick.setOnClickListener(v -> pickQwenLora());
+        LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, dp(42)); qlp.leftMargin = dp(8); qlr.addView(qwenLoraPick, qlp);
+        qwenLoraDrop = button("✕", CARD, TXT); qwenLoraDrop.setOnClickListener(v -> { prefs().edit().remove("qwen_lora_dir").apply(); refreshQwenLora(); });
+        LinearLayout.LayoutParams qld = new LinearLayout.LayoutParams(dp(48), dp(42)); qld.leftMargin = dp(6); qlr.addView(qwenLoraDrop, qld);
+        qwenLoraBox.addView(qlr);
+        Button qwenLoraImport = button(L.s("Importar overlay Qwen (.zip)", "Import Qwen overlay (.zip)"), CARD, ACC);
+        qwenLoraImport.setAllCaps(false); qwenLoraImport.setTextSize(12);
+        qwenLoraImport.setOnClickListener(v -> importQwenOverlay());
+        LinearLayout.LayoutParams qil = new LinearLayout.LayoutParams(-1, dp(42)); qil.topMargin = dp(7); qwenLoraBox.addView(qwenLoraImport, qil);
+        TextView qwenLoraHint = text(L.s("Paquetes LoRA convertidos para el runner Qwen V73", "LoRA packs converted for the Qwen V73 runner"), 11, DIM, false);
+        qwenLoraHint.setPadding(dp(4), dp(5), 0, 0); qwenLoraBox.addView(qwenLoraHint);
+        qwenLoraBox.setVisibility(View.GONE);
+        root.addView(qwenLoraBox);
+        refreshQwenLora();
+
         // result card
         imgBox = new LinearLayout(this);
         imgBox.setOrientation(LinearLayout.VERTICAL);
@@ -185,6 +251,18 @@ public class Main extends Base {
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setVisibility(View.GONE);
         img.setOnClickListener(v -> { if (lastFile != null) { File[] all = Gallery.list(this, Gallery.ALL); int k = java.util.Arrays.asList(all).indexOf(lastFile); Viewer.open(this, all, Math.max(0, k), Gallery.ALL, false); } });
+        batchGestures = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onDown(MotionEvent e) { return true; }
+            @Override public boolean onSingleTapConfirmed(MotionEvent e) { return img.performClick(); }
+            @Override public boolean onFling(MotionEvent a, MotionEvent b, float vx, float vy) {
+                float dx = b.getX() - a.getX(), dy = b.getY() - a.getY();
+                if (Math.abs(dx) > dp(60) && Math.abs(dx) > Math.abs(dy) * 1.25f && Math.abs(vx) > dp(120)) {
+                    showBatchPage(batchDisplayIndex + (dx < 0 ? 1 : -1)); return true;
+                }
+                return false;
+            }
+        });
+        img.setOnTouchListener((v, e) -> batchGestures.onTouchEvent(e));
         imgBox.addView(img, new LinearLayout.LayoutParams(-1, -2));
         root.addView(imgBox, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout resRow = new LinearLayout(this);
@@ -192,6 +270,10 @@ public class Main extends Base {
         saved = text("", 12, DIM, false);
         saved.setPadding(dp(4), dp(8), dp(8), 0);
         resRow.addView(saved, new LinearLayout.LayoutParams(0, -2, 1));
+        editGeneratedBtn = button(L.s("Editar con Qwen", "Edit with Qwen"), CARD, ACC);
+        editGeneratedBtn.setTextSize(11); editGeneratedBtn.setVisibility(View.GONE);
+        editGeneratedBtn.setOnClickListener(v -> useShownImageAsQwenSource());
+        LinearLayout.LayoutParams qel = new LinearLayout.LayoutParams(-2, dp(40)); qel.leftMargin = dp(4); resRow.addView(editGeneratedBtn, qel);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
         favBtn = icon("ic_star_off", CARD);
@@ -289,6 +371,20 @@ public class Main extends Base {
         LinearLayout.LayoutParams cbl = new LinearLayout.LayoutParams(-1, dp(44)); cbl.topMargin = dp(8); sampFold.body.addView(cutBtn, cbl);
         sampNote = text("", 12, DIM, false); sampNote.setPadding(dp(4), dp(6), dp(4), 0); sampFold.body.addView(sampNote);
         root.addView(sampBox);
+        mossStepsBox = new LinearLayout(this); mossStepsBox.setOrientation(LinearLayout.VERTICAL);
+        mossStepsBtn = button("", CARD, TXT); mossStepsBtn.setAllCaps(false);
+        mossStepsBtn.setOnClickListener(v -> {
+            {
+                java.util.ArrayList<String> choices = new java.util.ArrayList<>(); choices.add("4 step · rapid-moss");
+                if (canUseRsDmd()) choices.add("8 step · DMD");
+                int cur = prefs().getString("rs_mode", "4").equals("8") && choices.size() > 1 ? 1 : 0;
+                builder().setTitle(L.s("Modo RealSkin", "RealSkin mode")).setSingleChoiceItems(choices.toArray(new String[0]), cur, (d, i) -> { d.dismiss(); prefs().edit().putString("rs_mode", i == 1 ? "8" : "4").apply(); refreshSampling(); }).show();
+            }
+        });
+        mossStepsBox.addView(mossStepsBtn);
+        TextView mossSamplingNote = text(L.s("RealSkin: rapid-moss de 4 pasos o DMD de 8 pasos (más detalle, ~1,6× más lento).", "RealSkin: 4-step rapid-moss or 8-step DMD (more detail, about 1.6× slower)."), 12, DIM, false);
+        mossSamplingNote.setPadding(dp(4), dp(6), dp(4), dp(10)); mossStepsBox.addView(mossSamplingNote);
+        root.addView(mossStepsBox);
         buildExtras(root);
         refreshSampling();
 
@@ -384,6 +480,13 @@ public class Main extends Base {
         editDrop = button("✕", CARD, TXT); editDrop.setOnClickListener(v -> dropEdit());
         LinearLayout.LayoutParams ed2 = new LinearLayout.LayoutParams(dp(48), dp(44)); ed2.leftMargin = dp(8); er.addView(editDrop, ed2);
         editBox.addView(er);
+        LinearLayout em = new LinearLayout(this); em.setPadding(0, dp(6), 0, 0);
+        editMaskBtn = button(L.s("✎ Область изменения", "✎ Area to edit"), FIELD, ACC); editMaskBtn.setTextSize(12);
+        editMaskBtn.setOnClickListener(v -> paintQwenMask()); em.addView(editMaskBtn, new LinearLayout.LayoutParams(0, dp(38), 1));
+        editMaskClear = button(L.s("Очистить область", "Clear area"), FIELD, TXT); editMaskClear.setTextSize(12);
+        editMaskClear.setOnClickListener(v -> { Qwen.editMask(getFilesDir()).delete(); refreshEdit(); });
+        LinearLayout.LayoutParams emc = new LinearLayout.LayoutParams(0, dp(38), 1); emc.leftMargin = dp(8); em.addView(editMaskClear, emc);
+        editBox.addView(em);
         root.addView(editBox);
         refreshEdit();
 
@@ -404,10 +507,10 @@ public class Main extends Base {
         status.setPadding(dp(2), 0, 0, dp(6));
         bottom.addView(status);
         LinearLayout brow = new LinearLayout(this);
-        count = Math.max(1, Math.min(4, prefs().getInt("count", 1)));
+        count = Math.max(1, Math.min(999, prefs().getInt("count", 1)));
         countBtn = button("×" + count, FIELD, TXT);
         countBtn.setTextSize(16);
-        countBtn.setOnClickListener(v -> { count = count % 4 + 1; prefs().edit().putInt("count", count).apply(); countBtn.setText("×" + count); genBtn.setText(genLabel()); });
+        countBtn.setOnClickListener(v -> pickCount());
         LinearLayout.LayoutParams cb = new LinearLayout.LayoutParams(dp(64), dp(54)); cb.rightMargin = dp(8);
         brow.addView(countBtn, cb);
         genBtn = button("", ACC, ON_ACC);
@@ -450,12 +553,35 @@ public class Main extends Base {
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(2);
         String del = ModelsActivity.deleted; ModelsActivity.deleted = "";
         if (!del.isEmpty() && del.equals(model) && loaded && !busy) { loaded = false; ex.submit(() -> su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false)); }
-        if (genBtn != null) { refreshModels(); ui.post(ramTick); }
+        if (genBtn != null) { refreshModels(); restoreLatestGenerated(); ui.post(ramTick); }
         ex2.submit(() -> RamWidget.updateAll(getApplicationContext()));   // a widget placed before an update keeps its old buttons until it is redrawn
         if (android.os.Build.VERSION.SDK_INT >= 33 && prefs().getBoolean("welcomed", false) && !prefs().getBoolean("asked_notif", false)) {   // once, after the welcome screen
             prefs().edit().putBoolean("asked_notif", true).apply();
             if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5);
         }
+    }
+
+    /** Restore the last saved picture after Android recreates the activity or process. */
+    void restoreLatestGenerated() {
+        if (busy || lastFile != null || img == null) return;
+        File[] recent = Gallery.list(this, Gallery.ALL);
+        if (recent.length == 0) return;
+        File f = recent[0];
+        BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(f.getPath(), bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return;
+        int sample = 1, maxDim = Math.max(bounds.outWidth, bounds.outHeight);
+        while (maxDim / sample > 2048 && sample < (1 << 20)) sample *= 2;
+        BitmapFactory.Options opt = new BitmapFactory.Options(); opt.inSampleSize = sample;
+        Bitmap b = BitmapFactory.decodeFile(f.getPath(), opt);
+        if (b == null) return;
+        lastFile = f; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
+        img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+        setFavIcon(Gallery.fav(f));
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+        refreshGeneratedEditAction();
+        JSONObject m = Gallery.meta(f);
+        saved.setText(L.f("Última imagen · seed %s", "Last image · seed %s", m.optString("seed", "?")));
     }
 
     /** every 2 s: RAM strip, thermal / battery / chip warnings; every 10 s the model state (the idle watchdog may have unloaded it) */
@@ -484,6 +610,23 @@ public class Main extends Base {
     };
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == 14 && res == RESULT_OK && d != null) { appendPromptWords(d.getStringExtra("moss_triggers")); refreshModels(); return; }
+        if (req == 15 && res == RESULT_OK && d != null && d.getData() != null) {
+            final Uri uri = d.getData(); String displayName = "qwen_lora.zip";
+            try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) { int k = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (k >= 0) displayName = c.getString(k); }
+            } catch (Exception ignored) { }
+            final String pickedName = displayName;
+            final AlertDialog importing = builder().setMessage(L.s("Importando y verificando el pack LoRA…", "Importing and verifying the LoRA pack…")).setCancelable(false).create(); importing.show();
+            ex2.submit(() -> {
+                try {
+                    String name = Qwen.importOverlayZip(this, getFilesDir(), uri, pickedName);
+                    prefs().edit().putString("qwen_lora_dir", name).apply();
+                    ui.post(() -> { importing.dismiss(); refreshQwenLora(); Toast.makeText(this, L.f("Overlay Qwen importado y seleccionado: %s", "Qwen overlay imported and selected: %s", name), Toast.LENGTH_LONG).show(); });
+                } catch (Exception e) { ui.post(() -> { importing.dismiss(); Toast.makeText(this, L.f("No se pudo importar el overlay Qwen: %s", "Could not import the Qwen overlay: %s", e.getMessage()), Toast.LENGTH_LONG).show(); }); }
+            });
+            return;
+        }
         if (req == 9 && res == RESULT_OK && d != null && d.getData() != null) { importLora(d.getData()); return; }
         if (req == 11 && res == RESULT_OK && d != null && d.getData() != null) { importInit(d.getData()); return; }
         if (req == 12 && res == RESULT_OK && d != null && d.getData() != null) { importAd(d.getData()); return; }
@@ -515,16 +658,62 @@ public class Main extends Base {
         }
     }
 
+    /** Add downloaded MOSS trigger words to the prompt once, without writing an unsupported <lora:...> tag. */
+    void appendPromptWords(String words) {
+        if (words == null || words.trim().isEmpty() || prompt == null) return;
+        List<String> cur = tokens(prompt.getText().toString());
+        Set<String> have = new HashSet<>(); for (String t : cur) have.add(t.toLowerCase(java.util.Locale.ROOT));
+        for (String t : tokens(words)) if (have.add(t.toLowerCase(java.util.Locale.ROOT))) cur.add(t);
+        prompt.setText(android.text.TextUtils.join(", ", cur)); prompt.setSelection(prompt.getText().length());
+        Toast.makeText(this, L.s("Palabras activadoras de la LoRA añadidas al prompt", "LoRA trigger words added to the prompt"), Toast.LENGTH_SHORT).show();
+    }
+
 
     // ---- Qwen-Image: photo to edit ------------------------------------------------------------------
     boolean isQwen() { return Qwen.is(model); }
+    boolean isMage() { return Mage.is(model); }
     void refreshEdit() {
         if (editBm == null && prefs().getBoolean("qwen_edit_on", false) && Qwen.editSrc(getFilesDir()).exists()) editBm = BitmapFactory.decodeFile(Qwen.editSrc(getFilesDir()).getPath());
         final Bitmap b = editBm;
         editThumb.setImageBitmap(b); editThumb.setVisibility(b != null ? View.VISIBLE : View.GONE);
-        editInfo.setText(b != null ? L.f("Фото %d×%d. Описание — что в нём изменить, например «сделай небо закатным».", "Photo %d×%d. The prompt says what to change, e.g. \"make the sky a sunset\".", b.getWidth(), b.getHeight())
+        boolean masked = Qwen.editMask(getFilesDir()).isFile();
+        editInfo.setText(b != null ? isMage() ? L.f("Foto %d×%d. Describe cómo transformarla. Mage reconstruye la imagen completa y puede cambiar detalles y composición.", "Photo %d×%d. Describe how to transform it. Mage redraws the whole image and may change details and composition.", b.getWidth(), b.getHeight()) : L.f("Фото %d×%d. Describe qué cambiar, por ejemplo «haz que el cielo parezca de atardecer». Pinta solo la zona que quieras editar.", "Photo %d×%d. The prompt says what to change, e.g. \"make the sky a sunset\". Paint only the area to edit.", b.getWidth(), b.getHeight()) + (masked ? L.s("\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.", "\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.") : L.s("\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.", "\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest."))
             : L.s("Выберите фото, чтобы изменить его по описанию. Без фото модель просто рисует картинку.", "Pick a photo to change it by the prompt. Without one the model just draws a picture."));
         editDrop.setVisibility(b != null ? View.VISIBLE : View.GONE);
+        editMaskBtn.setVisibility(b != null && !isMage() ? View.VISIBLE : View.GONE);
+        editMaskClear.setVisibility(b != null && masked && !isMage() ? View.VISIBLE : View.GONE);
+    }
+    void refreshGeneratedEditAction() {
+        if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && lastFile != batchGridFile ? View.VISIBLE : View.GONE);
+    }
+    void useShownImageAsQwenSource() {
+        if (busy) { Toast.makeText(this, L.s("Espera a que termine la tanda", "Wait for the batch to finish"), Toast.LENGTH_SHORT).show(); return; }
+        final File chosen = lastFile;
+        if (chosen == null || !chosen.isFile() || chosen == batchGridFile) return;
+        String qwenId = "";
+        for (String id : store.installed()) if (Qwen.is(id)) { qwenId = id; break; }
+        if (qwenId.isEmpty()) { Toast.makeText(this, L.s("Instala Qwen-Image antes de editar con él", "Install Qwen-Image before editing with it"), Toast.LENGTH_LONG).show(); return; }
+        final String targetModel = qwenId;
+        editGeneratedBtn.setEnabled(false);
+        ex2.submit(() -> {
+            Bitmap input = BitmapFactory.decodeFile(chosen.getPath());
+            if (input == null) { ui.post(() -> { editGeneratedBtn.setEnabled(true); Toast.makeText(this, L.s("No se pudo abrir la imagen", "Could not open this image"), Toast.LENGTH_LONG).show(); }); return; }
+            try {
+                Bitmap next = Qwen.storePhoto(input, getFilesDir());
+                if (next != input) input.recycle();
+                Models.deleteTree(Qwen.editDir(getFilesDir()));
+                prefs().edit().putBoolean("qwen_edit_on", true).apply();
+                ui.post(() -> {
+                    editGeneratedBtn.setEnabled(true); editBm = next; setModel(targetModel); refreshEdit();
+                    double aspect = (double) next.getWidth() / next.getHeight(), best = 1e9; int[] pick = null;
+                    for (int[] z : Qwen.PRESETS) { if (z[0] * z[1] > 800000) continue; double d = Math.abs(Math.log((double) z[0] / z[1] / aspect)) + Math.abs(z[0] * z[1] - 393216) / 5e7; if (d < best) { best = d; pick = z; } }
+                    if (pick != null) { customOpen = false; setRes(pick[0], pick[1]); }
+                    paintQwenMask();
+                });
+            } catch (Exception e) {
+                if (!input.isRecycled()) input.recycle(); ui.post(() -> { editGeneratedBtn.setEnabled(true); Toast.makeText(this, L.f("No se pudo preparar la imagen: %s", "Could not prepare the image: %s", e.getMessage()), Toast.LENGTH_LONG).show(); });
+            }
+        });
     }
     void pickEdit() {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
@@ -533,7 +722,7 @@ public class Main extends Base {
     void dropEdit() {
         if (busy) return;
         editBm = null; prefs().edit().putBoolean("qwen_edit_on", false).apply();
-        ex2.submit(() -> { Qwen.editSrc(getFilesDir()).delete(); Models.deleteTree(Qwen.editDir(getFilesDir())); ui.post(this::refreshEdit); });
+        ex2.submit(() -> { Qwen.editSrc(getFilesDir()).delete(); Qwen.editMask(getFilesDir()).delete(); Models.deleteTree(Qwen.editDir(getFilesDir())); ui.post(this::refreshEdit); });
         setRes(resW, resH);
     }
     void importEdit(Uri uri) {
@@ -561,18 +750,31 @@ public class Main extends Base {
     /** Anima LoRAs fit the 2B models only; the 2.9B ones hold q8 weights (and another base) */
     /** every Anima model takes Anima LoRAs: 2B (28-block) LoRAs on the 2.9B models and 2.9B (40-block) ones on the 2B models are remapped block by block
      *  in megarun (the 2.9B models are the 2B ones with 12 blocks doubled, see lora_fold.h) */
-    boolean loraFitsModel() { return true; }
+    boolean loraFitsModel() {
+        if (!isMoss() || loraId().isEmpty() || !loraSrc().exists()) return true;
+        MossLora.Check c = MossLora.check(BIN, loraSrc());
+        // LoKr reached the V73 DSP path but stalled at the first DiT step; only validated A/B adapters are enabled.
+        return c.ok && !c.lokr;
+    }
     boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && loraStr() > 0 && loraFitsModel(); }
+    boolean canUseRsDmd() {
+        if (!Moss.isRs(model) || !Moss.installed8(getFilesDir())) return false;
+        if (!loraOn()) return true;
+        MossLora.Check c = MossLora.check(BIN, loraSrc());
+        return c.ok && c.lokr;
+    }
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
         loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
         String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when picked. Library: “LoRAs” above the prompt.");
+        boolean fits = !has || loraFitsModel();
         String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
+        if (has && !fits) info = L.s("LoKr reconocido, pero desactivado hasta validar el kernel DSP V73. Usa una LoRA MOSS A/B compatible o genera sin LoKr.", "LoKr detected, but disabled until the V73 DSP kernel is validated. Use a compatible MOSS A/B LoRA or generate without LoKr.");
         loraFold.sum.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") + String.format(java.util.Locale.US, " · %.2f", loraStr()) : L.s("нет", "none"));
         loraFold.sum.setTextColor(has ? ACC : DIM);
         loraInfo.setText(info);
-        loraInfo.setTextColor(has ? (loraFitsModel() ? OK : WARN) : DIM);
-        loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has); strBar.setAlpha(has ? 1f : .4f); strText.setEnabled(has);
+        loraInfo.setTextColor(has ? (fits ? OK : WARN) : DIM);
+        loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has && fits); strBar.setAlpha(has && fits ? 1f : .4f); strText.setEnabled(has && fits);
         strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20));
         if (!strText.hasFocus()) strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
     }
@@ -608,7 +810,7 @@ public class Main extends Base {
         return t;
     }
 
-    // ---- LoRA picker: ticking adds <lora:name:w> and the trigger words to the prompt, unticking takes them out ----
+    // ---- LoRA picker: ticking adds only <lora:name:w> to the prompt, unticking takes them out ----
     static java.util.regex.Pattern loraTag(String n) { return java.util.regex.Pattern.compile("<lora:" + java.util.regex.Pattern.quote(n) + "(?::([^>]*))?>", java.util.regex.Pattern.CASE_INSENSITIVE); }
     /** the weight the prompt gives this LoRA, or null when the prompt does not call it */
     String loraWeight(String n) {
@@ -620,13 +822,11 @@ public class Main extends Base {
         List<String> cur = tokens(prompt.getText().toString()), low = new ArrayList<>();
         for (String t : cur) low.add(t.toLowerCase(java.util.Locale.ROOT));
         cur.add("<lora:" + n + ":" + w + ">");
-        for (String t : tokens(words)) if (!low.contains(t.toLowerCase(java.util.Locale.ROOT))) cur.add(t);
         prompt.setText(android.text.TextUtils.join(", ", cur)); prompt.setSelection(prompt.getText().length());
     }
     void loraRemove(String n, String words) {
         String p = loraTag(n).matcher(prompt.getText().toString()).replaceAll("");
-        List<String> drop = new ArrayList<>(); for (String t : tokens(words)) drop.add(t.toLowerCase(java.util.Locale.ROOT));
-        List<String> keep = new ArrayList<>(); for (String t : tokens(p)) if (!drop.contains(t.toLowerCase(java.util.Locale.ROOT))) keep.add(t);
+        List<String> keep = tokens(p);
         prompt.setText(android.text.TextUtils.join(", ", keep)); prompt.setSelection(prompt.getText().length());
     }
     void loraSetWeight(String n, String w) {
@@ -634,8 +834,9 @@ public class Main extends Base {
         prompt.setText(p); prompt.setSelection(prompt.getText().length());
     }
 
-    /** LoRA library: [✓] name · trigger words · weight, a filter on top; long tap deletes a file; Civitai finds more */
+    /** LoRA library: [✓] name · trigger words · weight, a filter on top; long tap offers trigger copying or deletion; Civitai finds more */
     void loraLibrary() {
+        if (isMoss()) { mossLoraLibrary(); return; }
         final File dir = AnimaLora.dir(getFilesDir());
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
         LinearLayout th = new LinearLayout(this); th.setGravity(Gravity.CENTER_VERTICAL);
@@ -647,16 +848,18 @@ public class Main extends Base {
         v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
         LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
         Button civ = button("Civitai", FIELD, ACC); bot.addView(civ, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button imp = button(L.s("Импорт", "Import"), FIELD, ACC); LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(0, dp(44), 1); il.leftMargin = dp(8); bot.addView(imp, il);
         Button done = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(0, dp(44), 1); dl.leftMargin = dp(8); bot.addView(done, dl);
         v.addView(bot);
         final AlertDialog dlg = dialog(v);
-        civ.setOnClickListener(x -> { dlg.dismiss(); startActivity(new Intent(this, CivitaiActivity.class)); });
+        civ.setOnClickListener(x -> { dlg.dismiss(); startActivityForResult(new Intent(this, CivitaiActivity.class), 14); });
         done.setOnClickListener(x -> dlg.dismiss());
+        imp.setOnClickListener(x -> { dlg.dismiss(); pickLora(); });   // a local .safetensors from the phone's storage, checked like a Civitai download
 
         List<String> names = new ArrayList<>(); File[] lf = dir.listFiles();
         if (lf != null) for (File f : lf) if (f.getName().endsWith(".safetensors") && !f.getName().startsWith("new.")) names.add(f.getName().substring(0, f.getName().length() - 12));
         java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
-        if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai.", "Empty: download LoRAs from Civitai."), 14, DIM, false));
+        if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или импортируйте файл.", "Empty: download LoRAs from Civitai or import a file."), 14, DIM, false));
         final List<View> rows = new ArrayList<>(); final List<String> keys = new ArrayList<>(); final List<CheckBox> boxes = new ArrayList<>();
         final Runnable count = () -> { int k = 0; for (CheckBox b : boxes) if (b.isChecked()) k++; cnt.setText(k == 0 ? "" : L.f("активно: %d", "active: %d", k)); };
         for (String n : names) {
@@ -681,7 +884,7 @@ public class Main extends Base {
             });
             we.addTextChangedListener(watch(s -> { String w = s.trim().replace(',', '.'); try { Float.parseFloat(w); if (cb.isChecked()) loraSetWeight(n, w); } catch (NumberFormatException ignored) { } }));
             row.setOnClickListener(x -> cb.toggle());
-            row.setOnLongClickListener(x -> { builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
+            row.setOnLongClickListener(x -> { builder().setNeutralButton(L.s("Copiar palabras activadoras", "Copy trigger words"), (dialog, which) -> { android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText("LoRA triggers", words)); }).setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp);
             rows.add(row); keys.add((n + " " + title + " " + words).toLowerCase(java.util.Locale.ROOT)); boxes.add(cb);
         }
@@ -695,6 +898,66 @@ public class Main extends Base {
             TextView cl = link(L.f("Кэш LoRA: %.1f ГБ · очистить", "LoRA cache: %.1f GB · clear", lb / 1e9)); cl.setPadding(dp(2), dp(8), 0, 0);
             cl.setOnClickListener(x -> { if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) f.delete(); k.delete(); } if (tes != null) for (File f : tes) f.delete(); cl.setVisibility(View.GONE); });
             v.addView(cl, v.getChildCount() - 1);
+        }
+        filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
+    }
+
+    /** MOSS has one A/B adapter slot: choose a validated file from the Civitai library, or clear the active slot. */
+    void mossLoraLibrary() {
+        final File dir = MossLora.civitaiDir(getFilesDir()); dir.mkdirs();
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
+        v.addView(text(L.s("Библиотека MOSS", "MOSS-Image LoRA library"), 20, TXT, true));
+        v.addView(text(L.s("Выберите одну совместимую LoRA A/B. Сила настраивается в блоке LoRA.", "Choose one compatible A/B LoRA. Set its strength in the LoRA section."), 12, DIM, false));
+        EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
+        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
+        ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
+        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+        Button civ = button("Civitai", FIELD, ACC); bot.addView(civ, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button imp = button(L.s("Импорт", "Import"), FIELD, ACC); LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(0, dp(44), 1); il.leftMargin = dp(8); bot.addView(imp, il);
+        Button done = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(0, dp(44), 1); dl.leftMargin = dp(8); bot.addView(done, dl); v.addView(bot);
+        final AlertDialog dlg = dialog(v);
+        civ.setOnClickListener(x -> { dlg.dismiss(); startActivityForResult(new Intent(this, CivitaiActivity.class), 14); });
+        done.setOnClickListener(x -> dlg.dismiss());
+        imp.setOnClickListener(x -> { dlg.dismiss(); pickLora(); });   // a local .safetensors from the phone's storage, checked like a Civitai download
+
+        List<View> rows = new ArrayList<>(); List<String> keys = new ArrayList<>();
+        File[] fs = dir.listFiles(); if (fs != null) Arrays.sort(fs, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+        if (fs == null || fs.length == 0) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или импортируйте файл.", "Empty: download LoRAs from Civitai or import a file."), 14, DIM, false));
+        for (File f : fs == null ? new File[0] : fs) {
+            if (!f.isFile() || !f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".safetensors")) continue;
+            JSONObject md = Civitai.meta(f); String words = Civitai.words(f);
+            String name = md != null && !md.optString("name").isEmpty() ? md.optString("name") : f.getName().replaceFirst("(?i)\\.safetensors$", "");
+            String vid = md == null ? "" : Long.toString(md.optLong("version_id"));
+            String currentId = prefs().getString("moss_lora_id", "");
+            boolean active = prefs().getString("moss_lora_file", "").equals(f.getName()) || (!vid.equals("0") && currentId.equals("civitai-" + vid));
+            LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10), dp(8), dp(10), dp(8));
+            row.setBackground(bg(active ? SEL : FIELD, 12));
+            LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+            TextView title = text((active ? "✓  " : "") + name, 15, TXT, true); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(title);
+            String sub = words.isEmpty() ? L.s("Sin palabras activadoras declaradas", "No trigger words declared") : words;
+            TextView detail = text(sub, 12, DIM, false); detail.setSingleLine(true); detail.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(detail);
+            TextView size = text(String.format(java.util.Locale.US, "%.0f MB", f.length() / 1048576.0), 11, DIM, false); col.addView(size);
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            Button choose = button(active ? L.s("Quitar selección", "Clear selection") : L.s("Elegir", "Select"), CARD, active ? WARN : ACC); choose.setTextSize(12); row.addView(choose, new LinearLayout.LayoutParams(dp(112), dp(40)));
+            View.OnClickListener select = z -> {
+                if (active) {
+                    MossLora.clearSelection(getFilesDir()); prefs().edit().remove("moss_lora_id").remove("moss_lora_name").remove("moss_lora_info").remove("moss_lora_file").apply();
+                    refreshLora(); dlg.dismiss(); return;
+                }
+                MossLora.Check c = MossLora.check(BIN, f);
+                if (!c.ok) { builder().setMessage(c.message()).setPositiveButton("OK", null).show(); return; }
+                try {
+                    MossLora.select(getFilesDir(), f);
+                    String id = vid.isEmpty() || vid.equals("0") ? "file-" + f.getName() : "civitai-" + vid;
+                    String info = "✓ " + c.message() + (words.isEmpty() ? "" : "\n" + L.s("Activadores: ", "Triggers: ") + words);
+                    prefs().edit().putString("moss_lora_id", id).putString("moss_lora_name", name).putString("moss_lora_info", info).putString("moss_lora_file", f.getName()).apply();
+                    appendPromptWords(words); refreshLora(); dlg.dismiss();
+                } catch (Exception e) { builder().setMessage(L.f("No se pudo seleccionar el LoRA: %s", "Could not select the LoRA: %s", e.getMessage())).setPositiveButton("OK", null).show(); }
+            };
+            row.setOnClickListener(select); choose.setOnClickListener(select);
+            row.setOnLongClickListener(z -> { builder().setMessage(name).setNeutralButton(L.s("Copiar palabras activadoras", "Copy trigger words"), (d, i) -> { if (!words.isEmpty()) { android.content.ClipboardManager cm = (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE); if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("MOSS triggers", words)); } }).setNegativeButton(L.s("Cerrar", "Close"), null).show(); return true; });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp); rows.add(row); keys.add((name + " " + words + " " + f.getName()).toLowerCase(java.util.Locale.ROOT));
         }
         filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
     }
@@ -802,7 +1065,7 @@ public class Main extends Base {
         extrasBox = new LinearLayout(this); extrasBox.setOrientation(LinearLayout.VERTICAL);
         extFold = fold(extrasBox, L.s("ДОПОЛНИТЕЛЬНО", "EXTRAS"), "extras");
         LinearLayout c = card(extFold.body); c.setPadding(dp(14), dp(6), dp(14), dp(12));
-        sw(c, L.s("Предпросмотр по шагам", "Live preview"), L.s("Картинка обновляется по ходу (каждый шаг; на длинных — каждый 2-й или 4-й)", "The picture updates while it is drawn (every step; every 2nd or 4th step on long runs)"), "x_preview", true);
+        sw(c, L.s("Vista previa por pasos de Anima", "Anima live preview"), L.s("Actualiza la imagen mientras se genera con modelos Anima", "Updates the image while Anima models are generating"), "x_preview", true);
         sw(c, "Hires fix", L.s("Второй проход в большем размере (дольше)", "A second pass at a larger size (slower)"), "x_hires", false);
         LinearLayout hr = new LinearLayout(this);
         hsEdit = smallField(hr, L.s("МАСШТАБ", "SCALE"), "x_hires_scale", "1.5", true);
@@ -858,7 +1121,7 @@ public class Main extends Base {
     }
     void refreshExtras() {
         if (extrasBox == null) return;
-        extrasBox.setVisibility(isMoss() || isQwen() || model.isEmpty() ? View.GONE : View.VISIBLE);
+        extrasBox.setVisibility(isMoss() || isQwen() || isMage() || model.isEmpty() ? View.GONE : View.VISIBLE);
         List<String> on = new ArrayList<>();
         if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
         if (initSrc().exists()) on.add(maskSrc().exists() ? "inpaint" : "img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
@@ -911,7 +1174,10 @@ public class Main extends Base {
     /** finger painting on the init image: brush / eraser, size, clear; the mask is saved at the init image's size (at most 1024 px on the long side) */
     class MaskView extends View {
         Bitmap base, mask; android.graphics.Canvas mc; final android.graphics.Paint br = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), ov = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
-        final android.graphics.RectF dst = new android.graphics.RectF(); float lx, ly, size = .06f; boolean erase;
+        final android.graphics.RectF dst = new android.graphics.RectF(); float lx, ly, size = .02f, zoom = 1f, panX, panY, prevSpan, prevMidX, prevMidY, downX, downY, lastX, lastY; boolean multiTouch, drawing, pending;
+        static final int BRUSH = 0, ERASER = 1, MOVE = 2; int tool = BRUSH;
+        final float slop = android.view.ViewConfiguration.get(Main.this).getScaledTouchSlop();
+        final ArrayDeque<Bitmap> undo = new ArrayDeque<>(), redo = new ArrayDeque<>(); final int historyLimit = 8; Runnable historyChanged, zoomChanged;
         MaskView(Bitmap base, Bitmap old) {
             super(Main.this); this.base = base;
             mask = Bitmap.createBitmap(base.getWidth(), base.getHeight(), Bitmap.Config.ARGB_8888); mc = new android.graphics.Canvas(mask);
@@ -924,25 +1190,76 @@ public class Main extends Base {
             ov.setColorFilter(new android.graphics.PorterDuffColorFilter(ACC2, android.graphics.PorterDuff.Mode.SRC_IN)); ov.setAlpha(140);
         }
         @Override protected void onDraw(android.graphics.Canvas c) {
-            float s = Math.min(getWidth() / (float) base.getWidth(), getHeight() / (float) base.getHeight());
-            float w = base.getWidth() * s, h = base.getHeight() * s; dst.set((getWidth() - w) / 2, (getHeight() - h) / 2, (getWidth() + w) / 2, (getHeight() + h) / 2);
+            float s = Math.min(getWidth() / (float) base.getWidth(), getHeight() / (float) base.getHeight()) * zoom;
+            float w = base.getWidth() * s, h = base.getHeight() * s;
+            clampPan(); float cx = getWidth() / 2f + panX, cy = getHeight() / 2f + panY;
+            dst.set(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
             c.drawBitmap(base, null, dst, null); c.drawBitmap(mask, null, dst, ov);
         }
         @Override public boolean onTouchEvent(android.view.MotionEvent e) {
-            getParent().requestDisallowInterceptTouchEvent(true);
-            float bx = (e.getX() - dst.left) / dst.width() * base.getWidth(), by = (e.getY() - dst.top) / dst.height() * base.getHeight();
-            br.setStrokeWidth(size * Math.max(base.getWidth(), base.getHeight()));
-            br.setXfermode(erase ? new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) : null);
-            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN) { lx = bx; ly = by; }
-            mc.drawLine(lx, ly, bx + .01f, by, br); lx = bx; ly = by; invalidate();
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            // A stroke only starts once one finger has moved past the touch slop (or lifts as a tap), so the first finger of a
+            // pinch never paints; if a second finger still lands after a stroke started, that stroke is rolled back.
+            int action = e.getActionMasked();
+            if (action == MotionEvent.ACTION_POINTER_DOWN) {
+                if (drawing) rollbackStroke();
+                multiTouch = true; drawing = false; pending = false; prevSpan = span(e); prevMidX = midX(e); prevMidY = midY(e); return true;
+            }
+            if (multiTouch && action == MotionEvent.ACTION_MOVE && e.getPointerCount() >= 2) {
+                float ns = span(e), mx = midX(e), my = midY(e);
+                if (prevSpan > 0) zoom = Math.max(1f, Math.min(4f, zoom * ns / prevSpan));
+                panX += mx - prevMidX; panY += my - prevMidY; prevSpan = ns; prevMidX = mx; prevMidY = my; clampPan(); invalidate(); if (zoomChanged != null) zoomChanged.run(); return true;
+            }
+            if (action == MotionEvent.ACTION_POINTER_UP) { multiTouch = true; return true; }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (action == MotionEvent.ACTION_UP && pending && !multiTouch && tool != MOVE) { startStroke(downX, downY); strokeTo(e.getX(), e.getY()); }   // a tap leaves a dot
+                drawing = false; pending = false; multiTouch = false; if (historyChanged != null) historyChanged.run(); return true;
+            }
+            if (multiTouch) return true;
+            if (action == MotionEvent.ACTION_DOWN) {
+                downX = lastX = e.getX(); downY = lastY = e.getY(); drawing = false;
+                pending = tool == MOVE || dst.contains(downX, downY); return true;
+            }
+            if (action != MotionEvent.ACTION_MOVE || !pending && !drawing) return true;
+            if (tool == MOVE) {   // one finger pans the zoomed picture
+                panX += e.getX() - lastX; panY += e.getY() - lastY; lastX = e.getX(); lastY = e.getY(); clampPan(); invalidate(); return true;
+            }
+            if (pending) {
+                if (Math.hypot(e.getX() - downX, e.getY() - downY) < slop) return true;
+                pending = false; startStroke(downX, downY);
+            }
+            strokeTo(e.getX(), e.getY());
             return true;
         }
-        void clear() { mask.eraseColor(0); invalidate(); }
+        float bx(float x) { return Math.max(0, Math.min(base.getWidth() - 1, (x - dst.left) / dst.width() * base.getWidth())); }
+        float by(float y) { return Math.max(0, Math.min(base.getHeight() - 1, (y - dst.top) / dst.height() * base.getHeight())); }
+        void startStroke(float x, float y) {
+            push(undo, mask); clearStack(redo); lx = bx(x); ly = by(y); drawing = true;
+            br.setStrokeWidth(size * Math.max(base.getWidth(), base.getHeight()));
+            br.setXfermode(tool == ERASER ? new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) : null);
+        }
+        void strokeTo(float x, float y) { float nx = bx(x), ny = by(y); mc.drawLine(lx, ly, nx + .01f, ny, br); lx = nx; ly = ny; invalidate(); }
+        /** undo the stroke this gesture started, without leaving a redo entry */
+        void rollbackStroke() {
+            if (undo.isEmpty()) return; Bitmap old = undo.removeLast();
+            mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(old, 0, 0, null); old.recycle(); invalidate();
+        }
+        float span(MotionEvent e) { float x = e.getX(0) - e.getX(1), y = e.getY(0) - e.getY(1); return (float)Math.hypot(x, y); }
+        float midX(MotionEvent e) { return (e.getX(0) + e.getX(1)) * .5f; }
+        float midY(MotionEvent e) { return (e.getY(0) + e.getY(1)) * .5f; }
+        void clampPan() { float fw = Math.min(getWidth() / (float)base.getWidth(), getHeight() / (float)base.getHeight()) * zoom * base.getWidth(), fh = Math.min(getWidth() / (float)base.getWidth(), getHeight() / (float)base.getHeight()) * zoom * base.getHeight(); panX = fw <= getWidth() ? 0 : Math.max((getWidth() - fw) / 2, Math.min((fw - getWidth()) / 2, panX)); panY = fh <= getHeight() ? 0 : Math.max((getHeight() - fh) / 2, Math.min((fh - getHeight()) / 2, panY)); }
+        void push(ArrayDeque<Bitmap> stack, Bitmap current) { stack.addLast(current.copy(Bitmap.Config.ARGB_8888, false)); while (stack.size() > historyLimit) stack.removeFirst().recycle(); }
+        void clearStack(ArrayDeque<Bitmap> stack) { while (!stack.isEmpty()) stack.removeLast().recycle(); }
+        void undo() { if (undo.isEmpty()) return; push(redo, mask); Bitmap old = undo.removeLast(); mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(old, 0, 0, null); old.recycle(); invalidate(); }
+        void redo() { if (redo.isEmpty()) return; push(undo, mask); Bitmap next = redo.removeLast(); mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(next, 0, 0, null); next.recycle(); invalidate(); }
+        void setZoom(float z) { zoom = Math.max(1f, Math.min(4f, z)); clampPan(); invalidate(); }
+        void clear() { push(undo, mask); clearStack(redo); mask.eraseColor(Color.TRANSPARENT); invalidate(); }
+        void dispose() { clearStack(undo); clearStack(redo); if (mask != null && !mask.isRecycled()) mask.recycle(); }
         boolean empty() { int[] px = new int[mask.getWidth()]; for (int y = 0; y < mask.getHeight(); y += 4) { mask.getPixels(px, 0, mask.getWidth(), 0, y, mask.getWidth(), 1); for (int p : px) if ((p >>> 24) > 0) return false; } return true; }
         void save(File f) throws IOException {
             Bitmap out = Bitmap.createBitmap(mask.getWidth(), mask.getHeight(), Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(out);
             c.drawColor(0xFF000000); c.drawBitmap(mask, 0, 0, null);
-            try (FileOutputStream o = new FileOutputStream(f)) { out.compress(Bitmap.CompressFormat.PNG, 100, o); }
+            try (FileOutputStream o = new FileOutputStream(f)) { out.compress(Bitmap.CompressFormat.PNG, 100, o); } finally { out.recycle(); }
         }
     }
     void paintMask() {
@@ -950,31 +1267,69 @@ public class Main extends Base {
         Bitmap b0 = BitmapFactory.decodeFile(initSrc().getPath()); if (b0 == null) return;
         float s = Math.min(1f, 1024f / Math.max(b0.getWidth(), b0.getHeight()));
         Bitmap base = s < 1 ? Bitmap.createScaledBitmap(b0, Math.round(b0.getWidth() * s), Math.round(b0.getHeight() * s), true) : b0;
-        final MaskView mv = new MaskView(base, maskSrc().exists() ? BitmapFactory.decodeFile(maskSrc().getPath()) : null);
+        showMaskEditor(base, maskSrc(), L.s("Маска (inpainting)", "Mask (inpainting)"), L.s("Закрасьте то, что нужно перерисовать", "Paint over what should be redrawn"), this::refreshExtras);
+    }
+    void paintQwenMask() {
+        if (editBm == null) { Toast.makeText(this, L.s("Сначала выберите исходную картинку", "Choose a source photo first"), Toast.LENGTH_SHORT).show(); return; }
+        float s = Math.min(1f, 1024f / Math.max(editBm.getWidth(), editBm.getHeight()));
+        Bitmap base = s < 1 ? Bitmap.createScaledBitmap(editBm, Math.round(editBm.getWidth() * s), Math.round(editBm.getHeight() * s), true) : editBm;
+        showMaskEditor(base, Qwen.editMask(getFilesDir()), L.s("Маска Qwen", "Qwen edit mask"),
+            L.s("Закрасьте только ту область, которую хотите изменить. Остальная фотография останется исходной.", "Paint only the area you want to change. The rest of the photo will stay original."), this::refreshEdit);
+    }
+    void showMaskEditor(Bitmap base, File file, String title, String hintText, Runnable afterSave) {
+        Bitmap old = file.exists() ? BitmapFactory.decodeFile(file.getPath()) : null;
+        final MaskView mv = new MaskView(base, old);
+        if (old != null) old.recycle();
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
-        v.addView(text(L.s("Маска (inpainting)", "Mask (inpainting)"), 20, TXT, true));
-        TextView hint = text(L.s("Закрасьте то, что нужно перерисовать", "Paint over what should be redrawn"), 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
+        v.addView(text(title, 20, TXT, true));
+        TextView hint = text(hintText, 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
         v.addView(mv, new LinearLayout.LayoutParams(-1, dp(400)));
-        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL); tools.setPadding(0, dp(8), 0, 0);
-        Button mode = button(L.s("Кисть", "Brush"), SEL, ACC); mode.setTextSize(13);
-        mode.setOnClickListener(x -> { mv.erase = !mv.erase; mode.setText(mv.erase ? L.s("Ластик", "Eraser") : L.s("Кисть", "Brush")); });
-        tools.addView(mode, new LinearLayout.LayoutParams(dp(90), dp(38)));
-        SeekBar sz = new SeekBar(this); sz.setMax(20); sz.setProgress(5); sz.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar b, int p, boolean u) { mv.size = .01f + p * .01f; }
+        LinearLayout modes = new LinearLayout(this); modes.setPadding(0, dp(8), 0, 0);
+        final Button[] tb = { button(L.s("Кисть", "Brush"), FIELD, TXT), button(L.s("Ластик", "Eraser"), FIELD, TXT), button(L.s("Двигать", "Move"), FIELD, TXT) };
+        final Runnable paintTools = () -> { for (int i = 0; i < tb.length; i++) { boolean on = mv.tool == i; tb[i].setBackground(bg(on ? SEL : FIELD, 14)); tb[i].setTextColor(on ? ACC : TXT); } };
+        for (int i = 0; i < tb.length; i++) {
+            final int t = i; tb[i].setTextSize(13); tb[i].setOnClickListener(x -> { mv.tool = t; paintTools.run(); });
+            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, dp(38), 1); if (i > 0) ml.leftMargin = dp(4); modes.addView(tb[i], ml);
+        }
+        paintTools.run(); v.addView(modes);
+        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL); tools.setPadding(0, dp(6), 0, 0);
+        SeekBar sz = new SeekBar(this); sz.setMax(40); sz.setProgress(3); sz.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar b, int p, boolean u) { mv.size = .005f + p * .005f; }
             public void onStartTrackingTouch(SeekBar b) { } public void onStopTrackingTouch(SeekBar b) { } });
         tools.addView(sz, new LinearLayout.LayoutParams(0, -2, 1));
         Button clr = button(L.s("Очистить", "Clear"), FIELD, TXT); clr.setTextSize(13); clr.setOnClickListener(x -> mv.clear());
         tools.addView(clr, new LinearLayout.LayoutParams(-2, dp(38)));
         v.addView(tools);
+        LinearLayout editTools = new LinearLayout(this); editTools.setGravity(Gravity.CENTER_VERTICAL); editTools.setPadding(0, dp(6), 0, 0);
+        Button undo = button(L.s("Deshacer", "Undo"), FIELD, TXT); undo.setTextSize(12); undo.setEnabled(false);
+        Button redo = button(L.s("Rehacer", "Redo"), FIELD, TXT); redo.setTextSize(12); redo.setEnabled(false);
+        TextView zoomLabel = text("1×", 12, TXT, true); zoomLabel.setGravity(Gravity.CENTER);
+        Button zoomLess = button("−", FIELD, TXT); zoomLess.setTextSize(18);
+        Button zoomMore = button("+", FIELD, TXT); zoomMore.setTextSize(18);
+        LinearLayout.LayoutParams ctl = new LinearLayout.LayoutParams(0, dp(38), 1); editTools.addView(undo, ctl);
+        LinearLayout.LayoutParams ctl2 = new LinearLayout.LayoutParams(0, dp(38), 1); ctl2.leftMargin = dp(4); editTools.addView(redo, ctl2);
+        LinearLayout.LayoutParams ctl3 = new LinearLayout.LayoutParams(dp(38), dp(38)); ctl3.leftMargin = dp(4); editTools.addView(zoomLess, ctl3);
+        LinearLayout.LayoutParams ctl4 = new LinearLayout.LayoutParams(dp(42), dp(38)); editTools.addView(zoomLabel, ctl4);
+        LinearLayout.LayoutParams ctl5 = new LinearLayout.LayoutParams(dp(38), dp(38)); editTools.addView(zoomMore, ctl5);
+        undo.setOnClickListener(x -> { mv.undo(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
+        redo.setOnClickListener(x -> { mv.redo(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
+        clr.setOnClickListener(x -> { mv.clear(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
+        mv.historyChanged = () -> { undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); };
+        mv.zoomChanged = () -> zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom));
+        zoomLess.setOnClickListener(x -> { mv.setZoom(mv.zoom / 1.25f); zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom)); });
+        zoomMore.setOnClickListener(x -> { mv.setZoom(mv.zoom * 1.25f); zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom)); });
+        zoomLabel.setOnClickListener(x -> { mv.setZoom(1f); zoomLabel.setText("1×"); });
+        v.addView(editTools);
         LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
         Button cancel = button(L.s("Отмена", "Cancel"), FIELD, TXT); bot.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button save = button(L.s("Сохранить", "Save"), ACC, ON_ACC); LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(0, dp(44), 1); sl.leftMargin = dp(8); bot.addView(save, sl);
         v.addView(bot);
         AlertDialog d = dialog(v);
+        d.setOnDismissListener(x -> { mv.dispose(); if (base != editBm && !base.isRecycled()) base.recycle(); });
         cancel.setOnClickListener(x -> d.dismiss());
         save.setOnClickListener(x -> {
-            try { if (mv.empty()) maskSrc().delete(); else mv.save(maskSrc()); } catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
-            d.dismiss(); refreshExtras();
+            try { if (mv.empty()) file.delete(); else mv.save(file); } catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
+            d.dismiss(); afterSave.run();
         });
     }
     /** writes the init image fitted (scale + center crop) to w x h; null if none */
@@ -1004,15 +1359,17 @@ public class Main extends Base {
         if (android.os.Build.VERSION.SDK_INT >= 30) { float hr = pm.getThermalHeadroom(0); if (!Float.isNaN(hr) && hr >= 0.95f) return true; }
         return batteryC() >= hotC();
     }
-    /** between pictures: wait (up to 3 min) until the battery is 3 °C under the limit; false = stopped or still hot */
+    /** Between pictures, keep the batch paused until the phone has cooled or the user presses Stop. */
     boolean waitCool(long t0) {
-        for (int i = 0; i < 60 && !cancelled; i++) {
-            float c = batteryC(); if (c < hotC() - 3f && !tooHotStatus()) return true;
+        long since = System.currentTimeMillis();
+        while (!cancelled) {
+            float c = batteryC(); if (c < hotC() - 3f && !tooHot()) return true;
+            long mins = (System.currentTimeMillis() - since) / 60000;
             final String m = L.f("Охлаждение телефона… %.1f °C", "Letting the phone cool down… %.1f °C", c);
-            ui.post(() -> status.setText(m));
-            try { Thread.sleep(3000); } catch (InterruptedException e) { return false; }
+            ui.post(() -> status.setText(m + "  ·  " + L.f("пауза %d мин", "paused %d min", mins)));
+            try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
         }
-        return !cancelled && !tooHot();
+        return false;
     }
     /** automatic cool mode: the NPU runs at full clock while the phone is cool and switches to the lower clock from 40 °C battery (43 °C while charging)
      *  or a thermal headroom of 0.75, back to full speed 2 °C lower. The NPU processes read the file anima/cool before every step. */
@@ -1180,7 +1537,12 @@ public class Main extends Base {
         int cut = Settings.cfgCut(this);
         cutBtn.setText((cut >= 100 ? L.s("CFG: на всех шагах", "CFG: on every step") : L.f("CFG: первые %d %% шагов", "CFG: first %d %% of the steps", cut)) + "  ▾");
         cutBtn.setVisibility(Settings.cfgOn(this) ? View.VISIBLE : View.GONE);
-        sampBox.setVisibility(!isMoss() && !isQwen() && !model.isEmpty() ? View.VISIBLE : View.GONE);
+        sampBox.setVisibility(!isMoss() && !isQwen() && !isMage() && !model.isEmpty() ? View.VISIBLE : View.GONE);
+        // MOSS runs its distilled 4 steps; only RealSkin with the DMD add-on installed gets a choice (4 rapid-moss / 8 DMD)
+        if (mossStepsBox != null) mossStepsBox.setVisibility(isMoss() && Moss.isRs(model) && canUseRsDmd() ? View.VISIBLE : View.GONE);
+        if (mossStepsBtn != null) {
+            if (Moss.isRs(model)) { boolean dmd = prefs().getString("rs_mode", "4").equals("8") && canUseRsDmd(); mossStepsBtn.setText(L.f("Modo RealSkin: %s  ▾", "RealSkin mode: %s  ▾", dmd ? "8 step · DMD" : "4 step · rapid-moss")); }
+        }
         // one short line; ↺ restores the per-model defaults
         String n = (Settings.turbo(this) ? "Turbo  ·  " : "") + L.f("вызовов DiT: %d", "DiT calls: %d", Settings.calls(this));
         if (Settings.cfgOn(this)) n += "  ·  " + (cut >= 100 ? L.s("CFG > 1: ×2 время", "CFG > 1: ×2 time") : L.f("CFG > 1: ×2 время на %d шагах", "CFG > 1: ×2 time on %d steps", Settings.cfgSteps(Settings.steps(this), cut)));
@@ -1196,9 +1558,9 @@ public class Main extends Base {
     }
     void dropLora() {
         if (busy) return;
-        final File ld = isMoss() ? loraDir() : loraSrc();   // Anima: only the selected file leaves the library
+        final boolean moss = isMoss(); final File ld = moss ? loraDir() : loraSrc();   // Anima: only the selected file leaves the library
         prefs().edit().remove(lp() + "lora_id").remove(lp() + "lora_name").remove(lp() + "lora_info").apply();
-        ex2.submit(() -> { MossLora.deleteTree(ld); ui.post(this::refreshLora); });
+        ex2.submit(() -> { if (moss) MossLora.clearSelection(getFilesDir()); else MossLora.deleteTree(ld); ui.post(this::refreshLora); });
     }
     void importLora(Uri uri) {
         String nm = "LoRA";
@@ -1215,7 +1577,16 @@ public class Main extends Base {
             final boolean ok; final String msg;
             if (moss) { MossLora.Check c = MossLora.check(BIN, tmp); ok = c.ok; msg = c.message(); } else { AnimaLora.Check c = AnimaLora.check(tmp); ok = c.ok; msg = c.message(); }
             if (!ok) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, msg); }); return; }
-            if (moss) { File[] old = dir.listFiles(); if (old != null) for (File f : old) if (!f.equals(tmp)) MossLora.deleteTree(f); }   // MOSS: the old LoRA and its folded patches go; Anima keeps a library
+            if (moss) {   // the file joins the MOSS library (same folder as the Civitai downloads) and becomes the active adapter
+                File lib = MossLora.civitaiDir(getFilesDir()); lib.mkdirs();
+                String fn = name.replaceAll("[^A-Za-z0-9._ ()\\[\\]-]", "_"); if (!fn.toLowerCase(java.util.Locale.ROOT).endsWith(".safetensors")) fn += ".safetensors";
+                File keep = new File(lib, fn); keep.delete();
+                try { if (!tmp.renameTo(keep)) throw new IOException("cannot store " + fn); MossLora.select(getFilesDir(), keep); }
+                catch (Exception e) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, e.getMessage()); }); return; }
+                prefs().edit().putString("moss_lora_id", "file-" + keep.getName()).putString("moss_lora_name", name.replaceFirst("(?i)\\.safetensors$", ""))
+                    .putString("moss_lora_info", "✓ " + msg).putString("moss_lora_file", keep.getName()).apply();
+                ui.post(this::refreshLora); return;
+            }
             src.delete(); tmp.renameTo(src);
             final String tag = src.getName().replaceAll("\\.safetensors$", "");
             prefs().edit().putString(pre + "lora_id", Long.toHexString(System.currentTimeMillis())).putString(pre + "lora_name", name).putString("anima_lora_file", moss ? prefs().getString("anima_lora_file", "user.safetensors") : src.getName())
@@ -1237,7 +1608,7 @@ public class Main extends Base {
         pm.getMenu().add(0, 4, 4, L.s("Инфо", "Info"));
         pm.setOnMenuItemClickListener(i -> {
             if (i.getItemId() == 1) openModels();
-            else if (i.getItemId() == 5) startActivity(new Intent(this, CivitaiActivity.class));
+            else if (i.getItemId() == 5) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
             else if (i.getItemId() == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
             else if (i.getItemId() == 3) startActivity(new Intent(this, Settings.class));
             else startActivity(new Intent(this, Info.class));
@@ -1343,7 +1714,7 @@ public class Main extends Base {
 
     boolean isMoss() { return Moss.is(model); }
     /** the size presets of the selected model: Anima's list, or MOSS-Image's own presets (any size with sides multiple of 16 works) */
-    java.util.List<int[]> sizeList() { return java.util.Arrays.asList(isMoss() ? Moss.PRESETS : isQwen() ? Qwen.PRESETS : SIZES); }
+    java.util.List<int[]> sizeList() { return isMage() ? Mage.presets(editBm != null) : java.util.Arrays.asList(isMoss() ? Moss.PRESETS : isQwen() ? Qwen.PRESETS : SIZES); }
     String mossSizeError(int w, int h) { return Moss.sizeError(w, h); }
 
     // ---- model state --------------------------------------------------------------------------
@@ -1383,7 +1754,7 @@ public class Main extends Base {
             bt.setOnClickListener(y -> {
                 dlg[0].dismiss();
                 if (x[1].equals("c")) openModels();
-                else if (x[1].equals("v")) startActivity(new Intent(this, CivitaiActivity.class).putExtra("type", "Checkpoint"));
+                else if (x[1].equals("v")) startActivityForResult(new Intent(this, CivitaiActivity.class).putExtra("type", "Checkpoint"), 14);
                 else startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 13);
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1); if (acts.getChildCount() > 0) lp.leftMargin = dp(6); acts.addView(bt, lp);
@@ -1415,9 +1786,37 @@ public class Main extends Base {
     /** rough time to a picture: the catalog speed at 512x768 scaled by the patch count, times the number of pictures */
     String genLabel() {
         if (model.isEmpty()) return L.s("Скачать модель", "Get a model");
-        double sm = isMoss() || isQwen() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;   // the default 4 steps cost ~2.6 full DiT calls (two run at half size)
+        double sm = isMoss() || isQwen() || isMage() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;   // the default 4 steps cost ~2.6 full DiT calls (two run at half size)
+        if (Moss.isRs(model) && prefs().getString("rs_mode", "4").equals("8") && Moss.installed8(getFilesDir()) && !loraOn()) sm = 1.65; // measured 8-step DMD is about 1.65× the 4-step RealSkin run, including final VAE decode
         long est = Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0 * (isQwen() && editBm != null ? 1.3 : 1))) * count;
         return count > 1 ? L.f("Генерировать ×%d  ·  ~%d с", "Generate ×%d  ·  ~%d s", count, est) : L.f("Генерировать  ·  ~%d с", "Generate  ·  ~%d s", est);
+    }
+
+    /** Set the requested batch size (1..999). During generation the active image is retained, and the remaining queue can be changed. */
+    void setCount(int v) {
+        synchronized (batchLock) {
+            if (busy) {
+                if (!batchAdjustable) return;   // comparison grids have a fixed four-image layout
+                count = Math.max(curIdx + 1, Math.min(999, v));
+                curN = count;
+            } else count = Math.max(1, Math.min(999, v));
+            prefs().edit().putInt("count", count).apply();
+        }
+        countBtn.setText("×" + count);
+        if (busy) Toast.makeText(this, L.f("В очереди: %d", "In the queue: %d", count), Toast.LENGTH_SHORT).show();
+        else genBtn.setText(genLabel());
+    }
+
+    void pickCount() {
+        final EditText e = new EditText(this);
+        e.setText(String.valueOf(count)); e.setSelectAllOnFocus(true); e.setInputType(InputType.TYPE_CLASS_NUMBER);
+        builder().setTitle(L.s("Картинок за раз", "Pictures per run"))
+            .setMessage(L.s("Число от 1 до 999", "Enter a number from 1 to 999"))
+            .setView(e).setNegativeButton(L.s("Отмена", "Cancel"), null)
+            .setPositiveButton("OK", (d, w) -> {
+                try { setCount(Integer.parseInt(e.getText().toString().trim())); }
+                catch (NumberFormatException x) { Toast.makeText(this, L.s("Введите число", "Enter a number"), Toast.LENGTH_SHORT).show(); }
+            }).show();
     }
 
     /** Share of the DiT time spent after `st` steps: the first two of the 4 steps use a half-size latent and cost ~0.3 (512x768) / ~0.22 (960x1536) of a full step. */
@@ -1433,16 +1832,18 @@ public class Main extends Base {
         ui.post(() -> {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
-            if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isQwen() ? View.GONE : View.VISIBLE); refreshLora(); }
-            if (editBox != null) editBox.setVisibility(isQwen() ? View.VISIBLE : View.GONE);
+            if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isQwen() || isMage() ? View.GONE : View.VISIBLE); refreshLora(); }
+            if (qwenLoraBox != null) { qwenLoraBox.setVisibility(isQwen() ? View.VISIBLE : View.GONE); refreshQwenLora(); }
+            if (editBox != null) editBox.setVisibility(isQwen() || isMage() ? View.VISIBLE : View.GONE);
             refreshExtras();
             refreshSampling();
-            state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
+            state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMage() ? L.s("Mage-Flow en NPU · pesos desde almacenamiento", "Mage-Flow on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
                 : L.s("Выгружена · загрузится при генерации", "Unloaded · loads when you generate"));
             loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
-            loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss() && !isQwen());
+            loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss() && !isQwen() && !isMage());
             loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);
-            countBtn.setEnabled(!busy); countBtn.setAlpha(busy ? .5f : 1f);
+            boolean canEditBatch = !busy || (batchAdjustable && !cancelled);
+            countBtn.setEnabled(canEditBatch); countBtn.setAlpha(canEditBatch ? 1f : .5f);
             boolean can = busy ? !cancelled : !working;   // while a picture is made the main button is "Stop"
             genBtn.setEnabled(can);
             genBtn.setBackground(busy ? bg(BAD, 18) : gradient(can));
@@ -1452,7 +1853,7 @@ public class Main extends Base {
     }
 
     void refreshState() {
-        if (isMoss() || isQwen()) { setModelUi(false, false, ""); return; }
+        if (isMoss() || isQwen() || isMage()) { setModelUi(false, false, ""); return; }
         ex.submit(() -> {
             String s = su("sh " + D + "/anima.sh status", true);
             if (s.startsWith("ERR") || s.isEmpty()) {
@@ -1478,8 +1879,65 @@ public class Main extends Base {
         } else setModelUi(false, false, "");
     }
 
+    void refreshQwenLora() {
+        if (qwenLoraName == null) return;
+        String name = prefs().getString("qwen_lora_dir", "");
+        File selected = Qwen.selectedOverlay(getFilesDir(), name);
+        if (selected == null && !name.isEmpty()) { prefs().edit().remove("qwen_lora_dir").apply(); name = ""; }
+        qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : name);
+        qwenLoraDrop.setEnabled(!name.isEmpty()); qwenLoraDrop.setAlpha(name.isEmpty() ? .45f : 1f);
+    }
+
+    void pickQwenLora() {
+        File root = Qwen.lorasDir(getFilesDir());
+        File[] dirs = root.listFiles(File::isDirectory);
+        List<String> names = new ArrayList<>();
+        if (dirs != null) {
+            Arrays.sort(dirs, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+            for (File f : dirs) if (Qwen.validOverlay(f)) names.add(f.getName());
+        }
+        if (names.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle(L.s("LoRAs de Qwen", "Qwen LoRAs"))
+                .setMessage(L.s("No hay paquetes LoRA Qwen V73 instalados. Los archivos safetensors de Civitai deben convertirse a overlays compatibles antes de usarlos.", "No Qwen V73 LoRA packs are installed. Civitai safetensors must be converted to compatible overlays before use."))
+                .setPositiveButton("OK", null).show();
+            return;
+        }
+        List<String> choices = new ArrayList<>(); choices.add(L.s("Ninguna", "None")); choices.addAll(names);
+        ListView list = new ListView(this);
+        list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, choices));
+        LinearLayout picker = new LinearLayout(this); picker.setOrientation(LinearLayout.VERTICAL);
+        TextView hint = text(L.s("Mantén pulsada una LoRA para copiar sus activadores", "Long-press a LoRA to copy its trigger words"), 13, DIM, false);
+        hint.setPadding(dp(20), dp(8), dp(20), dp(4)); picker.addView(hint);
+        picker.addView(list, new LinearLayout.LayoutParams(-1, dp(360)));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
+            .setView(picker).setNegativeButton(L.s("Cancelar", "Cancel"), null).create();
+        list.setOnItemClickListener((parent, view, which, id) -> {
+            SharedPreferences.Editor edit = prefs().edit();
+            if (which == 0) edit.remove("qwen_lora_dir"); else edit.putString("qwen_lora_dir", names.get(which - 1));
+            edit.apply(); refreshQwenLora(); dialog.dismiss();
+        });
+        list.setOnItemLongClickListener((parent, view, which, id) -> {
+            if (which == 0) return true;
+            String trigger = Qwen.overlayTriggers(new File(root, names.get(which - 1)));
+            if (trigger.isEmpty()) Toast.makeText(this, L.s("Este overlay no tiene palabras activadoras guardadas", "This overlay has no saved trigger words"), Toast.LENGTH_LONG).show();
+            else {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard != null) { clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Qwen trigger words", trigger)); Toast.makeText(this, L.s("Palabras activadoras copiadas", "Trigger words copied"), Toast.LENGTH_SHORT).show(); }
+            }
+            return true;
+        });
+        dialog.show();
+    }
+
+    void importQwenOverlay() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("application/zip");
+        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/x-zip-compressed", "application/octet-stream"});
+        try { startActivityForResult(i, 15); }
+        catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el selector de archivos", "Could not open the file picker"), Toast.LENGTH_LONG).show(); }
+    }
+
     void toggleModel() {
-        if (isMoss() || isQwen()) return;   // nothing to preload
+        if (isMoss() || isQwen() || isMage()) return;   // these runners load per generation
         final boolean want = !loaded;
         setModelUi(loaded, true, want ? L.s("Загружаю модель…", "Loading the model…") : L.s("Выгружаю модель…", "Unloading the model…"));
         ex.submit(() -> {
@@ -1491,7 +1949,7 @@ public class Main extends Base {
 
     /** anima.sh ships in assets and is rewritten at every start (it is a script, so it may live in the app's data dir) */
     void installScript() {
-        for (String nm : new String[]{"anima.sh", "moss.sh", "qwen.sh"})
+        for (String nm : new String[]{"anima.sh", "moss.sh", "qwen.sh", "mage.sh"})
             try (InputStream in = getAssets().open(nm); FileOutputStream o = new FileOutputStream(new File(D, nm))) {
                 byte[] b = new byte[8192]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
             } catch (IOException e) { Toast.makeText(this, nm + ": " + e, Toast.LENGTH_LONG).show(); }
@@ -1500,7 +1958,9 @@ public class Main extends Base {
     void refreshModels() {
         ids = store.installed();
         String was = prefs().getString("model", "");
-        model = ids.isEmpty() ? "" : ids.contains(model) ? model : ids.get(0);
+        model = ids.isEmpty() ? "" : ids.contains(model) ? model : "";
+        if (model.isEmpty() && Mage.is(was)) for (String id : ids) if (Qwen.is(id)) { model = id; break; }
+        if (model.isEmpty() && !ids.isEmpty()) model = ids.get(0);
         prefs().edit().putString("model", model).apply();
         if (!model.equals(was)) sampFill = false;
         setRes(resW, resH);
@@ -1546,7 +2006,8 @@ public class Main extends Base {
         if (!busy || cancelled) return;
         cancelled = true;
         setModelUi(loaded, false, "");
-        if (isQwen()) ex2.submit(() -> ctlSh.run("sh " + D + "/qwen.sh stop < /dev/null >/dev/null 2>&1"));
+        if (isMage()) ex2.submit(() -> ctlSh.run("sh " + D + "/mage.sh stop < /dev/null >/dev/null 2>&1"));
+        else if (isQwen()) ex2.submit(() -> ctlSh.run("sh " + D + "/qwen.sh stop < /dev/null >/dev/null 2>&1"));
         else if (isMoss()) ex2.submit(() -> ctlSh.run("sh " + D + "/moss.sh stop < /dev/null >/dev/null 2>&1"));
         else ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
     }
@@ -1555,7 +2016,7 @@ public class Main extends Base {
         if (model.isEmpty()) { openModels(); return; }
         int cw = 0, ch = 0;
         try { cw = Integer.parseInt(wEdit.getText().toString().trim()); ch = Integer.parseInt(hEdit.getText().toString().trim()); } catch (NumberFormatException e) { }
-        String bad = isMoss() ? mossSizeError(cw, ch) : isQwen() ? Qwen.sizeError(cw, ch) : sizeError(cw, ch);
+        String bad = isMage() ? Mage.sizeError(cw, ch) : isMoss() ? mossSizeError(cw, ch) : isQwen() ? Qwen.sizeError(cw, ch) : sizeError(cw, ch);
         if (bad != null) { Toast.makeText(this, bad, Toast.LENGTH_LONG).show(); return; }
         if (cw != resW || ch != resH) setRes(cw, ch);
         final String pr0 = prompt.getText().toString().trim();
@@ -1565,7 +2026,7 @@ public class Main extends Base {
         if (have < need && !memOk) {
             builder().setTitle(L.s("Мало свободной памяти", "Low free memory"))
                 .setMessage(L.f("Свободно %d МБ, нужно около %d МБ. Без этого телефон начнёт тормозить и сильно греться.", "%d MB free, about %d MB are needed. Without it the phone slows down and gets very hot.", have, need))
-                .setPositiveButton(L.s("Освободить и продолжить", "Free RAM and go on"), (d, k) -> ex2.submit(() -> { RamWidget.freeRamOthers(this); ui.post(() -> { memOk = true; generate(newSeed); memOk = false; }); }))
+                .setPositiveButton(L.s("Liberar RAM y continuar", "Free RAM and go on"), (d, k) -> ex2.submit(() -> { releaseAppMemory(); ui.post(() -> { memOk = true; generate(newSeed); memOk = false; }); }))
                 .setNeutralButton(L.s("Всё равно", "Anyway"), (d, k) -> { memOk = true; generate(newSeed); memOk = false; })
                 .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
@@ -1579,7 +2040,8 @@ public class Main extends Base {
         final int n = gk != 0 ? 4 : count, w = resW, h = resH;
         final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
         final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
-        busy = true; cancelled = false; curIdx = 0; curN = n;
+        batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; refreshGeneratedEditAction();
+        busy = true; cancelled = false; curIdx = 0; curN = n; batchAdjustable = gk == 0;
         setModelUi(loaded, false, "");
         View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
         bar.setProgress(0);
@@ -1592,22 +2054,34 @@ public class Main extends Base {
         app.startForegroundService(new Intent(app, DownloadService.class).putExtra("mode", "gen"));   // keeps the process alive when the app goes to the background
         final long t0 = System.currentTimeMillis();
         previewFile().delete();
+        pvTime = 0;
+        img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE);
         ex.submit(() -> {
-            int made = 0; Bitmap lastBm = null;
-            for (int i = 0; i < n && !cancelled; i++) {
-                curIdx = i;
-                if (i > 0 && tooHot() && !waitCool(t0)) { hotStop = true; break; }   // batch: the next picture waits for a cooler phone
+            int made = 0; Bitmap lastBm = null; final List<File> madeFiles = new ArrayList<>();
+            for (int i = 0; ; i++) {
+                synchronized (batchLock) {
+                    if (i >= curN || cancelled) { batchAdjustable = false; break; }
+                    curIdx = i;
+                }
+                if (tooHot() && !waitCool(t0)) { hotStop = true; break; }   // pause before every image, including the first; Stop cancels the wait
+                previewFile().delete();
+                pvTime = 0;
+                ui.post(() -> { if (busy) { img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE); } });
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
                 final File f = runOne(pr, seedS, w, h, t0);
                 cfgOv = null; stepsOv = 0; cutOv = 0;
                 if (f == null) break;
                 made++;
+                madeFiles.add(f);
                 final Bitmap bm = BitmapFactory.decodeFile(f.getPath());
                 if (gk != 0 && bm != null) { gridBms.add(bm); gridLabels.add(gk == 1 ? "seed " + seedS : gk == 2 ? "CFG " + GRID_CFG[i] : gk == 4 ? L.f("CFG на %d %% шагов", "CFG on %d %% of the steps", Settings.CFG_CUTS[i]) : L.f("%d шагов", "%d steps", GRID_STEPS[i])); }
                 lastBm = bm;
+                final List<File> fileSnapshot = new ArrayList<>(madeFiles);
                 ui.post(() -> {
+                    batchFiles = fileSnapshot; batchGridFile = null; batchDisplayIndex = batchFiles.size() - 1;
                     lastFile = f; img.setImageBitmap(bm); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+                    refreshGeneratedEditAction();
                     setFavIcon(false);
                     for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
                     final ScrollView svv = (ScrollView) imgBox.getParent().getParent(); svv.post(() -> svv.smoothScrollTo(0, 0));   // after the image has been laid out
@@ -1617,14 +2091,18 @@ public class Main extends Base {
             if (gk != 0 && gridBms.size() >= 2 && !cancelled) {
                 final File gf = saveGrid(gridBms, gridLabels, pr, String.valueOf(gridSeed), w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { lastFile = gf; img.setImageBitmap(gb); saved.setText(L.s("Сетка сохранена в историю", "Grid saved to the history")); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · swipe to view images")); refreshGeneratedEditAction(); }); }
+            } else if (gk == 0 && madeFiles.size() > 1) {
+                final File gf = saveBatchGrid(madeFiles, pr, w, h);
+                final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · swipe to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
             hotStop = false;
             final int total = made;
             if (wasCancelled) loaded = false;   // Stop shut the server down
-            busy = false; cancelled = false;
+            synchronized (batchLock) { busy = false; cancelled = false; batchAdjustable = false; }
             app.stopService(new Intent(app, DownloadService.class));
             final Bitmap nb = lastBm;
             ui.post(() -> {
@@ -1657,6 +2135,23 @@ public class Main extends Base {
         String[] k = {L.s("4 сида", "4 seeds"), "CFG  1 · 3 · 5 · 7", L.s("Шаги  4 · 8 · 12 · 20", "Steps  4 · 8 · 12 · 20"), L.s("CFG на 100 · 80 · 70 · 60 % шагов", "CFG on 100 · 80 · 70 · 60 % of the steps")};
         builder().setTitle(L.s("Сравнить (сетка 2×2)", "Compare (2×2 grid)")).setItems(k, (d, i) -> { gridKind = i + 1; generate(false); }).show();
     }
+
+    void showBatchPage(int page) {
+        List<File> pages = new ArrayList<>(batchFiles);
+        if (batchGridFile != null && batchGridFile.isFile()) pages.add(batchGridFile);
+        if (pages.size() < 2) return;
+        batchDisplayIndex = (page % pages.size() + pages.size()) % pages.size();
+        File f = pages.get(batchDisplayIndex);
+        Bitmap b = BitmapFactory.decodeFile(f.getPath()); if (b == null) return;
+        lastFile = f; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+        refreshGeneratedEditAction();
+        setFavIcon(Gallery.fav(f));
+        JSONObject m = Gallery.meta(f);
+        saved.setText(batchDisplayIndex == batchFiles.size()
+            ? L.f("Cuadrícula · %d imágenes", "Grid · %d images", batchFiles.size())
+            : L.f("Imagen %d de %d · seed %s", "Image %d of %d · seed %s", batchDisplayIndex + 1, batchFiles.size(), m.optString("seed", "?")));
+    }
+
     /** the four pictures side by side with a label under each, saved like any other picture */
     File saveGrid(List<Bitmap> bms, List<String> labels, String prompt, String seedS, int w, int h) {
         int cw = Math.min(512, bms.get(0).getWidth()), ch = Math.round(cw * bms.get(0).getHeight() / (float) bms.get(0).getWidth()), lh = 44;
@@ -1674,7 +2169,86 @@ public class Main extends Base {
         } catch (Exception e) { return null; }
     }
 
+    /** Save every picture from a regular batch as a bounded contact sheet (max 2048²), keeping the individual PNGs too. */
+    File saveBatchGrid(List<File> files, String prompt, int w, int h) {
+        if (files == null || files.size() < 2) return null;
+        int n = files.size(), cols = (int) Math.ceil(Math.sqrt(n)), rows = (n + cols - 1) / cols, side = 2048;
+        int maxW = Math.max(1, side / cols), maxH = Math.max(1, side / rows);
+        BitmapFactory.Options first = new BitmapFactory.Options(); first.inJustDecodeBounds = true; BitmapFactory.decodeFile(files.get(0).getPath(), first);
+        float aspect = first.outWidth > 0 && first.outHeight > 0 ? first.outWidth / (float) first.outHeight : 1f;
+        int cellW, cellH;
+        if (aspect >= maxW / (float) maxH) { cellW = maxW; cellH = Math.max(1, Math.round(maxW / aspect)); }
+        else { cellH = maxH; cellW = Math.max(1, Math.round(maxH * aspect)); }
+        Bitmap grid;
+        try { grid = Bitmap.createBitmap(cellW * cols, cellH * rows, Bitmap.Config.ARGB_8888); }
+        catch (OutOfMemoryError e) { System.gc(); return null; }
+        android.graphics.Canvas c = new android.graphics.Canvas(grid); c.drawColor(0xFF181522);
+        android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
+        android.graphics.Paint label = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        label.setColor(0xFFFFFFFF); label.setTextSize(Math.max(12, Math.min(32, cellW * 0.13f))); label.setTypeface(F_SEMI);
+        for (int i = 0; i < n; i++) {
+            File f = files.get(i); BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true; BitmapFactory.decodeFile(f.getPath(), bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
+            int sample = 1; while (bounds.outWidth / (sample * 2) >= cellW && bounds.outHeight / (sample * 2) >= cellH) sample *= 2;
+            BitmapFactory.Options opt = new BitmapFactory.Options(); opt.inSampleSize = sample;
+            Bitmap tile = BitmapFactory.decodeFile(f.getPath(), opt); if (tile == null) continue;
+            int x = (i % cols) * cellW, y = (i / cols) * cellH;
+            float scale = Math.min(cellW / (float) tile.getWidth(), cellH / (float) tile.getHeight());
+            int dw = Math.round(tile.getWidth() * scale), dh = Math.round(tile.getHeight() * scale);
+            android.graphics.Rect dst = new android.graphics.Rect(x + (cellW - dw) / 2, y + (cellH - dh) / 2, x + (cellW + dw) / 2, y + (cellH + dh) / 2);
+            c.drawBitmap(tile, null, dst, paint); tile.recycle();
+            c.drawText(String.valueOf(i + 1), x + 5, y + Math.min(cellH - 2, label.getTextSize() + 4), label);
+        }
+        try {
+            ByteArrayOutputStream bo = new ByteArrayOutputStream(); grid.compress(Bitmap.CompressFormat.PNG, 100, bo); grid.recycle();
+            JSONObject meta = new JSONObject().put("prompt", prompt).put("seed", "batch").put("w", w).put("h", h).put("model", modelName()).put("id", model).put("grid", "batch " + n).put("count", n);
+            return Gallery.save(this, PngMeta.embed(bo.toByteArray(), meta), meta);
+        } catch (Exception e) { if (!grid.isRecycled()) grid.recycle(); return null; }
+    }
+
+    /** One Mage-Flow image. This route intentionally has no step previews. */
+    File runOneMage(String pr, String seedS, int w, int h, long t0) {
+        final File home = getFilesDir(), m = Mage.dir(home), ids = new File(m, "ids.i32"), raw = new File(m, "img.rgb");
+        final int mageSteps = 4; final Bitmap src = editBm; final boolean edit = src != null;
+        setProgressUi(2, edit ? L.s("Preparando foto…", "Preparing photo…") : L.s("Tokenizando…", "Tokenising…"), t0);
+        int drop, keys; String editArg = "";
+        try {
+            if (edit) {
+                if ((w / 16) * (h / 16) > Mage.MAX_EDIT_PATCHES) { ui.post(() -> Toast.makeText(this, L.s("Para editar, usa un tamaño de hasta 1024×768", "For editing, use a size up to 1024×768"), Toast.LENGTH_LONG).show()); return null; }
+                Mage.Edit e = Mage.prepareEdit(home, src, pr, w, h, new File(Mage.editDir(home), "ids.i32"));
+                drop = e.drop; editArg = " " + q(Mage.editDir(home).getPath()); keys = 2 * (w / 16) * (h / 16) + e.tokens - e.drop;
+            } else { drop = Mage.writeIds(home, pr, ids); keys = (w / 16) * (h / 16) + (int) (ids.length() / 4) - drop; }
+            if (keys > Mage.MAX_KEYS) { ui.post(() -> Toast.makeText(this, L.s("El texto es demasiado largo para este tamaño; acórtalo o reduce la imagen", "The prompt is too long for this size; shorten it or reduce the image size"), Toast.LENGTH_LONG).show()); return null; }
+        } catch (Exception e) { ui.post(() -> Toast.makeText(this, "Mage: " + e, Toast.LENGTH_LONG).show()); return null; }
+        final boolean[] done = {false};
+        Thread poll = new Thread(() -> {
+            while (!done[0]) {
+                try { Thread.sleep(700); } catch (InterruptedException ignored) { return; }
+                String s = su("echo $(grep -c '^vit:' " + m + "/mage.log) $(grep -c '^te:' " + m + "/mage.log) $(grep -c '^txt_in:' " + m + "/mage.log) $(grep -c '^step' " + m + "/mage.log) $(grep -c '^vae dec total' " + m + "/mage.log)", true);
+                try { String[] a = s.split("\\s+"); int vit = Integer.parseInt(a[0]), te = Integer.parseInt(a[1]), ti = Integer.parseInt(a[2]), st = Integer.parseInt(a[3]), dn = Integer.parseInt(a[4]);
+                    if (dn > 0 || st >= mageSteps) setProgressUi(94, L.s("Decodificando…", "Decoding…"), t0);
+                    else if (ti > 0 || st > 0) setProgressUi(30 + 60 * st / mageSteps, L.f("Paso %d/%d", "Step %d/%d", Math.min(st + 1, mageSteps), mageSteps), t0);
+                    else if (te > 0) setProgressUi(28, L.s("Preparando texto…", "Preparing text…"), t0);
+                    else if (edit && vit > 0) setProgressUi(15, L.s("Analizando foto en NPU…", "Analyzing photo on NPU…"), t0);
+                    else if (edit) setProgressUi(5, L.s("Analizando foto…", "Analyzing photo…"), t0);
+                    else setProgressUi(8, L.s("Codificando texto en NPU…", "Encoding text on NPU…"), t0);
+                } catch (Exception ignored) { }
+            }
+        });
+        poll.start();
+        su("rm -f " + q(raw.getPath()) + "; M=" + q(m.getPath()) + " sh " + D + "/mage.sh " + q(ids.getPath()) + " " + drop + " " + w + " " + h + " " + seedS + " " + mageSteps + " " + q(raw.getPath()) + editArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        done[0] = true; try { poll.join(); } catch (InterruptedException ignored) { }
+        if (cancelled) return null;
+        try {
+            byte[] png = Mage.png(raw, w, h); raw.delete();
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            if (edit) meta.put("edit", true);
+            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+        } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Error de generación: %s (registro files/mage/mage.log)", "Generation error: %s (log files/mage/mage.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
+    }
+
     File runOne(String pr, String seedS, int w, int h, long t0) {
+        if (isMage()) return runOneMage(pr, seedS, w, h, t0);
         if (isQwen()) return runOneQwen(pr, seedS, w, h, t0);
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
@@ -1703,7 +2277,7 @@ public class Main extends Base {
                 if (st >= 1 && tStep1[0] == 0) tStep1[0] = nowMs;
                 remainS = st >= 2 && st < calls ? (int) Math.ceil((nowMs - tStep1[0]) / 1000.0 / (st - 1) * (calls - st) + 0.5) : -1;   // from the pace of the calls after the first
                 if (st >= calls) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
-                else if (c[2] > base[2]) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", Math.min(steps, st * steps / calls + 1), steps), t0);  // adapter line = step 1 started
+                else if (c[2] > base[2] || st > 0) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", Math.min(steps, st * steps / calls + 1), steps), t0);  // cached text skips the adapter log, but the first DiT call still started
                 else setProgressUi(8, L.s("Кодирование текста…", "Encoding the text…"), t0);
             }
         });
@@ -1728,38 +2302,50 @@ public class Main extends Base {
 
     /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
     File runOneMoss(String pr, String seedS, int w, int h, long t0) {
-        final File home = getFilesDir(), M = Moss.dir(home), ids = new File(M, "ids.i32"), raw = new File(M, "img.f32");
+        final File home = getFilesDir(), M = Moss.dir(home);
+        try { Moss.ensureV73Vae(home, getAssets()); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "VAE: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+        final File MR;
+        try { MR = Moss.isVariant(model) ? Moss.variantView(home, model) : M; }
+        catch (Exception e) { ui.post(() -> Toast.makeText(this, "MOSS variant: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+        final File ids = new File(MR, "ids.i32"), raw = new File(MR, "img.f32");
+        final boolean useLora = loraOn(); final MossLora.Check activeLora = useLora ? MossLora.check(BIN, MossLora.src(home)) : null;
+        final boolean lokrSelected = activeLora != null && activeLora.ok && activeLora.lokr;
+        final boolean rsDmd = Moss.isRs(model) && prefs().getString("rs_mode", "4").equals("8") && Moss.installed8(home) && (!useLora || lokrSelected);
+        final int mossSteps = rsDmd ? 8 : 4;   // the distilled MOSS models are made for 4 steps
         setProgressUi(3, L.s("Токенизация…", "Tokenising…"), t0);
         try { Moss.writeIds(home, pr, ids); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "tokenizer: " + e, Toast.LENGTH_LONG).show()); return null; }
-        String loraEnv = ""; final boolean useLora = loraOn(); final float lstr = loraStr();
+        String loraEnv = ""; final float lstr = loraStr();
         if (useLora) {
+            if (activeLora == null || !activeLora.ok) { ui.post(() -> Toast.makeText(this, activeLora == null ? L.s("No se pudo validar la LoRA", "Could not validate the LoRA") : activeLora.message(), Toast.LENGTH_LONG).show()); return null; }
             final String[] msg = {""};
             File ovl = MossLora.ensure(home, BIN, loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Подготовка LoRA… %d/%d", "Preparing the LoRA… %d/%d", d, t), t0), () -> cancelled, msg);
             if (ovl == null) { if (!cancelled) ui.post(() -> Toast.makeText(this, L.f("Не удалось подготовить LoRA: %s", "Could not prepare the LoRA: %s", msg[0]), Toast.LENGTH_LONG).show()); return null; }
-            loraEnv = "MOSS_LORA=" + q(ovl.getPath()) + " ";
+            loraEnv = (activeLora.lokr ? "MOSS_LOKR=" : "MOSS_LORA=") + q(ovl.getPath()) + " ";
         }
         final boolean[] done = {false};
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
-                String s = su("echo $(grep -c '^te:' " + M + "/moss.log) $(grep -c '^refiner:' " + M + "/moss.log) $(grep -c '^step' " + M + "/moss.log) $(grep -c '^done' " + M + "/moss.log)", true);
+                String s = su("echo $(grep -c '^te:' " + MR + "/moss.log) $(grep -c '^refiner:' " + MR + "/moss.log) $(grep -c '^step ' " + MR + "/moss.log) $(grep -c '^done' " + MR + "/moss.log) $(grep -c '^te: cached' " + MR + "/moss.log) $(grep -c '^step_start ' " + MR + "/moss.log)", true);
                 try {
-                    String[] a = s.split("\\s+"); int te = Integer.parseInt(a[0]), rf = Integer.parseInt(a[1]), st = Integer.parseInt(a[2]), dn = Integer.parseInt(a[3]);
+                    String[] a = s.split("\\s+"); int te = Integer.parseInt(a[0]), rf = Integer.parseInt(a[1]), st = Integer.parseInt(a[2]), dn = Integer.parseInt(a[3]), tc = Integer.parseInt(a[4]), ss = Integer.parseInt(a[5]);
                     if (dn > 0) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
-                    else if (rf > 0) setProgressUi(22 + 70 * st / STEPS, L.f("Шаг %d/%d", "Step %d/%d", Math.min(st + 1, STEPS), STEPS), t0);
-                    else if (te > 0) setProgressUi(20, L.s("Подготовка текста…", "Preparing the text…"), t0);
+                    else if (rf > 0 || st > 0 || ss > 0) { int step = Math.min(Math.max(st, ss), mossSteps); setProgressUi(22 + 70 * step / mossSteps, L.f("Paso %d/%d", "Step %d/%d", step, mossSteps), t0); }
+                    else if (te > 0 && tc > 0) setProgressUi(20, L.s("Texto reutilizado; preparando el primer paso…", "Text reused; preparing the first step…"), t0);
+                    else if (te > 0) setProgressUi(20, L.s("Preparando el texto…", "Preparing the text…"), t0);
                     else setProgressUi(8, L.s("Кодирование текста на NPU…", "Encoding the text on the NPU…"), t0);
                 } catch (Exception ignored) { }
             }
         });
+        su("rm -f " + q(MR.getPath() + "/moss.log"), true);
         poll.start();
-        su("rm -f " + q(raw.getPath()) + "; " + loraEnv + "M=" + q(M.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        su("rm -f " + q(raw.getPath()) + "; " + loraEnv + (rsDmd ? "MODE=8 " : "") + "M=" + q(MR.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + mossSteps + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
         try {
             byte[] png = Moss.png(raw, w, h); raw.delete();
-            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("steps", mossSteps).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             if (useLora) meta.put("lora", prefs().getString("moss_lora_name", "LoRA")).put("lora_strength", lstr);
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Ошибка генерации: %s (лог files/moss/moss.log)", "Generation failed: %s (log files/moss/moss.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
@@ -1769,15 +2355,20 @@ public class Main extends Base {
     File runOneQwen(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), Q = Qwen.dir(home), ids = new File(Q, "ids.i32"), raw = new File(Q, "img.f32");
         final Bitmap src = editBm; final boolean edit = src != null;
+        final File maskFile = Qwen.editMask(home);
+        final Qwen.DetailCrop detail = edit && maskFile.isFile() ? Qwen.detailCrop(src, maskFile) : null;
+        final Bitmap condition = detail != null ? detail.image : src;
+        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : new int[]{w, h};
+        final int runW = detailDims[0], runH = detailDims[1];
         setProgressUi(2, edit ? L.s("Подготовка фото…", "Preparing the photo…") : L.s("Токенизация…", "Tokenising…"), t0);
         int drop; String edArg = "";
         try {
             if (edit) {
-                Qwen.Edit e = Qwen.prepareEdit(home, src, pr, w, h, ids); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
-                int keys = (w / 16) * (h / 16) + e.nc + (e.tokens - e.drop - e.nm);
-                if (keys > Qwen.MAX_KEYS) { ui.post(() -> Toast.makeText(this, L.s("Фото и результат вместе слишком большие: выберите размер поменьше", "The photo and the result together are too large: pick a smaller size"), Toast.LENGTH_LONG).show()); return null; }
+                Qwen.Edit e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
+                int keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
+                if (keys > Qwen.MAX_KEYS) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, L.s("Foto y resultado juntos son demasiado grandes: elige un tamaño menor", "The photo and result together are too large: pick a smaller size"), Toast.LENGTH_LONG).show()); return null; }
             } else drop = Qwen.writeIds(home, pr, ids);
-        } catch (Exception e) { ui.post(() -> Toast.makeText(this, "qwen: " + e, Toast.LENGTH_LONG).show()); return null; }
+        } catch (Exception e) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, "qwen: " + e, Toast.LENGTH_LONG).show()); return null; }
         final boolean[] done = {false};
         Thread poll = new Thread(() -> {
             while (!done[0]) {
@@ -1786,7 +2377,7 @@ public class Main extends Base {
                 try {
                     String[] a = s.split("\\s+"); int vit = Integer.parseInt(a[0]), te = Integer.parseInt(a[1]), ti = Integer.parseInt(a[2]), st = Integer.parseInt(a[3]), dn = Integer.parseInt(a[4]);
                     if (dn >= (edit ? 2 : 1)) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
-                    else if (ti > 0) setProgressUi(30 + 62 * st / STEPS, st == 0 && edit ? L.s("Шаг 1/4 (разбор фото)", "Step 1/4 (reading the photo)") : L.f("Шаг %d/%d", "Step %d/%d", Math.min(st + 1, STEPS), STEPS), t0);
+                    else if (ti > 0 || st > 0) setProgressUi(30 + 62 * st / STEPS, st == 0 && edit ? L.s("Paso 1/4 (lectura de foto)", "Step 1/4 (reading the photo)") : L.f("Paso %d/%d", "Step %d/%d", Math.min(st, STEPS), STEPS), t0);
                     else if (te > 0) setProgressUi(28, L.s("Подготовка текста…", "Preparing the text…"), t0);
                     else if (edit && vit > 0) setProgressUi(15, L.s("Кодирование текста на NPU…", "Encoding the text on the NPU…"), t0);
                     else if (edit) setProgressUi(5, L.s("Анализ фото на NPU…", "Analysing the photo on the NPU…"), t0);
@@ -1794,17 +2385,25 @@ public class Main extends Base {
                 } catch (Exception ignored) { }
             }
         });
+        File qwenOverlay = Qwen.selectedOverlay(home, prefs().getString("qwen_lora_dir", ""));
+        String qwenLoraEnv = qwenOverlay == null ? "" : "QWEN_LORA=" + q(qwenOverlay.getPath()) + " ";
+        su("rm -f " + q(Q + "/qwen.log"), true);
         poll.start();
-        su("rm -f " + q(raw.getPath()) + "; Q=" + q(Q.getPath()) + " VAE=" + Qwen.vaeCtx(home, w, h) + " sh " + D + "/qwen.sh " + q(ids.getPath()) + " " + drop + " " + w + " " + h + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + edArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        su("rm -f " + q(raw.getPath()) + "; " + qwenLoraEnv + "Q=" + q(Q.getPath()) + " VAE=" + Qwen.vaeCtx(home, runW, runH) + " sh " + D + "/qwen.sh " + q(ids.getPath()) + " " + drop + " " + runW + " " + runH + " " + seedS + " " + STEPS + " " + q(raw.getPath()) + edArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
-        if (cancelled) return null;
+        if (cancelled) { if (detail != null) detail.recycle(); return null; }
         try {
-            byte[] png = Qwen.png(raw, w, h); raw.delete();
-            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
-            if (edit) meta.put("edit", true);
+            byte[] png = Qwen.png(raw, runW, runH); raw.delete();
+            if (edit && maskFile.isFile()) png = detail != null
+                ? Qwen.applyDetailMask(png, src, maskFile, detail, runW, runH, w, h)
+                : Qwen.applyEditMask(png, src, maskFile, w, h);
+            int finalW = edit && maskFile.isFile() ? src.getWidth() : w, finalH = edit && maskFile.isFile() ? src.getHeight() : h;
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", finalW).put("h", finalH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null);
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Ошибка генерации: %s (лог files/qwen/qwen.log)", "Generation failed: %s (log files/qwen/qwen.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
+        finally { if (detail != null) detail.recycle(); }
     }
 
     /** "Done" notification when the app is not on screen; tapping it opens the app */
@@ -1834,13 +2433,13 @@ public class Main extends Base {
     /** pct is the progress of the current picture; with several pictures the bar and the text cover the whole batch */
     File previewFile() { return new File(D, "preview.png"); }
     volatile int remainS = -1;   // seconds left for the current picture, from the pace of the DiT calls (-1 = unknown)
-    long pvTime;
+    volatile long pvTime;
     /** live preview: sd-cli renames a fresh preview.png into place after every step; show it while the picture is being made */
     void showPreview(long t0) {
         File pv = previewFile(); long m = pv.lastModified();
         if (!busy || m == 0 || m == pvTime || m < t0) return;
-        pvTime = m; final Bitmap b = BitmapFactory.decodeFile(pv.getPath()); if (b == null) return;
-        ui.post(() -> { if (!busy) return; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); });
+        pvTime = m; final int imageAt = curIdx; final Bitmap b = BitmapFactory.decodeFile(pv.getPath()); if (b == null) return;
+        ui.post(() -> { if (!busy || curIdx != imageAt || previewFile().lastModified() != m) return; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); });
     }
     void setProgressUi(int pct, String msg, long t0) {
         showPreview(t0);

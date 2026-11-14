@@ -103,6 +103,7 @@ static int vtcm_get(void) {
   HAP_compute_res_attr_set_vtcm_param(&attr, 8u << 20, 1); HAP_compute_res_attr_set_hmx_param(&attr, 1);
   g_ctx = HAP_compute_res_acquire(&attr, 5000000); if (!g_ctx) return -1;
   g_vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
+  hmx_scale_init(g_vt + VT_HMXSCALE);
   g_et = (u16 *)(g_vt + VT_TAB); g_tabs = g_et + 32768; g_tabs2 = g_tabs + 3 * 32768; g_scr = (HVX_Vector *)(g_vt + VT_TAB + 393216);
   memcpy(g_et, g_et_h, 65536); memcpy(g_tabs, g_tabs_h, 3 * 65536); memcpy(g_tabs2, g_tabs2_h, 2 * 65536);
   return 0;
@@ -116,6 +117,36 @@ static int hmx_selftest(uint8_t *vt) {
   asm volatile("barrier" ::: "memory");
   hmx_clr(); hmx_acc(a, (1 << 11) | 0x7C, w, (1 << 11) - 1); hmx_store(o, 0);
   volatile uint16_t *r = (volatile uint16_t *)o; return r[0] == 0x5000 ? 0 : (int)r[0] + 1;
+}
+/* LoKr sidecar is appended to the staged DiT pack as a compact header plus Q8 W2 factors. */
+typedef struct { uint8_t magic[4]; uint32_t version, mask, w1[4], w2[4], out_n[4], in_n[4]; } lokr_head_t;
+static void lokr_projection(const lokr_head_t *L, int which, const uint16_t *A, int M, int fullK,
+                            uint16_t *dst, int dstStride, int dstCol0, int dstN,
+                            uint16_t *tmp, uint8_t *vt) {
+  if (!L || !(L->mask & (1u << which))) return;
+  const int on = (int)L->out_n[which], ik = (int)L->in_n[which], ot = on / 32, it = ik / 32;
+  const __fp16 *w1 = (const __fp16 *)((const uint8_t *)L + L->w1[which]);
+  const uint16_t *w2 = (const uint16_t *)((const uint8_t *)L + L->w2[which]);
+  const int ns = M / 32;
+  for (int og = 0; og < 4; og++)
+    for (int s = 0; s < ns; s++)
+      memset(dst + ((size_t)s * dstStride + dstCol0 + og * ot) * 1024, 0, (size_t)ot * 2048);
+  /* W2 depends on the input group, not the W1 output group. Compute each input
+     group once, then fan it out through the four W1 coefficients. */
+  gemm_set_q8(1);
+  for (int ig = 0; ig < 4; ig++) {
+    gemm_geo_t g = {fullK / 32, it, ig * it, 0, 0, 0};
+    gemm_run_geo(A, M, ik, w2, on, tmp, vt, 0, &g);
+    for (int og = 0; og < 4; og++) {
+      const float sc = (float)w1[og * 4 + ig];
+      if (sc == 0) continue;
+      for (int s = 0; s < ns; s++) for (int c = 0; c < ot; c++) {
+        __fp16 *d = (__fp16 *)(dst + ((size_t)s * dstStride + dstCol0 + og * ot + c) * 1024);
+        const __fp16 *src = (const __fp16 *)(tmp + ((size_t)s * ot + c) * 1024);
+        for (int i = 0; i < 1024; i++) d[i] = (__fp16)((float)d[i] + sc * (float)src[i]);
+      }
+    }
+  }
 }
 typedef struct { const u16 *t; u16 *t2; float *r; const float *a, *b, *c, *d, *e, *f; float *o; int ns, nct, T; } tej_t;
 static void j_t2r(void *a, int i, int n) { tej_t *p = (tej_t *)a; te_t2r(p->t, p->r, p->ns, p->nct, i, n); }
@@ -133,6 +164,8 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
   if (HAP_mmap_get(wfd, &wp, &wpa) || !wp) { *rc = -5; return 0; }
   if (meta[M_STOP] == 99) return 0;
   const uint8_t *wts = (const uint8_t *)wp + meta[M_WOFF];
+  const lokr_head_t *lokr = meta[M_LOKR] ? (const lokr_head_t *)(wts + meta[M_LOKR]) : 0;
+  if (lokr && (memcmp(lokr->magic, "MLKR", 4) || lokr->version != 1)) lokr = 0;
   if (!g_init) {
     g_et_h = (u16 *)memalign(128, 65536); g_tabs_h = (u16 *)memalign(128, 3 * 65536);
     { u16 *t2 = (u16 *)memalign(128, 65536); tab_init(g_et_h, t2); free(t2); }
@@ -161,6 +194,7 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
   float *x = (float *)BUF(M_X); const float *mod = (const float *)modp, *gain = (const float *)(wts + W_GAIN), *cosT = (const float *)BUF(M_COS), *sinT = (const float *)BUF(M_SIN);
   u16 *h16 = (u16 *)BUF(M_H), *q16 = (u16 *)BUF(M_Q), *k16 = (u16 *)BUF(M_K), *v16 = (u16 *)BUF(M_V), *o16 = (u16 *)BUF(M_O), *t16 = (u16 *)BUF(M_T), *mid = (u16 *)BUF(M_MID);
   u16 *Lq = (u16 *)BUF(M_LQ), *Lo = (u16 *)BUF(M_LO), *Lu = (u16 *)BUF(M_LU), *Ld = (u16 *)BUF(M_LD);
+  const int midStride = 16384 / 32, hidStride = NCB;
   static HVX_Vector LM[MAXNCB] __attribute__((aligned(128))), LN[MAXNCB] __attribute__((aligned(128)));
   static float g_zero[4096] __attribute__((aligned(128)));
   if (ntimes > 24) times[24] = (int)(us_now() - te0);
@@ -236,26 +270,35 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
   pool_run(p_ln, &P); TICK();
   const int nolora = meta[M_MODE] == 1;
   if (!nolora) gemm_run(h16, ntok, DIM, WB(W_AQKV), 384, Lq, vt); TICK();
+  if (lokr) lokr_projection(lokr, 0, h16, ntok, DIM, mid, midStride, 0, 9216, t16, vt);
   { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 3; e.rope = 1; e.gain = gain; e.cosT = cosT; e.sinT = sinT;
+    if (lokr && (lokr->mask & 1)) { e.add = mid; e.add_stride_tiles = midStride; e.add_col0 = 0; }
     gemm_run_geo(h16, ntok, DIM + 128, WB(W_Q), DIM, q16, vt, &e, &gq);
-    e.gain = gain + 128; gemm_run_geo(h16, ntok, DIM + 128, WB(W_K), DIM, k16, vt, &e, &gk);
-    gemm_run_geo(h16, ntok, DIM + 128, WB(W_V), DIM, v16, vt, 0, &gv); } TICK();
+    e.gain = gain + 128; if (lokr && (lokr->mask & 1)) e.add_col0 = 96; gemm_run_geo(h16, ntok, DIM + 128, WB(W_K), DIM, k16, vt, &e, &gk);
+    if (lokr && (lokr->mask & 1)) e.add_col0 = 192; else e.add = 0;
+    gemm_run_geo(h16, ntok, DIM + 128, WB(W_V), DIM, v16, vt, &e, &gv); } TICK();
   attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], vt); TICK();
+  if (lokr) lokr_projection(lokr, 1, o16, ntok, DIM, mid, midStride, 0, DIM, t16, vt);
   { if (!nolora) gemm_run(o16, ntok, DIM, WB(W_AO), 128, Lo, vt);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = gt_a;
+    if (lokr && (lokr->mask & (1u << 1))) { e.add = mid; e.add_stride_tiles = midStride; e.add_col0 = 0; }
     const gemm_geo_t go = {NCB, NCB + 4, 0, Lo, 4, 4};
     gemm_run_geo(o16, ntok, DIM + 128, WB(W_O), DIM, t16, vt, &e, &go); } TICK();
   /* ---- FFN half ---- */
   k_rms_prep(LM, LN, gain + 256 + DIM, sh_f, sc_f);
   pool_run(p_ln, &P); TICK();
+  if (lokr) lokr_projection(lokr, 2, h16, ntok, DIM, mid, midStride, 0, 16384, t16, vt);
   { if (!nolora) gemm_run(h16, ntok, DIM, WB(W_AUG), 128, Lu, vt);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 5; e.tabs = g_tabs; e.scr = g_scr;
+    if (lokr && (lokr->mask & (1u << 2))) { e.add = mid; e.add_stride_tiles = midStride; e.add_col0 = 0; }
     const gemm_geo_t gu = {NCB, NCB + 4, 0, Lu, 4, 4};
     gemm_run_geo(h16, ntok, DIM + 128, WB(W_UG), 16384, mid, vt, &e, &gu); } TICK();
+  if (lokr) lokr_projection(lokr, 3, mid, ntok, 8192, h16, hidStride, 0, DIM, t16, vt);
   { if (!nolora) gemm_run(mid, ntok, 8192, WB(W_ADN), 128, Ld, vt);
     const gemm_geo_t g0 = {256, 260, 0, 0, 0, 0}, g1 = {256, 260, 128, Ld, 4, 4};
     gemm_run_geo(mid, ntok, 4096, WB(W_DN), DIM, t16, vt, 0, &g0);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 4; e.x32 = x; e.gate = gt_f; e.prev = t16;
+    if (lokr && (lokr->mask & (1u << 3))) { e.add = h16; e.add_stride_tiles = hidStride; e.add_col0 = 0; }
     gemm_run_geo(mid, ntok, 4096 + 128, WB(W_DN), DIM, t16, vt, &e, &g1); } TICK();
 done:
   for (int i = 0; i < 6 && 17 + i < ntimes; i++) times[17 + i] = (int)g_acc[i];

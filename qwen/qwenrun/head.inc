@@ -81,15 +81,15 @@ static size_t read_into(const std::string& path, uint8_t* dst, size_t maxb, bool
 }
 // stream a list of pack files through the two g_te buffers: a loader thread reads file i+1 while use(i) runs on the DSP
 #include <functional>
+#include "overlay.h"
 static int g_keep_blocks = 0;
-static std::string g_ovl;   // MOSS_LORA=dir: user-LoRA patches (blkNN.ovl) laid over the DiT packs' rank-128 LoRA slots after each read
-static void apply_ovl(const std::string& pack, uint8_t* dst, size_t maxb) {
-  if (g_ovl.empty() || pack.find("/dit/") == std::string::npos) return;
+static std::string g_ovl;   // QWEN_LORA=dir: per-block patches (blkNN.ovl) over a prepacked Qwen DiT, loaded after each block read
+static bool apply_ovl(const std::string& pack, uint8_t* dst, size_t maxb) {
+  if (g_ovl.empty() || pack.find("/dit/") == std::string::npos) return true;
   std::string nm = pack.substr(pack.rfind('/') + 1); nm = g_ovl + "/" + nm.substr(0, nm.size() - 4) + ".ovl";
-  FILE* f = fopen(nm.c_str(), "rb"); if (!f) { fprintf(stderr, "no overlay %s\n", nm.c_str()); return; }
-  uint32_t n = 0; if (fread(&n, 4, 1, f) != 1) { fclose(f); return; }
-  for (uint32_t i = 0; i < n; i++) { uint64_t o; uint32_t l; if (fread(&o, 8, 1, f) != 1 || fread(&l, 4, 1, f) != 1 || o + l > maxb || fread(dst + o, 1, l, f) != l) break; }
-  fclose(f);
+  if (qwen_apply_overlay(nm, dst, maxb)) return true;
+  fprintf(stderr, "missing or invalid overlay %s\n", nm.c_str());
+  return false;
 }   // the first g_keep_blocks DiT packs stay in the page cache between steps (their reads become memcpy)
 static bool stream_files(const std::vector<std::string>& files, Buf* bufs, const std::function<bool(int, Buf&)>& use, int keep_first = 0) {
   std::mutex mu; std::condition_variable cv; int ready = -1, freed = -2; std::atomic<bool> fail(false); const int n = (int)files.size();
@@ -97,7 +97,8 @@ static bool stream_files(const std::vector<std::string>& files, Buf* bufs, const
     for (int i = 0; i < n; i++) {
       { std::unique_lock<std::mutex> lk(mu); cv.wait(lk, [&] { return freed >= i - 2; }); }
       Buf& b = bufs[i & 1]; size_t got = read_into(files[i], b.p, b.sz, i < keep_first); if (!got) { fprintf(stderr, "cannot read %s\n", files[i].c_str()); fail = true; }
-      else { apply_ovl(files[i], b.p, b.sz); sync_clean(b); }
+      else if (!apply_ovl(files[i], b.p, b.sz)) fail = true;
+      else sync_clean(b);
       { std::lock_guard<std::mutex> lk(mu); ready = i; } cv.notify_all();
       if (fail) break;
     }
@@ -116,11 +117,29 @@ static bool stream_files(const std::vector<std::string>& files, Buf* bufs, const
 // ------------------------------------------------------------------ glue.bin
 struct Glue {
   uint8_t* base = nullptr; size_t len = 0; std::map<std::string, std::pair<const void*, int>> t;   // name -> (ptr, dtype)
-  bool load(const std::string& p) {
-    int fd = open(p.c_str(), O_RDONLY); if (fd < 0) return false; struct stat st; fstat(fd, &st); len = st.st_size;
-    base = (uint8_t*)mmap(nullptr, len, PROT_READ, MAP_PRIVATE, fd, 0); close(fd); if (base == MAP_FAILED) return false;
-    if (memcmp(base, "MGL1", 4)) return false; int n; memcpy(&n, base + 4, 4); const uint8_t* e = base + 8;
-    for (int i = 0; i < n; i++, e += 76) { char name[41] = {0}; memcpy(name, e, 40); int dt; memcpy(&dt, e + 40, 4); long long off; memcpy(&off, e + 60, 8); t[name] = {base + off, dt}; }
+  bool load(const std::string& p, const std::string& overlay = "") {
+    if (base) { munmap(base, len); base = nullptr; len = 0; t.clear(); }
+    int fd = open(p.c_str(), O_RDONLY); if (fd < 0) return false; struct stat st;
+    if (fstat(fd, &st) || st.st_size < 8) { close(fd); return false; }
+    len = (size_t)st.st_size;
+    int protection = PROT_READ | (overlay.empty() ? 0 : PROT_WRITE);
+    base = (uint8_t*)mmap(nullptr, len, protection, MAP_PRIVATE, fd, 0); close(fd);
+    if (base == MAP_FAILED) { base = nullptr; return false; }
+    auto fail = [&] { munmap(base, len); base = nullptr; len = 0; t.clear(); return false; };
+    if (memcmp(base, "MGL1", 4)) return fail(); int n; memcpy(&n, base + 4, 4);
+    if (n <= 0 || (size_t)n > (len - 8) / 76) return fail();
+    size_t header_len = 8 + (size_t)n * 76;
+    if (!overlay.empty()) {
+      std::vector<uint8_t> header(base, base + header_len);
+      if (!qwen_apply_overlay(overlay, base, len) || memcmp(base, header.data(), header_len)) return fail();
+    }
+    const uint8_t* e = base + 8;
+    for (int i = 0; i < n; i++, e += 76) {
+      char name[41] = {0}; memcpy(name, e, 40); int dt; memcpy(&dt, e + 40, 4);
+      long long off, bytes; memcpy(&off, e + 60, 8); memcpy(&bytes, e + 68, 8);
+      if (off < 0 || bytes < 0 || (uint64_t)off > len || (uint64_t)bytes > len - (uint64_t)off) return fail();
+      t[name] = {base + off, dt};
+    }
     return true;
   }
   const f32* f(const char* n) const { return (const f32*)t.at(n).first; }

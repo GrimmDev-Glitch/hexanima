@@ -6,6 +6,7 @@
 //       and writes OUTDIR/blkNN.ovl = [u32 n] n x ([u64 offset][u32 len] bytes), patches mossrun lays over the pack after reading it. Prints "progress K 42".
 #include <cstdio>
 #include <cstdlib>
+#include <cerrno>
 #include <cstring>
 #include <cmath>
 #include <string>
@@ -69,14 +70,27 @@ struct ST {
 struct Mod { const char* name; long in, out; };
 static const Mod MODS[] = {{"qkv", 3072, 9216}, {"q", 3072, 3072}, {"k", 3072, 3072}, {"v", 3072, 3072}, {"o", 3072, 3072}, {"ffn_up_gate", 3072, 16384}, {"ffn_down", 8192, 3072}};
 static const int NMOD = 7, NLAYER = 42;
-struct Pair { std::string A, B, alpha; };
+struct Pair { std::string A, B, alpha, w1, w2; };
 struct Scan { std::map<std::pair<int, int>, Pair> m; int ignored = 0, te = 0, foreign = 0, unknown = 0; std::string firstUnknown; };
 
 static bool strip(std::string& n, const char* pre) { size_t l = strlen(pre); if (n.compare(0, l, pre) == 0) { n.erase(0, l); return true; } return false; }
+// Civitai's MOSS-Image exports use the flattened kohya-style name
+// lora_unet_layers_0_proj_q.lora_down.weight. Convert only that exact
+// namespace to the canonical MOSS names used by the packer.
+static std::string normalise_moss_key(const std::string& key) {
+  static const char* prefix = "lora_unet_layers_";
+  if (key.compare(0, strlen(prefix), prefix) != 0) return key;
+  const size_t layer0 = strlen(prefix), proj = key.find("_proj_", layer0);
+  if (proj == std::string::npos || proj == layer0) return key;
+  for (size_t i = layer0; i < proj; i++) if (key[i] < '0' || key[i] > '9') return key;
+  const std::string rest = key.substr(proj + 6);
+  if (rest.find('.') == std::string::npos) return key;
+  return "layers." + key.substr(layer0, proj - layer0) + ".proj." + rest;
+}
 static Scan scan(const ST& st) {
   Scan sc;
   for (auto& kv : st.t) {
-    std::string n = kv.first;
+    std::string n = normalise_moss_key(kv.first);
     if (!strip(n, "diffusion_model.")) strip(n, "model.diffusion_model.");
     int layer = -1, used = 0;
     if (sscanf(n.c_str(), "layers.%d.proj.%n", &layer, &used) == 1 && used > 0) {
@@ -86,6 +100,7 @@ static Scan scan(const ST& st) {
       if (mi < 0) { sc.unknown++; if (sc.firstUnknown.empty()) sc.firstUnknown = kv.first; continue; }
       Pair& p = sc.m[{layer, mi}];
       if (tail == "lora_A.weight" || tail == "lora_down.weight") p.A = kv.first; else if (tail == "lora_B.weight" || tail == "lora_up.weight") p.B = kv.first; else if (tail == "alpha") p.alpha = kv.first;
+      else if (tail == "lokr_w1") p.w1 = kv.first; else if (tail == "lokr_w2") p.w2 = kv.first;
       else { sc.unknown++; if (sc.firstUnknown.empty()) sc.firstUnknown = kv.first; }
       continue;
     }
@@ -100,8 +115,42 @@ static Scan scan(const ST& st) {
 static int fail(const char* code, const std::string& d) { printf("ERR\t%s\t%s\n", code, d.c_str()); return 1; }
 static std::string shp(const std::vector<long>& s) { std::string r = "["; for (size_t i = 0; i < s.size(); i++) r += (i ? "," : "") + std::to_string(s[i]); return r + "]"; }
 
-struct Info { int layers = 0, mods = 0, rank = 0; float alpha = 0; };
+struct Info { int layers = 0, mods = 0, rank = 0; float alpha = 0; bool lokr = false; };
+static int check_lokr(const ST& st, Info& info, std::string& warn) {
+  Scan sc = scan(st); std::set<int> layers; int mods = 0;
+  for (const auto& kv : sc.m) {
+    const int L = kv.first.first, mi = kv.first.second; const Pair& p = kv.second;
+    if (p.A.size() || p.B.size()) return fail("MIXED", "LoKr and A/B tensors cannot share one selected adapter");
+    if (p.w1.empty() && p.w2.empty()) continue;
+    if (mi != 0 && mi != 4 && mi != 5 && mi != 6) return fail("PROJECTION", "V73 LoKr supports qkv, o, ffn_up_gate and ffn_down projections");
+    if (L < 0 || L >= NLAYER) return fail("LAYER", "block " + std::to_string(L) + ", MOSS-Image has 42");
+    if (p.w1.empty() || p.w2.empty()) return fail("NOTLORA", "block " + std::to_string(L) + " " + MODS[mi].name + ": lokr_w1/lokr_w2 pair is incomplete");
+    const TI& a = st.t.at(p.w1); const TI& b = st.t.at(p.w2);
+    if (a.dt > 2 || b.dt > 2) return fail("DTYPE", "LoKr factors must be F32, F16 or BF16");
+    if (a.shape != std::vector<long>{4, 4} || b.shape != std::vector<long>{MODS[mi].out / 4, MODS[mi].in / 4})
+      return fail("SHAPE", "block " + std::to_string(L) + " " + MODS[mi].name + ": W1" + shp(a.shape) + " W2" + shp(b.shape) + ", expected W1[4,4] W2[" + std::to_string(MODS[mi].out / 4) + "," + std::to_string(MODS[mi].in / 4) + "]");
+    layers.insert(L); mods++;
+  }
+  if (!mods) return fail("NOTLORA", sc.firstUnknown.empty() ? "no supported MOSS LoKr projections" : sc.firstUnknown);
+  std::string missing; for (int L = 0; L < NLAYER; L++) if (!layers.count(L)) { if (!missing.empty()) missing += ","; missing += std::to_string(L); }
+  info.layers = (int)layers.size(); info.mods = mods; info.rank = 4; info.alpha = 1.f; info.lokr = true;
+  if (!missing.empty()) warn += "missing_blocks=" + missing + ";";
+  if (sc.unknown) warn += "unknown_keys=" + std::to_string(sc.unknown) + ";";
+  if (sc.foreign || sc.te) return fail("OTHERMODEL", "extra foreign/text-encoder tensors are not supported by the V73 LoKr runner");
+  return 0;
+}
 static int check(const ST& st, Info& info, std::string& warn) {
+  bool hasLokr = false;
+  for (const auto& kv : st.t) {
+    if (kv.first.find(".lokr_") != std::string::npos) hasLokr = true;
+    if (kv.first.find(".hada_") != std::string::npos) return fail("LOHA", "LoHa requires a Hadamard-weight converter");
+  }
+  if (hasLokr) return check_lokr(st, info, warn);
+  // The experimental rank-limited converter emits ordinary A/B tensors, so the tensor checks below
+  // would otherwise accept its highly lossy output. Refuse those explicitly marked approximations.
+  auto conversion = st.meta.find("hexanima.conversion");
+  if (conversion != st.meta.end() && conversion->second.find("LoKr") != std::string::npos && conversion->second.find("truncated") != std::string::npos)
+    return fail("LOKR", "lossy rank-truncated LoKr conversion is not supported; use the original only after direct LoKr support is available");
   Scan sc = scan(st);
   std::string arch = st.meta.count("modelspec.architecture") ? st.meta.at("modelspec.architecture") : "", base = st.meta.count("ss_base_model_version") ? st.meta.at("ss_base_model_version") : "";
   if (sc.m.empty()) {
@@ -155,6 +204,36 @@ static void quant(const float* p, size_t rs, size_t cs, int K, int N, const int*
   }
 }
 static inline float deq(const u8* t, int r, int c) { u16 hb; memcpy(&hb, t + 4 * c, 2); _Float16 h; memcpy(&h, &hb, 2); return ((int)t[128 + (((r >> 1) * 32 + c) << 1) + (r & 1)] - 128) * (float)h; }
+
+struct LokrHead { char magic[4]; uint32_t version, mask, w1[4], w2[4], out_n[4], in_n[4]; };
+static void align128(std::vector<u8>& v) { v.resize((v.size() + 127) & ~(size_t)127, 0); }
+static bool fold_lokr_block(const ST& st, const Scan& sc, int L, float strength, const std::string& outdir) {
+  static const int map[4] = {0, 4, 5, 6};
+  LokrHead h{}; memcpy(h.magic, "MLKR", 4); h.version = 1;
+  std::vector<u8> side(sizeof(LokrHead), 0);
+  for (int slot = 0; slot < 4; slot++) {
+    const int mi = map[slot]; auto it = sc.m.find({L, mi}); if (it == sc.m.end() || it->second.w1.empty()) continue;
+    const Pair& p = it->second; const TI& w1 = st.t.at(p.w1); const TI& w2 = st.t.at(p.w2);
+    const int on = (int)w2.shape[0], ik = (int)w2.shape[1]; h.mask |= 1u << slot; h.out_n[slot] = on; h.in_n[slot] = ik;
+    h.w1[slot] = (uint32_t)side.size();
+    float alpha = st.meta.count("ss_network_alpha") ? (float)atof(st.meta.at("ss_network_alpha").c_str()) : 4.f;
+    float scale = alpha / 4.f * strength;
+    for (int i = 0; i < 16; i++) { _Float16 x = (_Float16)(st.at(w1, (size_t)i) * scale); u16 b; memcpy(&b, &x, 2); size_t o = side.size(); side.resize(o + 2); memcpy(side.data() + o, &b, 2); }
+    align128(side); h.w2[slot] = (uint32_t)side.size();
+    const size_t n = (size_t)on * ik; std::vector<float> trans(n);
+    for (int i = 0; i < ik; i++) for (int o = 0; o < on; o++) trans[(size_t)i * on + o] = st.at(w2, (size_t)o * ik + i);
+    std::vector<u8> q8((size_t)(on / 32) * (ik / 32) * TILE);
+    quant(trans.data(), on, 1, ik, on, nullptr, q8.data());
+    side.insert(side.end(), q8.begin(), q8.end());
+  }
+  memcpy(side.data(), &h, sizeof h);
+  std::string path = outdir + "/" + (L < 10 ? "blk0" : "blk") + std::to_string(L) + ".ovl";
+  FILE* f = fopen(path.c_str(), "wb"); if (!f) return false;
+  if (h.mask) { uint32_t count = 1, len = (uint32_t)side.size(); uint64_t off = 135397376u;
+    bool ok = fwrite(&count, 4, 1, f) == 1 && fwrite(&off, 8, 1, f) == 1 && fwrite(&len, 4, 1, f) == 1 && fwrite(side.data(), 1, side.size(), f) == side.size(); fclose(f); return ok;
+  }
+  uint32_t count = 0; bool ok = fwrite(&count, 4, 1, f) == 1; fclose(f); return ok;
+}
 
 // ---------------------------------------------------------------- dense helpers (double)
 static float dotf(const float* a, const float* b, size_t n) { double tot = 0; for (size_t o = 0; o < n; o += 2048) { size_t m = std::min<size_t>(2048, n - o); float s = 0; for (size_t i = 0; i < m; i++) s += a[o + i] * b[o + i]; tot += s; } return (float)tot; }
@@ -282,14 +361,29 @@ static bool fold_block(const ST& st, const Scan& sc, const std::string& pack, in
   fclose(f); return true;
 }
 
+static int fold_lokr(const ST& st, const Scan& sc, float strength, const std::string& outdir) {
+  if (mkdir(outdir.c_str(), 0777) && errno != EEXIST) return fail("FOLD", "cannot create output directory");
+  std::atomic<int> next(0), done(0), bad(0); std::mutex mu;
+  std::vector<std::thread> th; int nth = std::max(1u, std::min(6u, std::thread::hardware_concurrency()));
+  for (int i = 0; i < nth; i++) th.emplace_back([&] { for (;;) { int L = next++; if (L >= NLAYER) break;
+    if (!fold_lokr_block(st, sc, L, strength, outdir)) bad++; int d = ++done; std::lock_guard<std::mutex> lk(mu); printf("progress %d %d\n", d, NLAYER); fflush(stdout); } });
+  for (auto& t : th) t.join(); if (bad) return fail("FOLD", "failed on " + std::to_string(bad.load()) + " blocks"); printf("OK\n"); return 0;
+}
+
 int main(int argc, char** argv) {
   if (argc >= 3 && !strcmp(argv[1], "check")) {
     ST st; if (!st.open(argv[2])) return fail("FILE", st.err);
     Info inf; std::string warn; int rc = check(st, inf, warn); if (rc) return rc;
-    printf("OK\tlayers=%d\tmods=%d\trank=%d\talpha=%g\twarn=%s\n", inf.layers, inf.mods, inf.rank, inf.alpha, warn.c_str()); return 0;
+    printf("OK\tkind=%s\tlayers=%d\tmods=%d\trank=%d\talpha=%g\twarn=%s\n", inf.lokr ? "lokr" : "lora", inf.layers, inf.mods, inf.rank, inf.alpha, warn.c_str()); return 0;
+  }
+  if (argc >= 6 && !strcmp(argv[1], "fold-lokr")) {
+    ST st; if (!st.open(argv[3])) return fail("FILE", st.err); Info inf; std::string warn; if (check(st, inf, warn)) return 1;
+    if (!inf.lokr) return fail("NOTLORA", "selected file is not LoKr");
+    Scan sc = scan(st); return fold_lokr(st, sc, (float)atof(argv[4]), argv[5]);
   }
   if (argc >= 6 && !strcmp(argv[1], "fold")) {
     ST st; if (!st.open(argv[3])) return fail("FILE", st.err); Info inf; std::string warn; if (check(st, inf, warn)) return 1;
+    if (inf.lokr) return fail("LOKR", "use fold-lokr for factored LoKr adapters");
     Scan sc = scan(st); const float strength = (float)atof(argv[4]); std::string mdir = argv[2], out = argv[5];
     std::atomic<int> next(0), done(0), bad(0); std::mutex mu; int nth = std::max(1u, std::min(6u, std::thread::hardware_concurrency()));
     std::vector<std::thread> th; for (int i = 0; i < nth; i++) th.emplace_back([&] { for (;;) { int L = next++; if (L >= NLAYER) break;

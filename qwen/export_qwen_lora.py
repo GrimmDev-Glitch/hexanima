@@ -2,20 +2,33 @@
 usage: python export_qwen_lora.py OUTDIR LORA.safetensors SCALE [first last]
 Slot budget per module is 128 ranks: Lightning uses 64 -> q/k/v/o/down take up to 64 more ranks as they are; the fused gate_up has to share 128 ranks between
 gate (64) and proj (64), so gate and proj deltas (Lightning + LoRA) are each re-factored by an exact SVD and cut to rank 64 (energy kept is printed)."""
+# The input may use rootless Diffusers/PEFT names, a `transformer.` or
+# `diffusion_model.` prefix, PEFT `.default` slots, or Kohya lora_down/up suffixes.
+# SCALE multiplies each adapter's alpha/rank value (rank is used when alpha is absent).
+# Only supported image-transformer modules in the 32-block Turbo layout are accepted.
 import sys, numpy as np, torch
 from safetensors import safe_open
 import export_qwen as E
 import export_qwen2 as X
+import export_qglue as G
+from lora_keys import KeyIndex, adapter_multiplier, validate_qwen21
 out, path, scale = sys.argv[1], sys.argv[2], float(sys.argv[3])
 first = int(sys.argv[4]) if len(sys.argv) > 4 else 0; last = int(sys.argv[5]) if len(sys.argv) > 5 else 31
-F = safe_open(path, "pt"); orig = E.lora; kept = []
-def user(k):   # (A [r,in], B [out,r]) of the user LoRA for param key k, or None; gate/proj are halves of the fused gate_up
-    base = "diffusion_model." + k[:-len(".weight")]
+F = safe_open(path, "pt"); INDEX = KeyIndex(F.keys(), F.metadata()); validate_qwen21(INDEX); orig = E.lora; kept = []
+def user(k):   # (A [r,in], B [out,r]) of the user LoRA, or None for untouched modules
+    module = k[:-len(".weight")]
     if k.endswith("img_mlp.gate_layer.weight") or k.endswith("img_mlp.proj.weight"):
-        gu = base.rsplit("img_mlp.", 1)[0] + "img_mlp.gate_up"
-        A = F.get_tensor(gu + ".lora_A.weight").float(); B = F.get_tensor(gu + ".lora_B.weight").float()
-        return A, (B[:12288] if k.endswith("gate_layer.weight") else B[12288:]) * scale
-    return F.get_tensor(base + ".lora_A.weight").float(), F.get_tensor(base + ".lora_B.weight").float() * scale
+        fused = module.rsplit("img_mlp.", 1)[0] + "img_mlp.gate_up"
+        pair = INDEX.pair(fused, F.get_tensor)
+        if pair is not None:
+            A, B, alpha = pair
+            rows = B[:12288] if k.endswith("gate_layer.weight") else B[12288:]
+            return A.float(), rows.float() * adapter_multiplier(scale, alpha, A.shape[0])
+    pair = INDEX.pair(module, F.get_tensor)
+    if pair is None:
+        return None
+    A, B, alpha = pair
+    return A.float(), B.float() * adapter_multiplier(scale, alpha, A.shape[0])
 def lora(k):
     A, B = orig(k); u = user(k)
     if u is None: return A, B
@@ -33,4 +46,5 @@ if __name__ == "__main__":
     for i in range(first, last + 1):
         d, fm = X.pack_block(i); open(f"{out}/blk{i:02d}.bin", "wb").write(d)
         print(i, len(d), fm, "gate/proj energy kept min %.4f" % (min(kept[-2:]) if kept else 1), flush=True)
-    print("overall min energy kept", min(kept))
+    G.write_glue(f"{out}/glue.bin", INDEX, F.get_tensor, scale)
+    print("overall min energy kept", min(kept) if kept else 1.0)

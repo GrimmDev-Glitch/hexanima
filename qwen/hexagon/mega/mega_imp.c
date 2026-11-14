@@ -20,6 +20,8 @@ void hmx8_acc(uint8_t*,uint32_t,uint8_t*,uint32_t);
 void hmx8_store(uint8_t*,uint32_t);
 void hmx_acc(uint8_t*,uint32_t,uint8_t*,uint32_t);
 void hmx_store(uint8_t*,uint32_t);
+void hmx_scale_init(uint8_t*);
+int mega_bench(remote_handle64, int, int, int, int64_t *, float *, int *);
 void hmx8_store_before(uint8_t*,uint32_t);
 void power_max(void *);
 void hmx8_bias(uint8_t*);
@@ -60,6 +62,12 @@ static void copy_variant(int v, uint8_t *dst, const uint8_t *src, size_t bytes) 
 }
 int mega_probe(remote_handle64 h, int K, int reps, int stage, int64_t *cyc, float *maxerr, int *lockrc, int *vtcmrc) {
   *cyc = 0; *maxerr = -1; *lockrc = -999; *vtcmrc = -999;
+#if __HEXAGON_ARCH__ >= 73
+  if (stage == 2) {   /* use the production V73 HMX store path; the SDK QHBLAS helper's diagnostic path is V69-specific */
+    int rc = 0; int r = mega_bench(h, M, K, N, cyc, maxerr, &rc);
+    *lockrc = r; *vtcmrc = rc; return r;
+  }
+#endif
   if (stage >= 11 && stage <= 17) {
     compute_res_attr_t ca; HAP_compute_res_attr_init(&ca); HAP_compute_res_attr_set_vtcm_param(&ca, 8u << 20, 1);
     uint32_t cx = HAP_compute_res_acquire(&ca, 100000); if (!cx) { *vtcmrc = -1; return 0; }
@@ -94,6 +102,7 @@ int mega_probe(remote_handle64 h, int K, int reps, int stage, int64_t *cyc, floa
   if (!ctx) return 0;
   uint8_t *vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
   if (!vt) { HAP_compute_res_release(ctx); *vtcmrc = -2; return 0; }
+  hmx_scale_init(vt + (1u << 20) - 4096);
   __fp16 *A = (__fp16 *)memalign(128, M * K * 2), *B = (__fp16 *)memalign(128, K * N * 2), *C = (__fp16 *)memalign(128, M * N * 2);
   float *R = (float *)malloc(M * N * 4);
   unsigned s = 1;
@@ -115,6 +124,15 @@ int mega_probe(remote_handle64 h, int K, int reps, int stage, int64_t *cyc, floa
     uint64_t t0 = HAP_perf_get_pcycles();
     hmx8_tile(vt, (1 << 11) | 0x7C, vt + 8192, (1 << 11) - 1, vt + 16384, 0);
     *cyc = HAP_perf_get_pcycles() - t0; *maxerr = 0;
+    HAP_compute_res_hmx_unlock(ctx); goto done;
+  }
+  if (rc == 0 && stage == 4) {   /* V73 FP16 store self-test: 32x32 ones multiplied by ones must produce 32.0 */
+    uint8_t *a = vt + (1u << 20) - 16384, *w = a + 2048, *o = w + 2048;
+    HVX_Vector one = Q6_Vh_vsplat_R(0x3C003C00); HVX_Vector *pa = (HVX_Vector *)a, *pw = (HVX_Vector *)w, *po = (HVX_Vector *)o;
+    for (int i = 0; i < 16; i++) { pa[i] = one; pw[i] = one; po[i] = Q6_V_vzero(); }
+    asm volatile("barrier" ::: "memory");
+    hmx_clr(); hmx_acc(a, (1 << 11) | 0x7C, w, (1 << 11) - 1); hmx_store(o, 0);
+    *maxerr = fabsf((float)*(volatile __fp16 *)o - 32.0f);
     HAP_compute_res_hmx_unlock(ctx); goto done;
   }
   if (rc == 0 && stage >= 5 && stage <= 8) {   /* timing only: K = bytes/2048 tiles per call (<=32), data is garbage, HMX time does not depend on it */
@@ -183,6 +201,7 @@ int mega_dump(remote_handle64 h, int mode, const uint8_t *act, int actLen, const
   HAP_compute_res_attr_set_vtcm_param(&attr, 1 << 20, 1); HAP_compute_res_attr_set_hmx_param(&attr, 1);
   uint32_t ctx = HAP_compute_res_acquire(&attr, 100000); if (!ctx) { *rcout = -1; return 0; }
   uint8_t *vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
+  hmx_scale_init(vt + (1u << 20) - 4096);
   HAP_power_request_t rq; memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX; rq.hmx.power_up = TRUE; int pr1 = HAP_power_set((void *)h, &rq); power_max((void *)h);
   int pr2 = 99;
   if (mode & 0x40000000) { memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX_v2; rq.hmx_v2.set_power = TRUE; rq.hmx_v2.power_up = TRUE; rq.hmx_v2.set_clock = TRUE; rq.hmx_v2.pick_default = TRUE; pr2 = HAP_power_set((void *)h, &rq); }

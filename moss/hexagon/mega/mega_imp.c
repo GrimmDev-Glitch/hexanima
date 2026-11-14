@@ -20,6 +20,7 @@ void hmx8_acc(uint8_t*,uint32_t,uint8_t*,uint32_t);
 void hmx8_store(uint8_t*,uint32_t);
 void hmx_acc(uint8_t*,uint32_t,uint8_t*,uint32_t);
 void hmx_store(uint8_t*,uint32_t);
+void hmx_scale_init(uint8_t*);
 void hmx8_store_before(uint8_t*,uint32_t);
 void power_max(void *);
 void hmx8_bias(uint8_t*);
@@ -94,6 +95,7 @@ int mega_probe(remote_handle64 h, int K, int reps, int stage, int64_t *cyc, floa
   if (!ctx) return 0;
   uint8_t *vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
   if (!vt) { HAP_compute_res_release(ctx); *vtcmrc = -2; return 0; }
+  hmx_scale_init(vt + (1u << 20) - 4096);
   __fp16 *A = (__fp16 *)memalign(128, M * K * 2), *B = (__fp16 *)memalign(128, K * N * 2), *C = (__fp16 *)memalign(128, M * N * 2);
   float *R = (float *)malloc(M * N * 4);
   unsigned s = 1;
@@ -183,6 +185,7 @@ int mega_dump(remote_handle64 h, int mode, const uint8_t *act, int actLen, const
   HAP_compute_res_attr_set_vtcm_param(&attr, 1 << 20, 1); HAP_compute_res_attr_set_hmx_param(&attr, 1);
   uint32_t ctx = HAP_compute_res_acquire(&attr, 100000); if (!ctx) { *rcout = -1; return 0; }
   uint8_t *vt = (uint8_t *)HAP_compute_res_attr_get_vtcm_ptr(&attr);
+  hmx_scale_init(vt + (1u << 20) - 4096);
   HAP_power_request_t rq; memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX; rq.hmx.power_up = TRUE; int pr1 = HAP_power_set((void *)h, &rq); power_max((void *)h);
   int pr2 = 99;
   if (mode & 0x40000000) { memset(&rq, 0, sizeof rq); rq.type = HAP_power_set_HMX_v2; rq.hmx_v2.set_power = TRUE; rq.hmx_v2.power_up = TRUE; rq.hmx_v2.set_clock = TRUE; rq.hmx_v2.pick_default = TRUE; pr2 = HAP_power_set((void *)h, &rq); }

@@ -241,6 +241,20 @@ static void tx_cache_save(uint64_t key, const std::vector<f32>& tx) {
   const char* d = getenv("QWEN_CACHE"); if (!d || !*d) return; std::string p = std::string(d) + "/tx.cache";
   FILE* f = fopen(p.c_str(), "wb"); if (!f) return; long n = (long)tx.size(); fwrite(&key, 8, 1, f); fwrite(&n, 8, 1, f); fwrite(tx.data(), 4, tx.size(), f); fclose(f);
 }
+static bool write_preview(const std::string& path, const std::vector<f32>& z, const f32* mean, const f32* sd, int N) {
+  if (path.empty()) return false;
+  const std::string tmp = path + ".tmp"; FILE* f = fopen(tmp.c_str(), "wb"); if (!f) return false;
+  bool ok = true; for (int c = 0; c < 64 && ok; c++) for (int t = 0; t < N; t++) {
+    const f32 v = z[(size_t)t * 64 + c] * sd[c] + mean[c]; if (fwrite(&v, sizeof(v), 1, f) != 1) { ok = false; break; }
+  }
+  fflush(f); fsync(fileno(f)); fclose(f);
+  if (!ok || rename(tmp.c_str(), path.c_str())) { remove(tmp.c_str()); return false; } return true;
+}
+static void wait_preview_ack(const char* path, int step) {
+  if (!path || !*path) return;
+  for (;;) { FILE* f = fopen(path, "rb"); int ack = 0; if (f) { fscanf(f, "%d", &ack); fclose(f); }
+    if (ack >= step) return; usleep(100000); }
+}
 static bool generate(const std::vector<int>& ids, int drop, int Hpx, int Wpx, unsigned seed, int steps, const std::string& outz) {
   double tall = now(); std::vector<f32> tx;
   const f32 SIG[5] = {1.0f, 0.95418f, 0.89508f, 0.704534f, 0.0f};
@@ -335,7 +349,10 @@ static bool generate(const std::vector<int>& ids, int drop, int Hpx, int Wpx, un
       for (int o = 0; o < 64; o++) { const f32* wr = Wout + (size_t)o * 4096; float a = 0; for (int i = 0; i < 4096; i++) a += wr[i] * r[i]; v[(size_t)t * 64 + o] = a; } } });
     for (size_t i = 0; i < z.size(); i++) z[i] += (sgn - sg) * v[i];
     fprintf(stderr, "  step %d: DSP blocks %.2fs, total %.2fs\n", s, tB - tA, now() - ts);
-    printf("step %d %.0f\n", s, (now() - ts) * 1000); fflush(stdout);
+    const char* previewPath = getenv("QWEN_PREVIEW_Z"); const char* previewAck = getenv("QWEN_PREVIEW_ACK");
+    if (previewPath && previewAck && write_preview(previewPath, z, g_glue.f("vae.mean"), g_glue.f("vae.std"), N)) {
+      printf("step %d %.0f\n", s, (now() - ts) * 1000); fflush(stdout); wait_preview_ack(previewAck, s + 1);
+    } else { printf("step %d %.0f\n", s, (now() - ts) * 1000); fflush(stdout); }
   }
   const f32* mean = g_glue.f("vae.mean"); const f32* sd = g_glue.f("vae.std");
   if (prefix_writer.joinable()) prefix_writer.join();
@@ -349,9 +366,11 @@ static bool generate(const std::vector<int>& ids, int drop, int Hpx, int Wpx, un
 
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0);
+  if (const char* ovl = getenv("QWEN_LORA")) g_ovl = ovl;
   rpcmem_init();
   struct remote_rpc_control_unsigned_module ud = {CDSP_DOMAIN_ID, 1}; remote_session_control(DSPRPC_CONTROL_UNSIGNED_MODULE, &ud, sizeof ud);
-  if (mega_open(mega_URI CDSP_DOMAIN, &g_h)) { fprintf(stderr, "mega_open failed\n"); return 1; }
+  const int open_rc = mega_open(mega_URI CDSP_DOMAIN, &g_h);
+  if (open_rc) { fprintf(stderr, "mega_open failed rc=0x%x uri=%s%s ADSP_LIBRARY_PATH=%s\n", open_rc, mega_URI, CDSP_DOMAIN, getenv("ADSP_LIBRARY_PATH") ? getenv("ADSP_LIBRARY_PATH") : "(unset)"); return 1; }
   printf("ready\n");
   std::string line;
   while (std::getline(std::cin, line)) {
@@ -359,7 +378,7 @@ int main(int argc, char** argv) {
     if (cmd == "quit") break;
     if (cmd == "load") {
       ss >> g_dir; double t0 = now();
-      if (!g_glue.load(g_dir + "/glue.bin")) { printf("error glue\n"); continue; }
+      if (!g_glue.load(g_dir + "/glue.bin", g_ovl.empty() ? "" : g_ovl + "/glue.ovl")) { printf("error glue\n"); continue; }
       { int fd = open((g_dir + "/embd.q4k").c_str(), O_RDONLY); if (fd < 0) { printf("error embd\n"); continue; } struct stat st; fstat(fd, &st); g_embd_len = st.st_size; g_embd = (uint8_t*)mmap(nullptr, g_embd_len, PROT_READ, MAP_PRIVATE, fd, 0); close(fd); }
       g_te[0] = make_buf(TE_BUF); g_te[1] = make_buf(TE_BUF); g_all.push_back(&g_te[0]); g_all.push_back(&g_te[1]); if (!g_te[0].p || !g_te[1].p) { printf("error tebuf\n"); continue; }
       g_LT = make_layout(MAXT, 0, true); g_blobTE = make_buf(g_LT.total, true); if (!g_blobTE.p) { printf("error teblob\n"); continue; } memset(g_blobTE.p, 0, g_LT.total);

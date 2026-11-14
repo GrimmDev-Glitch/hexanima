@@ -1,7 +1,6 @@
 """Load Qwen-Image-2.1-Turbo GGUF (dequantized) into diffusers QwenImage21Transformer2DModel (first N layers)."""
 import json, torch, gguf, numpy as np
 from gguf.quants import dequantize
-from diffusers import QwenImage21Transformer2DModel as M
 GG='models/qwen-image-2.1-turbo-Q5_K_S.gguf'
 CFG='ref/Qwen-Image-2.1-Turbo/transformer/config.json'
 P='model.diffusion_model.'
@@ -31,6 +30,7 @@ def lora_delta(k):
     except Exception: return None
     return (u@d)*(float(_l.get_tensor(b+'.alpha'))/d.shape[0])
 def load(nl=2, gate_first=True, lora=False):
+    from diffusers import QwenImage21Transformer2DModel as M
     cfg={k:v for k,v in json.load(open(CFG)).items() if not k.startswith('_')}; cfg['num_layers']=nl
     m=M.from_config(cfg).float(); sd={}
     T=tensors()

@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
       { Qnn_ErrorHandle_t er = qi.graphExecute(graph, &tin, 1, &tout, 1, nullptr, nullptr); if (er != QNN_SUCCESS) { fprintf(stderr, "execute error 0x%lx at tile %d,%d (ni=%u in16=%d)\n", (unsigned long)er, y, x, ni, (int)in16); ok = false; break; } }
       if (out16) { const __fp16* sp = (const __fp16*)obuf.data(); for (uint32_t i = 0; i < no; i++) o[i] = (float)sp[i]; } else memcpy(o.data(), obuf.data(), (size_t)no * 4);
       const int px = x * 16, py = y * 16; const int r = OV * 16; const int M = std::min(24, r / 2);   // the outermost pixels of a tile (zero padding, fp16) can be wild: they get no weight where a neighbour tile covers them
-      for (uint32_t i = 0; i < no; i++) o[i] = std::min(1.f, std::max(-1.f, o[i]));
+      if (!getenv("QWEN_VAE_RAW")) for (uint32_t i = 0; i < no; i++) o[i] = std::min(1.f, std::max(-1.f, o[i]));
       const bool l = x > 0, rr = x + T < zw, u = y > 0, d = y + T < zh;
       for (int i = 0; i < TP && py + i < H; i++) {
         float wy = 1.f; if (u && i < r) wy = i < M ? 0.f : (i - M + 1.f) / (r - M + 1.f); if (d && i >= TP - r) wy = std::min(wy, TP - i <= M ? 0.f : (TP - i - M) / (r - M + 1.f));

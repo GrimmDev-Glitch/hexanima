@@ -28,7 +28,7 @@ public class Settings extends Base {
     /** what goes before the prompt: trimmed, ending with a comma and a space; a single space when the user cleared it (anima.sh treats an empty PREFIX as "use the default") */
     static String prefix(Context c) { String p = rawPrefix(c).trim(); return p.isEmpty() ? " " : (p.endsWith(",") ? p : p + ",") + " "; }
 
-    /* Sampling for the Anima models (sd.cpp names). The models are distilled for 4 steps, Euler, CFG 1 (the defaults); CFG > 1 runs the DiT twice per step
+    /* Sampling for Anima models (sd.cpp names). Turbo checkpoints default to 4 steps / Euler / CFG 1; regular checkpoints default to 20 / DPM++ 2M / CFG 4. CFG > 1 runs the DiT twice per step
        and uses the negative prompt; 2nd-order samplers (heun, dpm2, dpm++2s_a, res_2s) also call it twice per step. Clip skip has no meaning here: the text encoder is Qwen3, not CLIP. */
     static final String[] SAMPLERS = {"euler", "euler_a", "dpm++2m", "dpm++2mv2", "dpm++2m_sde", "dpm++2m_sde_bt", "er_sde", "res_multistep", "ipndm", "ipndm_v", "lcm", "ddim_trailing", "tcd", "lms",
             "euler_cfg_pp", "euler_a_cfg_pp", "euler_ge", "heun", "dpm2", "dpm++2s_a", "res_2s"};

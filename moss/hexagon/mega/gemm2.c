@@ -93,6 +93,12 @@ static void job_fn(void *a, int idx, int n) {
   const gemm_epi_t *e = j->epi;
   for (int r = idx; r < j->nflush; r += n) {   /* each slab: 2 adjacent tiles = 4 KB */
     uint8_t *tiles = j->flush_src + (size_t)r * 4096;
+    if (e && e->add) {
+      const uint16_t *a = e->add + ((j->flush_slab0 + r) * (size_t)e->add_stride_tiles + e->add_col0 + j->flush_cb0) * 1024;
+      __fp16 *d0 = (__fp16 *)(tiles), *d1 = (__fp16 *)(tiles + 2048);
+      const __fp16 *s0 = (const __fp16 *)a, *s1 = s0 + 1024;
+      for (int i = 0; i < 1024; i++) { d0[i] = (__fp16)((float)d0[i] + (float)s0[i]); d1[i] = (__fp16)((float)d1[i] + (float)s1[i]); }
+    }
     if (e && e->mode == 1) {
       for (int t = 0; t < 2; t++) k_resadd_tile(e->x32 + ((j->flush_slab0 + r) * NCB + j->flush_cb0 + t) * 1024, (const uint16_t *)(tiles + t * 2048), e->gate + (j->flush_cb0 + t) * 32);
       continue;

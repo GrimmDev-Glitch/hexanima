@@ -80,6 +80,20 @@ public class QwenTok {
     }
     public int dropQwenImage() { return encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n").length; }
 
+    private static final String MAGE_SYS = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n";
+    private static final String MAGE_EDIT_SYS = "<|im_start|>system\nDescribe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.<|im_end|>\n<|im_start|>user\n";
+    private static final String MAGE_END = "<|im_end|>\n<|im_start|>assistant\n";
+
+    /** Mage-Flow text-to-image prompt template; system tokens are removed before the text encoder. */
+    public int[] encodeMage(String prompt) { return encode(MAGE_SYS + (prompt == null || prompt.isEmpty() ? " " : prompt) + MAGE_END); }
+    /** Mage-Flow edit template, replacing the one image slot with the image tower's patch tokens. */
+    public int[] encodeMageEdit(String prompt, int nPads) {
+        StringBuilder s = new StringBuilder(MAGE_EDIT_SYS).append("Image 1: <|vision_start|>");
+        for (int i = 0; i < nPads; i++) s.append("<|image_pad|>");
+        return encode(s.append("<|vision_end|>").append(prompt == null || prompt.isEmpty() ? " " : prompt).append(MAGE_END).toString());
+    }
+    public int dropMage(boolean edit) { return encode(edit ? MAGE_EDIT_SYS : MAGE_SYS).length; }
+
     /** Qwen-Image-2.1 editing prompt: the image placeholder (expanded to nPads image slots) in the user turn, then the prompt */
     public int[] encodeQwenEdit(String prompt, int nPads) {
         int[] a = encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n<|im_start|>user\n<image1><|vision_start|><|image_pad|><|vision_end|>" + (prompt == null || prompt.isEmpty() ? " " : prompt) + "<|im_end|>\n<|im_start|>assistant\n");
