@@ -35,6 +35,65 @@ final class Qwen {
     static boolean is(String id) { return id != null && id.startsWith(PREFIX_ID); }
     static File dir(File home) { return new File(home, "qwen"); }
     static File lorasDir(File home) { return new File(dir(home), "loras"); }
+
+    // ---- LoRAs folded on the phone (qwenlorafold): the original .safetensors stays in loras_src/<id>.safetensors (+ <id>.json from Civitai),
+    //      the overlay folder loras/<id>/ is rebuilt from it when the strength changes (about 5 s for the 32 blocks)
+    static File srcDir(File home) { return new File(dir(home), "loras_src"); }
+    static File srcFile(File home, String id) { return new File(srcDir(home), id + ".safetensors"); }
+    static boolean hasSource(File home, String id) { return id != null && !id.isEmpty() && srcFile(home, id).isFile(); }
+    static String safeId(String name) {
+        String s = name.replaceFirst("(?i)\\.safetensors$", "").replaceAll("[^A-Za-z0-9._-]+", "_").replaceAll("^[._]+", "");
+        if (s.length() > 60) s = s.substring(0, 60); return s.isEmpty() ? "qwen_lora" : s;
+    }
+    static float overlayStrength(File overlay) {
+        try { JSONObject a = new JSONObject(Models.read(new File(overlay, "manifest.json"))).optJSONObject("adapter"); return a == null ? 1f : (float) a.optDouble("strength", 1.0); }
+        catch (Exception e) { return 1f; }
+    }
+    static String overlayName(File overlay) {
+        try { JSONObject a = new JSONObject(Models.read(new File(overlay, "manifest.json"))).optJSONObject("adapter"); String n = a == null ? "" : a.optString("name", ""); return n.isEmpty() ? overlay.getName() : n; }
+        catch (Exception e) { return overlay.getName(); }
+    }
+    interface FoldProgress { void on(int done, int total); }
+    /** "OK…" or "ERR\tCODE\tdetail" from qwenlorafold check */
+    static String check(String bin, File lora) throws IOException {
+        Process p = new ProcessBuilder(bin + "/libqwenlorafold.so", "check", lora.getPath()).redirectErrorStream(true).start(); String last = "";
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) { for (String l; (l = r.readLine()) != null; ) if (!l.trim().isEmpty()) last = l; }
+        try { p.waitFor(); } catch (InterruptedException ignored) { }
+        return last;
+    }
+    static String foldError(String line) {
+        String[] a = line.trim().split("\t");
+        if (a.length > 0 && a[0].equals("OK")) return null;
+        String code = a.length > 1 ? a[1] : "?", d = a.length > 2 ? a[2] : "";
+        switch (code) {
+            case "OTHERMODEL": return L.s("Esta LoRA es para otro modelo (FLUX, SDXL, MOSS o similar), no para Qwen-Image 2.1.", "This LoRA is for another model (FLUX, SDXL, MOSS or similar), not Qwen-Image 2.1.");
+            case "NOTLORA": return L.f("El archivo no parece una LoRA de Qwen-Image (%s).", "This file does not look like a Qwen-Image LoRA (%s).", d);
+            case "SHAPE": return L.f("Las dimensiones no coinciden con Qwen-Image 2.1 (%s).", "Layer sizes do not match Qwen-Image 2.1 (%s).", d);
+            case "RANK": return L.f("Rango no admitido (%s).", "Unsupported rank (%s).", d);
+            case "LAYER": return L.f("La LoRA tiene bloques que Qwen-Image 2.1 Turbo no tiene (%s).", "The LoRA has blocks Qwen-Image 2.1 Turbo does not have (%s).", d);
+            case "DTYPE": return L.s("Formato de pesos no compatible: se requiere F32, F16 o BF16.", "Unsupported weight format: F32, F16 or BF16 are needed.");
+            case "FILE": return L.f("No se pudo leer el archivo (%s).", "Cannot read the file (%s).", d);
+            default: return L.f("Falló la conversión: %s %s", "Conversion failed: %s %s", code, d);
+        }
+    }
+    /** folds loras_src/<id>.safetensors at `strength` into loras/<id>/ (built in <id>.part, swapped in when complete); null on success, else the error */
+    static String fold(String bin, File home, String id, float strength, String name, String triggers, FoldProgress pg) throws IOException {
+        File src = srcFile(home, id), dst = new File(lorasDir(home), id), part = new File(lorasDir(home), id + ".part");
+        MossLora.deleteTree(part); lorasDir(home).mkdirs();
+        List<String> cmd = new java.util.ArrayList<>(java.util.Arrays.asList(bin + "/libqwenlorafold.so", "fold", new File(dir(home), "dit").getPath(), src.getPath(), String.format(Locale.US, "%.2f", strength), part.getPath(), name == null ? id : name, triggers == null ? "" : triggers));
+        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start(); String last = "";
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            for (String l; (l = r.readLine()) != null; ) {
+                if (l.startsWith("progress ")) { String[] a = l.split("[ \t]"); try { if (pg != null) pg.on(Integer.parseInt(a[1]), Integer.parseInt(a[2])); } catch (Exception ignored) { } }
+                else if (!l.trim().isEmpty()) last = l;
+            }
+        }
+        try { p.waitFor(); } catch (InterruptedException e) { p.destroy(); }
+        String err = foldError(last);
+        if (err != null || !validOverlay(part)) { MossLora.deleteTree(part); return err != null ? err : L.s("El overlay generado no es válido", "The generated overlay is not valid"); }
+        MossLora.deleteTree(dst); if (!part.renameTo(dst)) { MossLora.deleteTree(part); return L.s("No se pudo guardar el overlay", "Could not store the overlay"); }
+        return null;
+    }
     static File selectedOverlay(File home, String name) {
         if (name == null || !name.matches("[A-Za-z0-9._-]{1,80}") || name.equals(".") || name.equals("..")) return null;
         File overlay = new File(lorasDir(home), name);

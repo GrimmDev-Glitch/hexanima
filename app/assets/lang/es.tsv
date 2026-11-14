@@ -602,3 +602,23 @@ Category	Categoría
 Category: %s…	Categoría: %s…
 Detect categories on Civitai (%d)	Detectar categorías en Civitai (%d)
 Asking Civitai…	Consultando Civitai…
+Import .safetensors	Importar .safetensors
+Import overlay (.zip)	Importar overlay (.zip)
+A Qwen-Image 2.1 LoRA (.safetensors, also from Civitai) is converted on the phone in a few seconds.	Una LoRA de Qwen-Image 2.1 (.safetensors, también desde Civitai) se convierte en el teléfono en unos segundos.
+Converting the Qwen LoRA · %.2f	Convirtiendo LoRA de Qwen · %.2f
+Qwen LoRA ready (strength %.2f)	LoRA de Qwen lista (intensidad %.2f)
+Copying and checking the LoRA…	Copiando y revisando la LoRA…
+the file is larger than 2 GB	el archivo supera 2 GB
+Qwen LoRA downloaded. Back on the main screen it is converted on the phone and selected.	LoRA de Qwen descargada. Al volver se convierte en el teléfono y queda seleccionada.
+This LoRA is for another model (FLUX, SDXL, MOSS or similar), not Qwen-Image 2.1.	Esta LoRA es para otro modelo (FLUX, SDXL, MOSS o similar), no para Qwen-Image 2.1.
+This file does not look like a Qwen-Image LoRA (%s).	El archivo no parece una LoRA de Qwen-Image (%s).
+Layer sizes do not match Qwen-Image 2.1 (%s).	Las dimensiones no coinciden con Qwen-Image 2.1 (%s).
+Unsupported rank (%s).	Rango no admitido (%s).
+The LoRA has blocks Qwen-Image 2.1 Turbo does not have (%s).	La LoRA tiene bloques que Qwen-Image 2.1 Turbo no tiene (%s).
+Cannot read the file (%s).	No se pudo leer el archivo (%s).
+Conversion failed: %s %s	Falló la conversión: %s %s
+The generated overlay is not valid	El overlay generado no es válido
+Could not store the overlay	No se pudo guardar el overlay
+Could not store the LoRA	No se pudo guardar la LoRA
+Delete "%s"? The overlay and the original file are removed.	¿Eliminar «%s»? Se borran el overlay y el archivo original.
+Long-press a LoRA to copy its trigger words or delete it	Mantén pulsada una LoRA para copiar sus activadores o eliminarla

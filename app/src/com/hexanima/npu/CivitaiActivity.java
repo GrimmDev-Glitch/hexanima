@@ -219,14 +219,17 @@ public class CivitaiActivity extends Base {
                     msg = L.s("LoRA compatible; seleccionada para MOSS.", "Compatible LoRA; selected for MOSS.") + "\n" + c.message();
                     if (!words.isEmpty()) msg += "\n" + L.s("Activadores: ", "Triggers: ") + words;
                 } else if (qwen && out.getParentFile().equals(Civitai.qwenRawDir(getFilesDir()))) {
-                    Civitai.writeMeta(out, m, ver);
-                    String words = Civitai.words(out);
-                    String path = Civitai.exportQwenToDownloads(this, out);
-                    String metaPath = Civitai.exportQwenToDownloads(this, Civitai.metaFile(out));
-                    out.delete(); Civitai.metaFile(out).delete();
-                    msg = L.f("Safetensors original y metadatos guardados en %s y %s. Transfiere ambos al PC y ejecuta qwen/convert_civitai_lora.sh; después importa el ZIP V73 desde el selector Qwen.",
-                        "Original Safetensors and metadata saved to %s and %s. Transfer both to the PC and run qwen/convert_civitai_lora.sh, then import its V73 ZIP from the Qwen picker.", path, metaPath);
-                    if (!words.isEmpty()) msg += "\n" + L.s("Activadores para el conversor", "Trigger words for the converter") + ": " + words;
+                    // checked here, converted by the main screen (qwenlorafold, a few seconds) when this screen returns
+                    String chk = Qwen.foldError(Qwen.check(getApplicationInfo().nativeLibraryDir, out));
+                    if (chk != null) { out.delete(); throw new Exception(chk); }
+                    String id = Qwen.safeId(m.optString("name") + "_" + ver.optLong("id"));
+                    File src = Qwen.srcFile(getFilesDir(), id); src.getParentFile().mkdirs(); src.delete();
+                    if (!out.renameTo(src)) throw new Exception(L.s("No se pudo guardar la LoRA", "Could not store the LoRA"));
+                    Civitai.writeMeta(src, m, ver);
+                    String words = Civitai.words(src);
+                    setResult(RESULT_OK, new Intent().putExtra("qwen_fold", id).putExtra("qwen_name", m.optString("name")).putExtra("qwen_triggers", words));
+                    msg = L.s("LoRA de Qwen descargada. Al volver se convierte en el teléfono y queda seleccionada.", "Qwen LoRA downloaded. Back on the main screen it is converted on the phone and selected.");
+                    if (!words.isEmpty()) msg += "\n" + L.s("Activadores: ", "Triggers: ") + words;
                 } else msg = "";
                 if (!qwen) Civitai.writeMeta(out, m, ver);
                 String tag = out.getName().replaceAll("\\.safetensors$", "");

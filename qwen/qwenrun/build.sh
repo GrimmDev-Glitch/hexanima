@@ -8,6 +8,7 @@ mkdir -p $W/qwenrun/out
 cat $W/qwenrun/head.inc $W/qwenrun/body.inc > $W/qwenrun/qwenrun.cpp
 $NDK/aarch64-linux-android31-clang -O2 $INC -c $W/hexagon/mega/out/mega_stub.c -o $W/qwenrun/out/mega_stub.o
 $NDK/aarch64-linux-android31-clang++ -std=c++17 -O3 -march=armv8.2-a+fp16+dotprod $INC $W/qwenrun/qwenrun.cpp $W/qwenrun/out/mega_stub.o -L$W/hexagon/mega/syslib -lcdsprpc -llog -static-libstdc++ -o $W/qwenrun/out/qwenrun 2>&1 | grep -E "error" -A3 | head -30
+$NDK/aarch64-linux-android31-clang++ -std=c++17 -O3 -march=armv8.2-a+fp16+dotprod -static-libstdc++ $W/qwenrun/qwenlorafold.cpp -o $W/qwenrun/out/qwenlorafold 2>&1 | grep -E "error" -A3 | head -20; $NDK/llvm-strip $W/qwenrun/out/qwenlorafold
 $NDK/aarch64-linux-android31-clang++ -std=c++17 -O2 -I/qairt/include/QNN $W/qwenrun/vaetile.cpp -o $W/qwenrun/out/vaetile -ldl -llog -static-libstdc++ 2>&1 | grep -E "error" -A3 | head -20
 $NDK/aarch64-linux-android31-clang++ -std=c++17 -O2 -I/qairt/include/QNN $W/qwenrun/vaeenc.cpp -o $W/qwenrun/out/vaeenc -ldl -llog -static-libstdc++ 2>&1 | grep -E "error" -A3 | head -20'
 ls -la out/qwenrun out/vaetile out/vaeenc

@@ -75,7 +75,7 @@ public class Main extends Base {
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
-    LinearLayout qwenLoraBox; TextView qwenLoraName; Button qwenLoraPick, qwenLoraDrop;
+    LinearLayout qwenLoraBox, qwenStrRow; TextView qwenLoraName, qwenStrVal; Button qwenLoraPick, qwenLoraDrop; SeekBar qwenStr; volatile boolean qwenFolding;
     Fold sampFold, loraFold, extFold;
     LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
     LinearLayout pageBar, imgTools;   // ‹ 2 / 3 › over a batch picture (swiping needs a quick fling; the buttons always work)
@@ -227,11 +227,27 @@ public class Main extends Base {
         qwenLoraDrop = button("✕", CARD, TXT); qwenLoraDrop.setOnClickListener(v -> { prefs().edit().remove("qwen_lora_dir").apply(); refreshQwenLora(); });
         LinearLayout.LayoutParams qld = new LinearLayout.LayoutParams(dp(48), dp(42)); qld.leftMargin = dp(6); qlr.addView(qwenLoraDrop, qld);
         qwenLoraBox.addView(qlr);
-        Button qwenLoraImport = button(L.s("Importar overlay Qwen (.zip)", "Import Qwen overlay (.zip)"), CARD, ACC);
+        // strength of a LoRA folded on the phone: changing it re-folds the overlay from the original file (a few seconds)
+        qwenStrRow = new LinearLayout(this); qwenStrRow.setGravity(Gravity.CENTER_VERTICAL); qwenStrRow.setPadding(0, dp(6), 0, 0);
+        qwenStrRow.addView(text(L.s("Intensidad", "Strength"), 14, TXT, false));
+        qwenStr = new SeekBar(this); qwenStr.setMax(40); qwenStrRow.addView(qwenStr, new LinearLayout.LayoutParams(0, -2, 1));
+        qwenStrVal = text("1.00", 14, TXT, true); qwenStrVal.setGravity(Gravity.CENTER); qwenStrVal.setBackground(bg(CARD, 12)); qwenStrRow.addView(qwenStrVal, new LinearLayout.LayoutParams(dp(64), dp(38)));
+        qwenStr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar b, int p, boolean u) { qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", p * 0.05f)); }
+            public void onStartTrackingTouch(SeekBar b) { }
+            public void onStopTrackingTouch(SeekBar b) { refoldQwen(b.getProgress() * 0.05f); }
+        });
+        qwenStrRow.setVisibility(View.GONE); qwenLoraBox.addView(qwenStrRow);
+        LinearLayout qir = new LinearLayout(this); qir.setPadding(0, dp(7), 0, 0);
+        Button qwenStImport = button(L.s("Importar .safetensors", "Import .safetensors"), CARD, ACC); qwenStImport.setAllCaps(false); qwenStImport.setTextSize(12);
+        qwenStImport.setOnClickListener(v -> { try { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 16); } catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el selector de archivos", "Could not open the file picker"), Toast.LENGTH_LONG).show(); } });
+        qir.addView(qwenStImport, new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button qwenLoraImport = button(L.s("Importar overlay (.zip)", "Import overlay (.zip)"), CARD, ACC);
         qwenLoraImport.setAllCaps(false); qwenLoraImport.setTextSize(12);
         qwenLoraImport.setOnClickListener(v -> importQwenOverlay());
-        LinearLayout.LayoutParams qil = new LinearLayout.LayoutParams(-1, dp(42)); qil.topMargin = dp(7); qwenLoraBox.addView(qwenLoraImport, qil);
-        TextView qwenLoraHint = text(L.s("Paquetes LoRA convertidos para el runner Qwen V73", "LoRA packs converted for the Qwen V73 runner"), 11, DIM, false);
+        LinearLayout.LayoutParams qil = new LinearLayout.LayoutParams(0, dp(42), 1); qil.leftMargin = dp(6); qir.addView(qwenLoraImport, qil);
+        qwenLoraBox.addView(qir);
+        TextView qwenLoraHint = text(L.s("Una LoRA de Qwen-Image 2.1 (.safetensors, también desde Civitai) se convierte en el teléfono en unos segundos.", "A Qwen-Image 2.1 LoRA (.safetensors, also from Civitai) is converted on the phone in a few seconds."), 11, DIM, false);
         qwenLoraHint.setPadding(dp(4), dp(5), 0, 0); qwenLoraBox.addView(qwenLoraHint);
         qwenLoraBox.setVisibility(View.GONE);
         root.addView(qwenLoraBox);
@@ -648,7 +664,12 @@ public class Main extends Base {
     };
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
-        if (req == 14 && res == RESULT_OK && d != null) { appendPromptWords(d.getStringExtra("moss_triggers")); refreshModels(); return; }
+        if (req == 14 && res == RESULT_OK && d != null) {
+            appendPromptWords(d.getStringExtra("moss_triggers"));
+            String qid = d.getStringExtra("qwen_fold");   // a Qwen LoRA downloaded from Civitai: convert it here, on the phone
+            if (qid != null) foldQwen(qid, 1f, d.getStringExtra("qwen_name"), d.getStringExtra("qwen_triggers"), true);
+            refreshModels(); return;
+        }
         if (req == 15 && res == RESULT_OK && d != null && d.getData() != null) {
             final Uri uri = d.getData(); String displayName = "qwen_lora.zip";
             try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
@@ -666,6 +687,7 @@ public class Main extends Base {
             return;
         }
         if (req == 9 && res == RESULT_OK && d != null && d.getData() != null) { importLora(d.getData()); return; }
+        if (req == 16 && res == RESULT_OK && d != null && d.getData() != null) { importQwenSafetensors(d.getData()); return; }
         if (req == 11 && res == RESULT_OK && d != null && d.getData() != null) { importInit(d.getData()); return; }
         if (req == 12 && res == RESULT_OK && d != null && d.getData() != null) { importAd(d.getData()); return; }
         if (req == 13 && res == RESULT_OK && d != null && d.getData() != null) { importCheckpoint(d.getData()); return; }
@@ -2130,8 +2152,54 @@ public class Main extends Base {
         String name = prefs().getString("qwen_lora_dir", "");
         File selected = Qwen.selectedOverlay(getFilesDir(), name);
         if (selected == null && !name.isEmpty()) { prefs().edit().remove("qwen_lora_dir").apply(); name = ""; }
-        qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : name);
+        qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : Qwen.overlayName(selected));
         qwenLoraDrop.setEnabled(!name.isEmpty()); qwenLoraDrop.setAlpha(name.isEmpty() ? .45f : 1f);
+        boolean src = selected != null && Qwen.hasSource(getFilesDir(), name);
+        if (qwenStrRow != null) { qwenStrRow.setVisibility(src ? View.VISIBLE : View.GONE); if (src && !qwenFolding) { float s = Qwen.overlayStrength(selected); qwenStr.setProgress(Math.round(s / 0.05f)); qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", s)); } }
+    }
+    /** convert loras_src/<id>.safetensors into the overlay loras/<id>/ on the phone, with a progress dialog; select it when done */
+    void foldQwen(String id, float strength, String name, String triggers, boolean select) {
+        if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        qwenFolding = true;
+        final ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(32);
+        LinearLayout pv = new LinearLayout(this); pv.setPadding(dp(20), dp(12), dp(20), 0); pv.addView(pb, new LinearLayout.LayoutParams(-1, -2));
+        final AlertDialog dlg = builder().setTitle(L.f("Convirtiendo LoRA de Qwen · %.2f", "Converting the Qwen LoRA · %.2f", strength)).setView(pv).setCancelable(false).show();
+        ex2.submit(() -> {
+            String err;
+            try { err = Qwen.fold(BIN, getFilesDir(), id, strength, name, triggers, (d, t) -> ui.post(() -> pb.setProgress(d))); } catch (Exception e) { err = e.getMessage(); }
+            final String fe = err;
+            ui.post(() -> {
+                dlg.dismiss(); qwenFolding = false;
+                if (fe != null) { builder().setTitle(L.s("LoRA de Qwen", "Qwen LoRA")).setMessage(fe).setPositiveButton("OK", null).show(); refreshQwenLora(); return; }
+                if (select) prefs().edit().putString("qwen_lora_dir", id).apply();
+                refreshQwenLora(); appendPromptWords(triggers);
+                Toast.makeText(this, L.f("LoRA de Qwen lista (intensidad %.2f)", "Qwen LoRA ready (strength %.2f)", strength), Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+    void refoldQwen(float strength) {
+        String id = prefs().getString("qwen_lora_dir", ""); File ov = Qwen.selectedOverlay(getFilesDir(), id);
+        if (ov == null || !Qwen.hasSource(getFilesDir(), id)) return;
+        if (Math.abs(Qwen.overlayStrength(ov) - strength) < 0.001f) return;
+        foldQwen(id, strength, Qwen.overlayName(ov), Qwen.overlayTriggers(ov), false);
+    }
+    /** a .safetensors picked from the storage: copied to loras_src, checked, folded at strength 1 and selected */
+    void importQwenSafetensors(Uri uri) {
+        String nm = "qwen_lora.safetensors";
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int k = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (k >= 0) nm = c.getString(k); } } catch (Exception ignored) { }
+        final String display = nm.replaceFirst("(?i)\\.safetensors$", ""), id = Qwen.safeId(nm);
+        final AlertDialog copying = builder().setMessage(L.s("Copiando y revisando la LoRA…", "Copying and checking the LoRA…")).setCancelable(false).show();
+        ex2.submit(() -> {
+            File dst = Qwen.srcFile(getFilesDir(), id), tmp = new File(dst.getPath() + ".part"); dst.getParentFile().mkdirs();
+            String err = null;
+            try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(tmp)) {
+                byte[] b = new byte[1 << 16]; long tot = 0; for (int n; (n = in.read(b)) > 0; ) { o.write(b, 0, n); tot += n; if (tot > (2L << 30)) throw new IOException(L.s("el archivo supera 2 GB", "the file is larger than 2 GB")); }
+            } catch (Exception e) { err = e.getMessage(); }
+            if (err == null) { try { err = Qwen.foldError(Qwen.check(BIN, tmp)); } catch (Exception e) { err = e.getMessage(); } }
+            if (err != null) tmp.delete(); else { dst.delete(); tmp.renameTo(dst); }
+            final String fe = err;
+            ui.post(() -> { copying.dismiss(); if (fe != null) { builder().setTitle(display).setMessage(fe).setPositiveButton("OK", null).show(); return; } foldQwen(id, 1f, display, "", true); });
+        });
     }
 
     void pickQwenLora() {
@@ -2152,7 +2220,7 @@ public class Main extends Base {
         ListView list = new ListView(this);
         list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, choices));
         LinearLayout picker = new LinearLayout(this); picker.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = text(L.s("Mantén pulsada una LoRA para copiar sus activadores", "Long-press a LoRA to copy its trigger words"), 13, DIM, false);
+        TextView hint = text(L.s("Mantén pulsada una LoRA para copiar sus activadores o eliminarla", "Long-press a LoRA to copy its trigger words or delete it"), 13, DIM, false);
         hint.setPadding(dp(20), dp(8), dp(20), dp(4)); picker.addView(hint);
         picker.addView(list, new LinearLayout.LayoutParams(-1, dp(360)));
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
@@ -2162,14 +2230,21 @@ public class Main extends Base {
             if (which == 0) edit.remove("qwen_lora_dir"); else edit.putString("qwen_lora_dir", names.get(which - 1));
             edit.apply(); refreshQwenLora(); dialog.dismiss();
         });
-        list.setOnItemLongClickListener((parent, view, which, id) -> {
+        list.setOnItemLongClickListener((parent, view, which, id) -> {   // copy trigger words, or delete the overlay (and the original file it was converted from)
             if (which == 0) return true;
-            String trigger = Qwen.overlayTriggers(new File(root, names.get(which - 1)));
-            if (trigger.isEmpty()) Toast.makeText(this, L.s("Este overlay no tiene palabras activadoras guardadas", "This overlay has no saved trigger words"), Toast.LENGTH_LONG).show();
-            else {
-                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                if (clipboard != null) { clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Qwen trigger words", trigger)); Toast.makeText(this, L.s("Palabras activadoras copiadas", "Trigger words copied"), Toast.LENGTH_SHORT).show(); }
-            }
+            final String nm = names.get(which - 1); final File ov = new File(root, nm);
+            builder().setTitle(Qwen.overlayName(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Eliminar", "Delete")}, (d2, k) -> {
+                if (k == 0) {
+                    String trigger = Qwen.overlayTriggers(ov);
+                    if (trigger.isEmpty()) Toast.makeText(this, L.s("Este overlay no tiene palabras activadoras guardadas", "This overlay has no saved trigger words"), Toast.LENGTH_LONG).show();
+                    else { android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clipboard != null) { clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Qwen trigger words", trigger)); Toast.makeText(this, L.s("Palabras activadoras copiadas", "Trigger words copied"), Toast.LENGTH_SHORT).show(); } }
+                } else builder().setMessage(L.f("¿Eliminar «%s»? Se borran el overlay y el archivo original.", "Delete \"%s\"? The overlay and the original file are removed.", Qwen.overlayName(ov))).setNegativeButton(L.s("Cancelar", "Cancel"), null)
+                    .setPositiveButton(L.s("Eliminar", "Delete"), (d3, k3) -> {
+                        MossLora.deleteTree(ov); Qwen.srcFile(getFilesDir(), nm).delete(); Civitai.metaFile(Qwen.srcFile(getFilesDir(), nm)).delete();
+                        if (nm.equals(prefs().getString("qwen_lora_dir", ""))) prefs().edit().remove("qwen_lora_dir").apply();
+                        dialog.dismiss(); refreshQwenLora();
+                    }).show();
+            }).show();
             return true;
         });
         dialog.show();

@@ -45,6 +45,15 @@
   - Para LoRAs bajadas antes de este cambio, «Detectar categorías en Civitai (N)» consulta sus etiquetas una vez.
   - El buscador de Civitai tiene un filtro de categoría (parámetro `tag`).
   - Verificado en el teléfono: la detección clasificó las 5 LoRAs Anima (Personaje 1, Estilo 4) y el chip «Personaje» dejó solo MIRA. Captura: `lora-categories-20261114.png`.
+- 14 nov 2026 · **LoRAs de Qwen convertidas en el teléfono** (`qwen/qwenrun/qwenlorafold.cpp`, referencia `qwen/qwen_lora_fold.py`):
+  - Pliega una LoRA `.safetensors` de Qwen-Image 2.1 sobre el pack V73 sin pesos del PC. q/k/v/o/down ocupan los rangos 64–127 y gate/proj se recombina con Lightning por SVD a rango 64.
+  - Validado contra los overlays del PC: q/k/v/o/down idénticos; gate/proj con el mismo error frente al ideal (0,255 contra 0,253).
+  - En el Poco F6 Pro convierte los 32 bloques en unos 4 s.
+  - **Botón «Importar .safetensors»** en el bloque LoRA de Qwen: revisa el archivo, lo convierte y lo selecciona.
+  - **Civitai (familia Qwen 2.1):** la descarga se convierte sola al volver a la pantalla principal; ya no hace falta el PC.
+  - **Deslizador de intensidad** de 0 a 2: al soltarlo vuelve a convertir y reemplaza el overlay, sin acumular almacenamiento.
+  - **Pulsación larga en el selector:** copiar activadores o eliminar (borra el overlay y el original).
+  - **Probado en el teléfono:** importación de Lenovo UltraReal, generación de 75,7 s sin errores de overlay, cambio de intensidad a 0,50 y descarga desde Civitai con conversión automática. Capturas: `qwen-lora-phone-import-strength-20261114.png` y `qwen-lora-phone-generation-20261114.png`.
 - Pendientes añadidos a la lista:
   - LoRAs de Qwen sin pasar por el PC: leer los Safetensors directamente o convertirlos en el teléfono.
   - Intensidad ajustable para las LoRAs de Qwen. Hoy cada overlay lleva la fuerza fija de la conversión, así que esto va ligado a convertir en el teléfono, como hace `lorafold` en MOSS.
