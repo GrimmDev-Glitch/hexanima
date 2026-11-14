@@ -150,6 +150,8 @@
   - **«Editar con Qwen» y «Antes/después»:** son botones de icono (✎, ⇆) junto a la semilla de la última imagen; una pulsación larga dice qué hacen.
   - **Dado de la semilla:** icono del tema en vez del emoji de colores.
   - **Prompt negativo:** justo debajo de la descripción en los modelos que lo usan (Anima); el muestreo sigue dentro de «Imagen».
+  - **Pasos, CFG y sampler (Anima) y modo de RealSkin (MOSS):** justo después del prompt negativo, fuera de «Imagen», que queda con tamaño y semilla.
+  - **Panel de LoRA único:** Anima, MOSS y Qwen usan la misma tarjeta plegable «LORA», con el resumen nombre · intensidad. Dentro: nombre con ✕, información, intensidad (deslizador y número) y los mismos tres botones, «Biblioteca · Importar · Civitai». El overlay .zip de Qwen pasa a ser un enlace secundario. Las activadoras, la categoría y el borrado siguen en la pulsación larga dentro de la Biblioteca.
   - **Título «LORA» igual en todas las familias:** el bloque es compartido por Anima y MOSS, y Qwen tiene el suyo en el mismo sitio. Revisado en el teléfono con Qwen, MOSS y Anima.
 
 ## MOSS en V73 (experimental)

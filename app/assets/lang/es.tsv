@@ -670,3 +670,5 @@ Unload the model from memory	Liberar el modelo de la memoria
 Load the model into memory	Cargar el modelo en memoria
 Free model	Liberar modelo
 Load model	Cargar modelo
+Library	Biblioteca
+A .safetensors file, checked when imported. Long-press a LoRA in the Library for its trigger words, category or to delete it.	Un archivo .safetensors, se revisa al importarlo. Mantén pulsada una LoRA en la Biblioteca para sus activadores, su categoría o para eliminarla.

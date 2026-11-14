@@ -215,16 +215,16 @@ public class Main extends Base {
         root.addView(state);
 
         qwenLoraBox = new LinearLayout(this); qwenLoraBox.setOrientation(LinearLayout.VERTICAL);
-        qwenLoraBox.addView(label("LORA"));
+        qwenFold = fold(qwenLoraBox, "LORA", "qlora"); final LinearLayout qb = qwenFold.body;
         LinearLayout qlr = new LinearLayout(this); qlr.setGravity(Gravity.CENTER_VERTICAL);
         qwenLoraName = text(L.s("Ninguna", "None"), 13, TXT, false); qwenLoraName.setSingleLine(true); qwenLoraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         qwenLoraName.setBackground(bg(CARD, 14)); qwenLoraName.setPadding(dp(12), dp(11), dp(12), dp(11));
         qlr.addView(qwenLoraName, new LinearLayout.LayoutParams(0, -2, 1));
         qwenLoraPick = button(L.s("Elegir", "Choose"), CARD, ACC); qwenLoraPick.setOnClickListener(v -> pickQwenLora());
-        LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, dp(42)); qlp.leftMargin = dp(8); qlr.addView(qwenLoraPick, qlp);
+        qwenLoraPick.setText(L.s("Biblioteca", "Library")); qwenLoraPick.setTextSize(13); qwenLoraPick.setAllCaps(false);
         qwenLoraDrop = button("✕", CARD, TXT); qwenLoraDrop.setOnClickListener(v -> { prefs().edit().remove("qwen_lora_dir").apply(); refreshQwenLora(); });
         LinearLayout.LayoutParams qld = new LinearLayout.LayoutParams(dp(48), dp(42)); qld.leftMargin = dp(6); qlr.addView(qwenLoraDrop, qld);
-        qwenLoraBox.addView(qlr);
+        qb.addView(qlr);
         // strength of a LoRA folded on the phone: changing it re-folds the overlay from the original file (a few seconds)
         qwenStrRow = new LinearLayout(this); qwenStrRow.setGravity(Gravity.CENTER_VERTICAL); qwenStrRow.setPadding(0, dp(6), 0, 0);
         qwenStrRow.addView(text(L.s("Intensidad", "Strength"), 14, TXT, false));
@@ -236,18 +236,15 @@ public class Main extends Base {
             public void onStartTrackingTouch(SeekBar b) { }
             public void onStopTrackingTouch(SeekBar b) { refoldQwen(b.getProgress() * 0.05f); }
         });
-        qwenStrRow.setVisibility(View.GONE); qwenLoraBox.addView(qwenStrRow);
+        qwenStrRow.setVisibility(View.GONE);
         LinearLayout qir = new LinearLayout(this); qir.setPadding(0, dp(7), 0, 0);
-        Button qwenStImport = button(L.s("Importar .safetensors", "Import .safetensors"), CARD, ACC); qwenStImport.setAllCaps(false); qwenStImport.setTextSize(12);
+        Button qwenStImport = button(L.s("Importar", "Import"), CARD, ACC); qwenStImport.setAllCaps(false); qwenStImport.setTextSize(13);
         qwenStImport.setOnClickListener(v -> { try { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 16); } catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el selector de archivos", "Could not open the file picker"), Toast.LENGTH_LONG).show(); } });
-        qir.addView(qwenStImport, new LinearLayout.LayoutParams(0, dp(42), 1));
-        Button qwenLoraImport = button(L.s("Importar overlay (.zip)", "Import overlay (.zip)"), CARD, ACC);
-        qwenLoraImport.setAllCaps(false); qwenLoraImport.setTextSize(12);
-        qwenLoraImport.setOnClickListener(v -> importQwenOverlay());
-        LinearLayout.LayoutParams qil = new LinearLayout.LayoutParams(0, dp(42), 1); qil.leftMargin = dp(6); qir.addView(qwenLoraImport, qil);
-        qwenLoraBox.addView(qir);
+        loraActions(qir, qwenLoraPick, qwenStImport);
         TextView qwenLoraHint = text(L.s("Una LoRA de Qwen-Image 2.1 (.safetensors, también desde Civitai) se convierte en el teléfono en unos segundos.", "A Qwen-Image 2.1 LoRA (.safetensors, also from Civitai) is converted on the phone in a few seconds."), 11, DIM, false);
-        qwenLoraHint.setPadding(dp(4), dp(5), 0, 0); qwenLoraBox.addView(qwenLoraHint);
+        qwenLoraHint.setPadding(dp(4), dp(6), dp(4), 0); qb.addView(qwenLoraHint);
+        TextView zipLink = link(L.s("Importar overlay (.zip)", "Import overlay (.zip)")); zipLink.setTextSize(13); zipLink.setPadding(dp(4), dp(4), 0, 0); zipLink.setOnClickListener(v -> importQwenOverlay()); qb.addView(zipLink);
+        qb.addView(qwenStrRow); qb.addView(qir);
         qwenLoraBox.setVisibility(View.GONE);
         root.addView(qwenLoraBox);
         refreshQwenLora();
@@ -494,8 +491,7 @@ public class Main extends Base {
         loraName = text(L.s("не выбрана", "none"), 14, TXT, false); loraName.setSingleLine(true); loraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         loraName.setBackground(bg(CARD, 16)); loraName.setPadding(dp(16), dp(12), dp(16), dp(12));
         lr.addView(loraName, new LinearLayout.LayoutParams(0, -2, 1));
-        loraPick = button(L.s("Выбрать", "Choose"), CARD, TXT); loraPick.setOnClickListener(v -> pickLora());
-        LinearLayout.LayoutParams pl2 = new LinearLayout.LayoutParams(-2, dp(44)); pl2.leftMargin = dp(8); lr.addView(loraPick, pl2);
+        loraPick = button(L.s("Importar", "Import"), CARD, ACC); loraPick.setTextSize(13); loraPick.setAllCaps(false); loraPick.setOnClickListener(v -> pickLora());
         loraDrop = button("✕", CARD, TXT); loraDrop.setOnClickListener(v -> dropLora());
         LinearLayout.LayoutParams dl2 = new LinearLayout.LayoutParams(dp(48), dp(44)); dl2.leftMargin = dp(8); lr.addView(loraDrop, dl2);
         loraFold.body.addView(lr);
@@ -516,6 +512,8 @@ public class Main extends Base {
         });
         strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
         loraFold.body.addView(sr2);
+        Button loraLib = button(L.s("Biblioteca", "Library"), CARD, ACC); loraLib.setTextSize(13); loraLib.setAllCaps(false); loraLib.setOnClickListener(v -> loraLibrary());
+        LinearLayout lar = new LinearLayout(this); lar.setPadding(0, dp(8), 0, 0); loraActions(lar, loraLib, loraPick); loraFold.body.addView(lar);
         root.addView(loraBox);
         refreshLora();
 
@@ -580,12 +578,12 @@ public class Main extends Base {
         // size, seed and sampling go together in the "Image" fold (closed: its summary shows size and seed)
         LinearLayout imageSet = new LinearLayout(this); imageSet.setOrientation(LinearLayout.VERTICAL);
         imgFold = fold(imageSet, L.s("IMAGEN", "IMAGE"), "imgset");
-        for (View v : new View[]{sizeLabel, sizeRow, customRow, seedLabel, sr, mossStepsBox, sampBox}) { root.removeView(v); imgFold.body.addView(v); }
+        for (View v : new View[]{sizeLabel, sizeRow, customRow, seedLabel, sr}) { root.removeView(v); imgFold.body.addView(v); }
         LinearLayout ramRow = new LinearLayout(this); ramRow.setGravity(Gravity.CENTER_VERTICAL); ramRow.setPadding(0, dp(6), 0, 0);
         root.removeView(ramTxt); if (loadBtn.getParent() != null) ((ViewGroup) loadBtn.getParent()).removeView(loadBtn);
         ramRow.addView(ramTxt, new LinearLayout.LayoutParams(0, -2, 1));
         LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, dp(40)); lbl.leftMargin = dp(8); ramRow.addView(loadBtn, lbl);   // load / free stays in sight under the model
-        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, negBox, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
+        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, negBox, sampBox, mossStepsBox, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
         java.util.List<View> rest = new java.util.ArrayList<>();
         for (int i = 0; i < root.getChildCount(); i++) { View v = root.getChildAt(i); if (!java.util.Arrays.asList(order).contains(v)) rest.add(v); }
         root.removeAllViews(); for (View v : order) root.addView(v); for (View v : rest) root.addView(v);
@@ -870,7 +868,7 @@ public class Main extends Base {
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
         loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
-        String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when picked. Library: “LoRAs” above the prompt.");
+        String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when imported. Long-press a LoRA in the Library for its trigger words, category or to delete it.");
         boolean fits = !has || loraFitsModel();
         String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
         if (has && fits && MossLora.check(BIN, loraSrc()).lokr) info += "\n" + L.s("LoKr: la primera imagen con cada intensidad prepara una copia de los pesos (unos 20 s y 5,7 GB, se guarda solo la última).", "LoKr: the first picture at each strength prepares a copy of the weights (about 20 s and 5.7 GB, only the last one is kept).");
@@ -891,7 +889,14 @@ public class Main extends Base {
 
     /** a section whose body folds away; the header keeps a one-line summary; the open state is kept in prefs (fold_<key>) */
     static class Fold { LinearLayout body; TextView sum, chev; }
-    Fold imgFold;
+    Fold imgFold, qwenFold;
+    /** the same three buttons under every family's LoRA card: Library, Import, Civitai */
+    void loraActions(LinearLayout row, Button library, Button importB) {
+        Button civ = button("Civitai", CARD, ACC); civ.setTextSize(13); civ.setAllCaps(false);
+        civ.setOnClickListener(v -> startActivityForResult(new Intent(this, CivitaiActivity.class), 14));
+        Button[] bs = {library, importB, civ};
+        for (int i = 0; i < bs.length; i++) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1); if (i > 0) lp.leftMargin = dp(6); row.addView(bs[i], lp); }
+    }
     /** "1024×768 · seed 4242" next to the closed Image fold */
     void updImgSum() { if (imgFold == null || seed == null) return; String sd = seed.getText().toString().trim(); imgFold.sum.setText(resW + "×" + resH + "  ·  " + (sd.isEmpty() || sd.equals("-1") ? L.s("semilla aleatoria", "random seed") : L.f("semilla %s", "seed %s", sd))); }
     Fold fold(LinearLayout parent, String title, String key) {
@@ -2132,6 +2137,7 @@ public class Main extends Base {
         File selected = Qwen.selectedOverlay(getFilesDir(), name);
         if (selected == null && !name.isEmpty()) { prefs().edit().remove("qwen_lora_dir").apply(); name = ""; }
         qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : Qwen.overlayName(selected));
+        if (qwenFold != null) { qwenFold.sum.setText(name.isEmpty() ? L.s("Ninguna", "None") : Qwen.overlayName(selected) + (Qwen.hasSource(getFilesDir(), name) ? String.format(java.util.Locale.US, " · %.2f", Qwen.overlayStrength(selected)) : "")); qwenFold.sum.setTextColor(name.isEmpty() ? DIM : ACC); }
         qwenLoraDrop.setEnabled(!name.isEmpty()); qwenLoraDrop.setAlpha(name.isEmpty() ? .45f : 1f);
         boolean src = selected != null && Qwen.hasSource(getFilesDir(), name);
         if (qwenStrRow != null) { qwenStrRow.setVisibility(src ? View.VISIBLE : View.GONE); if (src && !qwenFolding) { float s = Qwen.overlayStrength(selected); qwenStr.setProgress(Math.round(s / 0.05f)); qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", s)); } }
