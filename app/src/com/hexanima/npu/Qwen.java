@@ -279,8 +279,8 @@ final class Qwen {
         return result;
     }
 
-    // ---- several reference pictures: picture 1 is the edit photo, pictures 2 and 3 are stored next to it; the model reads one collage
-    //      (left to right) and the prompt is told which picture is which, so "the character of image 1 with the outfit of image 2" works
+    // ---- several reference pictures: picture 1 is the edit photo, pictures 2 and 3 are stored next to it; the model reads them
+    //      as separate pictures (<image1>, <image2>, ...), so "the character of image 1 with the outfit of image 2" works
     static final int MAX_REFS = 3;
     static File refFile(File home, int k) { return new File(dir(home), "edit_ref" + k + ".png"); }
     static java.util.List<File> extraRefs(File home) { java.util.List<File> out = new java.util.ArrayList<>(); for (int k = 2; k <= MAX_REFS; k++) if (refFile(home, k).isFile()) out.add(refFile(home, k)); return out; }
@@ -295,23 +295,6 @@ final class Qwen {
         });
         File f = refFile(home, k); try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { bm.compress(Bitmap.CompressFormat.PNG, 100, o); } bm.recycle(); return f;
     }
-    /** pictures side by side at one height (a thin grey gap between them), at most 3072 px wide */
-    static Bitmap collage(java.util.List<Bitmap> pics) {
-        int H = 1024, gap = 24; double wsum = 0; for (Bitmap b : pics) wsum += b.getWidth() * (double) H / b.getHeight();
-        double total = wsum + gap * (pics.size() - 1); if (total > 3072) { H = (int) Math.floor(H * 3072 / total); gap = Math.max(8, gap * H / 1024); }
-        int W = gap * (pics.size() - 1); int[] ws = new int[pics.size()];
-        for (int i = 0; i < pics.size(); i++) { ws[i] = Math.max(1, Math.round(pics.get(i).getWidth() * (float) H / pics.get(i).getHeight())); W += ws[i]; }
-        Bitmap out = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(out); c.drawColor(0xFF7F7F7F);
-        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG); int x = 0;
-        for (int i = 0; i < pics.size(); i++) { c.drawBitmap(pics.get(i), null, new android.graphics.Rect(x, 0, x + ws[i], H), p); x += ws[i] + gap; }
-        return out;
-    }
-    /** English sentence put before the user's prompt so the model knows where each picture is in the collage */
-    static String refsPreamble(int n) {
-        String where = n == 2 ? "image 1 is on the left and image 2 is on the right" : "image 1 is on the left, image 2 in the middle and image 3 on the right";
-        return "The reference is a collage of " + (n == 2 ? "two" : "three") + " separate pictures: " + where + ". Use them only as references and create one single new picture that fills the whole frame, not a collage and not side by side: ";
-    }
-
     /** Store a generated bitmap as the next edit source, with the same size limit as a gallery import. */
     static Bitmap storePhoto(Bitmap input, File home) throws IOException {
         int w = input.getWidth(), h = input.getHeight(), m = Math.max(w, h);
@@ -563,6 +546,51 @@ final class Qwen {
         int[] ids = t.encodeQwenEdit(prompt, e.nm); e.drop = t.dropQwenImage(); e.tokens = ids.length;
         writeIds(ids, idsOut);
         return e;
+    }
+    /** several reference pictures as separate inputs (each its own VAE latent, ViT features and position): picture k writes rgba_k / px_k, the runner reads one "CW CH" line per picture */
+    static Edit prepareEditMulti(File home, java.util.List<Bitmap> pics, String prompt, int tw, int th, File idsOut, double cap) throws Exception {
+        final int n = pics.size(); File ed = editDir(home); ed.mkdirs();
+        // the attention holds target + all pictures + text: share what is left after the target between the pictures
+        double budget = Math.max(64 * 64 * 4, (MAX_KEYS - (tw / 16) * (th / 16) - 320) * 256.0 / n);
+        StringBuilder meta = new StringBuilder(); int[] pads = new int[n]; Edit e = new Edit();
+        for (int k = 0; k < n; k++) {
+            Bitmap src = pics.get(k); int[] cs = condSize(src.getWidth(), src.getHeight(), tw, th, Math.min(cap, budget));
+            writePicture(home, src, cs[0], cs[1], k == 0 ? "" : "_" + (k + 1));
+            meta.append(cs[0]).append(' ').append(cs[1]).append('\n');
+            int nc = (cs[0] / 16) * (cs[1] / 16); pads[k] = nc / 4; e.nc += nc; e.nm += nc / 4; if (k == 0) { e.cw = cs[0]; e.ch = cs[1]; }
+        }
+        try (FileWriter w = new FileWriter(new File(ed, "meta.txt"))) { w.write(meta.toString()); }
+        QwenTok t = new QwenTok(dir(home).getPath());
+        int[] ids = t.encodeQwenEditMulti(prompt, pads); e.drop = t.dropQwenImage(); e.tokens = ids.length;
+        writeIds(ids, idsOut);
+        return e;
+    }
+    /** rgba{sx}.f32 for the VAE encoder and px{sx}.f32 for the ViT, rewritten only when the picture or its size changes */
+    static void writePicture(File home, Bitmap src, int cw, int ch, String sx) throws IOException {
+        Bitmap b = src.copy(Bitmap.Config.ARGB_8888, false);
+        while (b.getWidth() > 2 * cw || b.getHeight() > 2 * ch) { Bitmap next = Bitmap.createScaledBitmap(b, Math.max(cw, b.getWidth() / 2), Math.max(ch, b.getHeight() / 2), true); if (next != b) b.recycle(); b = next; }
+        if (b.getWidth() != cw || b.getHeight() != ch) { Bitmap next = Bitmap.createScaledBitmap(b, cw, ch, true); if (next != b) b.recycle(); b = next; }
+        int[] px = new int[cw * ch]; b.getPixels(px, 0, cw, 0, 0, cw, ch); b.recycle();
+        File ed = editDir(home); final String key = cw + "x" + ch + ":" + java.util.Arrays.hashCode(px);
+        File kf = new File(ed, "key" + sx + ".txt");
+        try { if (kf.exists() && key.equals(Models.read(kf)) && new File(ed, "rgba" + sx + ".f32").exists() && new File(ed, "px" + sx + ".f32").exists()) return; } catch (Exception ignored) { }
+        new File(ed, "cond_raw" + sx + ".f32").delete();
+        int n = cw * ch, gh = ch / 16, gw = cw / 16; float[] rgba = new float[4 * n]; float[] rgb = new float[3 * n];
+        for (int i = 0; i < n; i++) {
+            int p = px[i], a = p >>> 24, r = (p >> 16) & 255, g = (p >> 8) & 255, bl = p & 255;
+            rgba[i] = r / 127.5f - 1f; rgba[n + i] = g / 127.5f - 1f; rgba[2 * n + i] = bl / 127.5f - 1f; rgba[3 * n + i] = a / 127.5f - 1f;
+            float wa = a / 255f;
+            rgb[i] = (r * wa + 255 * (1 - wa)) / 127.5f - 1f; rgb[n + i] = (g * wa + 255 * (1 - wa)) / 127.5f - 1f; rgb[2 * n + i] = (bl * wa + 255 * (1 - wa)) / 127.5f - 1f;
+        }
+        writeFloats(new File(ed, "rgba" + sx + ".f32"), rgba);
+        float[] pv = new float[gh * gw * 1536]; int bw = gw / 2;
+        for (int p = 0; p < gh * gw; p++) {
+            int blk = p / 4, ir = (p / 2) % 2, ic = p % 2, row = (blk / bw) * 2 + ir, col = (blk % bw) * 2 + ic, o = p * 1536;
+            for (int c = 0; c < 3; c++) for (int tt = 0; tt < 2; tt++) for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++)
+                pv[o + ((c * 2 + tt) * 16 + y) * 16 + x] = rgb[c * n + (row * 16 + y) * cw + col * 16 + x];
+        }
+        writeFloats(new File(ed, "px" + sx + ".f32"), pv);
+        try (FileWriter kw = new FileWriter(kf)) { kw.write(key); }
     }
     private static void writeFloats(File f, float[] a) throws IOException {
         ByteBuffer bb = ByteBuffer.allocate(a.length * 4).order(ByteOrder.LITTLE_ENDIAN); bb.asFloatBuffer().put(a);

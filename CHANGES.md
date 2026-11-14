@@ -154,11 +154,14 @@
   - **Panel de LoRA único:** Anima, MOSS y Qwen usan la misma tarjeta plegable «LORA», con el resumen nombre · intensidad. Dentro: nombre con ✕, información, intensidad (deslizador y número) y los mismos tres botones, «Biblioteca · Importar · Civitai». El overlay .zip de Qwen pasa a ser un enlace secundario. Las activadoras, la categoría y el borrado siguen en la pulsación larga dentro de la Biblioteca.
   - **Título «LORA» igual en todas las familias:** el bloque es compartido por Anima y MOSS, y Qwen tiene el suyo en el mismo sitio. Revisado en el teléfono con Qwen, MOSS y Anima.
 
-- 14 nov 2026 · **Varias imágenes de referencia (bloque 8, primera versión, en pruebas):**
-  - En «Editar una foto» de Qwen, «+ Otra imagen de referencia» añade hasta 3 imágenes. La foto es la 1 y las demás se numeran 2 y 3, con ✕ para quitarlas.
-  - Por ahora el modelo recibe un collage (de izquierda a derecha) y una frase previa que dice dónde está cada imagen. Con varias imágenes se usa el tamaño elegido y no hay área a cambiar.
-  - Prueba en el Poco F6 Pro, «el pescador de la imagen 1 sostiene al zorro de la imagen 2»: 125 s. El zorro aparece en brazos del pescador con buena fidelidad a los dos, pero la salida conserva la composición del collage (el zorro también queda a un lado), incluso pidiendo «una sola imagen, no un collage».
-  - Siguiente paso: referencias nativas en el runner, con cada imagen como bloque propio (su VAE, su ViT y su posición), como hace Qwen-Image-Edit con varias imágenes, para que el resultado sea una escena nueva.
+- 14 nov 2026 · **Varias imágenes de referencia en Qwen (bloque 8):**
+  - En «Editar una foto», «+ Otra imagen de referencia» añade hasta 3 imágenes. La foto es la 1 y las demás se numeran 2 y 3, con ✕ para quitarlas.
+  - Cada imagen entra al modelo por separado, con su propia latente del VAE, sus rasgos del ViT y su posición. La plantilla del modelo ya las numera (`<image1>`, `<image2>`…), así que el prompt puede referirse a ellas («el personaje de la imagen 1 con la ropa de la imagen 2»).
+  - **Runner (`qwen/qwenrun/body.inc`):** lee una línea «CW CH» por imagen en `meta.txt` (archivos `rgba_K`, `px_K` y `cond_raw_K`) y busca un bloque de image_pad por imagen. Calcula mrope y DeepStack por imagen; en el prefijo coloca [texto | imagen 1 | texto | imagen 2 | …] con posiciones correlativas y un único tramo bidireccional sobre las imágenes, sin cambiar el kernel. `qwen.sh` pasa el codificador VAE por cada imagen.
+  - La app reparte entre las imágenes los tokens de atención que deja la imagen destino. Con varias imágenes se usa el tamaño elegido; no hay área a cambiar ni «Forma de la foto».
+  - **Prueba en el Poco F6 Pro:**
+    - Una foto (regresión): misma calidad que antes, 102 s.
+    - Dos referencias, «el pescador de la imagen 1 sostiene al zorro de la imagen 2», 1024×768: una sola escena nueva en 133 s, con ViT de 3 s por imagen. El zorro y el pescador conservan su aspecto; ya no sale el collage de la primera versión.
 
 ## MOSS en V73 (experimental)
 

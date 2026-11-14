@@ -95,6 +95,16 @@ public class QwenTok {
     public int dropMage(boolean edit) { return encode(edit ? MAGE_EDIT_SYS : MAGE_SYS).length; }
 
     /** Qwen-Image-2.1 editing prompt: the image placeholder (expanded to nPads image slots) in the user turn, then the prompt */
+    /** several reference pictures: <imageK><|vision_start|>pads<|vision_end|> for each, then the prompt */
+    public int[] encodeQwenEditMulti(String prompt, int[] nPads) {
+        StringBuilder sb = new StringBuilder("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n<|im_start|>user\n");
+        for (int k = 0; k < nPads.length; k++) sb.append("<image").append(k + 1).append("><|vision_start|><|image_pad|><|vision_end|>");
+        int[] a = encode(sb.append(prompt == null || prompt.isEmpty() ? " " : prompt).append("<|im_end|>\n<|im_start|>assistant\n").toString());
+        int pad = special.get("<|image_pad|>"), total = 0; for (int n : nPads) total += n;
+        int[] r = new int[a.length - nPads.length + total]; int o = 0, k = 0;
+        for (int v : a) { if (v == pad && k < nPads.length) { for (int i = 0; i < nPads[k]; i++) r[o++] = pad; k++; } else r[o++] = v; }
+        return r;
+    }
     public int[] encodeQwenEdit(String prompt, int nPads) {
         int[] a = encode("<|im_start|>system\nComprehend and analyze the provided prompt.<|im_end|>\n<|im_start|>user\n<image1><|vision_start|><|image_pad|><|vision_end|>" + (prompt == null || prompt.isEmpty() ? " " : prompt) + "<|im_end|>\n<|im_start|>assistant\n");
         int pad = special.get("<|image_pad|>"), k = -1; for (int i = 0; i < a.length; i++) if (a[i] == pad) { k = i; break; }

@@ -17,11 +17,14 @@ mkdir -p $Q/dsp && cp -f $SKEL $Q/dsp/libmega_skel.so
 mkdir -p $Q/cache   # text-encoder cache: the same prompt (and photo) with another seed skips the ViT and the encoder
 rm -f $Q/qwen.log $Q/z.raw $OUT
 if [ -n "$ED" ]; then   # the condition image: VAE encoder tiles on the NPU -> raw latent (kept while the photo and size stay the same; the app deletes it when it rewrites the photo files)
-  read CW CH < $ED/meta.txt
-  if [ ! -s $ED/cond_raw.f32 ]; then
-    printf 'run %s/rgba.f32 %s %s %s/cond_raw.f32\nquit\n' "$ED" "$CW" "$CH" "$ED" | LIBS=$LIBS ADSPP=$ADSPP sh -c "$RUNX" sh $BIN/libvaeenc.so $BIN/libQnnHtp.so $BIN/libQnnSystem.so $VDIR/enc_t32.bin > $Q/qwen.log 2>&1
-  fi
-  [ -s $ED/cond_raw.f32 ] || exit 1
+  K=0   # one "CW CH" line per reference picture: picture 1 uses rgba.f32 / cond_raw.f32, picture K uses rgba_K.f32 / cond_raw_K.f32
+  while read CW CH; do
+    K=$((K+1)); SX=""; [ $K -gt 1 ] && SX="_$K"
+    if [ ! -s $ED/cond_raw$SX.f32 ]; then
+      printf 'run %s/rgba%s.f32 %s %s %s/cond_raw%s.f32\nquit\n' "$ED" "$SX" "$CW" "$CH" "$ED" "$SX" | LIBS=$LIBS ADSPP=$ADSPP sh -c "$RUNX" sh $BIN/libvaeenc.so $BIN/libQnnHtp.so $BIN/libQnnSystem.so $VDIR/enc_t32.bin >> $Q/qwen.log 2>&1
+    fi
+    [ -s $ED/cond_raw$SX.f32 ] || exit 1
+  done < $ED/meta.txt
 fi
 # the decoder starts now and loads its 0.5 GB context while the transformer runs; the "run" command is appended to its command file afterwards
 VAE=${VAE:-vae_t32.bin}; rm -f $Q/vae.cmd $Q/vae.log; : > $Q/vae.cmd

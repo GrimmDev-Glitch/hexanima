@@ -786,6 +786,7 @@ public class Main extends Base {
         }
         if (editAddRef != null) editAddRef.setVisibility(b != null && isQwen() && 1 + refs.size() < Qwen.MAX_REFS && !masked ? View.VISIBLE : View.GONE);
         if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);
+        if (editOpts != null && editOpts.getChildCount() > 0) editOpts.getChildAt(0).setVisibility(refs.isEmpty() ? View.VISIBLE : View.GONE);   // "photo's shape": with several pictures the picked size is used
     }
     void showImg(boolean on) {
         img.setVisibility(on ? View.VISIBLE : View.GONE);
@@ -2708,14 +2709,10 @@ public class Main extends Base {
     File runOneQwen(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), Q = Qwen.dir(home), ids = new File(Q, "ids.i32"), raw = new File(Q, "img.f32");
         final java.util.List<File> refFiles = editBm != null ? Qwen.extraRefs(home) : new ArrayList<>();
-        Bitmap src0 = editBm;
-        if (src0 != null && !refFiles.isEmpty()) {   // several reference pictures: one collage, picture 1 on the left
-            java.util.List<Bitmap> pics = new ArrayList<>(); pics.add(src0);
-            for (File rf : refFiles) { Bitmap rb = BitmapFactory.decodeFile(rf.getPath()); if (rb != null) pics.add(rb); }
-            if (pics.size() > 1) { src0 = Qwen.collage(pics); for (int i = 1; i < pics.size(); i++) pics.get(i).recycle(); }
-        }
-        final Bitmap src = src0; final boolean edit = src != null; final int nRefs = edit ? 1 + refFiles.size() : 0;
-        final String prE = nRefs > 1 ? Qwen.refsPreamble(nRefs) + pr : pr;
+        final java.util.List<Bitmap> pics = new ArrayList<>();   // several reference pictures: each one goes to the model as its own picture (<image1>, <image2>, ...)
+        if (editBm != null && !refFiles.isEmpty()) { pics.add(editBm); for (File rf : refFiles) { Bitmap rb = BitmapFactory.decodeFile(rf.getPath()); if (rb != null) pics.add(rb); } }
+        final Bitmap src = editBm; final boolean edit = src != null; final int nRefs = pics.size() > 1 ? pics.size() : edit ? 1 : 0;
+        final String prE = pr;
         final File maskFile = nRefs > 1 ? new File(home, "no_mask_with_refs") : Qwen.editMask(home);
         final Qwen.DetailCrop detail = edit && maskFile.isFile() ? Qwen.detailCrop(src, maskFile) : null;
         final Bitmap condition = detail != null ? detail.image : src;
@@ -2726,10 +2723,10 @@ public class Main extends Base {
         try {
             if (edit) {
                 boolean hifi = prefs().getBoolean("qwen_hifi", false);
-                Qwen.Edit e = Qwen.prepareEdit(home, condition, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
+                Qwen.Edit e = nRefs > 1 ? Qwen.prepareEditMulti(home, pics, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA) : Qwen.prepareEdit(home, condition, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
                 int keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
                 if (hifi && keys > Qwen.MAX_KEYS) {   // too many tokens for one attention pass: fall back to the standard reference size
-                    e = Qwen.prepareEdit(home, condition, prE, runW, runH, ids, Qwen.COND_AREA); drop = e.drop;
+                    e = nRefs > 1 ? Qwen.prepareEditMulti(home, pics, prE, runW, runH, ids, Qwen.COND_AREA) : Qwen.prepareEdit(home, condition, prE, runW, runH, ids, Qwen.COND_AREA); drop = e.drop;
                     keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
                     ui.post(() -> Toast.makeText(this, L.s("Alta fidelidad no cabe con este tamaño: se usa la referencia normal", "High fidelity does not fit this size: using the standard reference"), Toast.LENGTH_LONG).show());
                 }
