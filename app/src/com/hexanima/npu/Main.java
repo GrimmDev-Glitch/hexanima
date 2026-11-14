@@ -173,15 +173,14 @@ public class Main extends Base {
         ram.setTextSize(12);
         ram.setOnClickListener(v -> freeMemoryDialog());
         LinearLayout.LayoutParams ramlp = new LinearLayout.LayoutParams(-2, dp(40)); ramlp.leftMargin = dp(6);
-        tr.addView(ram, ramlp);
+        ramTxt = text("", 12, DIM, false); ramTxt.setOnClickListener(v -> freeMemoryDialog());   // tap: free memory (was the RAM button)
         Button more = button("⋯", CARD, TXT);
         more.setTextSize(20);
         more.setOnClickListener(v -> menu(v));
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(48), dp(40)); ml.leftMargin = dp(6);
         tr.addView(more, ml);
         root.addView(tr);
-        ramTxt = text("", 12, DIM, false);
-        ramTxt.setPadding(dp(2), dp(10), 0, dp(4));
+        ramTxt.setPadding(dp(4), dp(6), 0, dp(4));
         root.addView(ramTxt);
         ramBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         ramBar.setMax(1000);
@@ -209,8 +208,7 @@ public class Main extends Base {
         loadBtn = button(L.s("Загрузить", "Load"), CARD, TXT);
         loadBtn.setTextSize(13);
         loadBtn.setOnClickListener(v -> toggleModel());
-        LinearLayout.LayoutParams lb = new LinearLayout.LayoutParams(-2, dp(42)); lb.leftMargin = dp(8);
-        head.addView(loadBtn, lb);
+        // load / unload lives in the ⋯ menu now (the button keeps its text and state for that menu entry)
         root.addView(head);
         state = text(L.s("Проверяю…", "Checking…"), 12, DIM, false);
         state.setPadding(dp(4), dp(6), 0, dp(12));
@@ -304,15 +302,17 @@ public class Main extends Base {
         saved = text("", 12, DIM, false);
         saved.setPadding(dp(4), dp(8), dp(8), 0);
         resRow.addView(saved, new LinearLayout.LayoutParams(0, -2, 1));
-        editGeneratedBtn = button(L.s("Editar con Qwen", "Edit with Qwen"), CARD, ACC);
-        editGeneratedBtn.setTextSize(11); editGeneratedBtn.setVisibility(View.GONE);
+        editGeneratedBtn = button("✎", CARD, ACC); editGeneratedBtn.setContentDescription(L.s("Editar con Qwen", "Edit with Qwen"));
+        editGeneratedBtn.setTextSize(18); editGeneratedBtn.setPadding(0, 0, 0, 0); editGeneratedBtn.setVisibility(View.GONE);
         editGeneratedBtn.setOnClickListener(v -> useShownImageAsQwenSource());
         editRow = new LinearLayout(this); editRow.setGravity(Gravity.CENTER_VERTICAL); editRow.setPadding(0, dp(6), 0, 0);   // own row: the seed text and the icons keep their width
-        editRow.addView(editGeneratedBtn, new LinearLayout.LayoutParams(0, dp(40), 1));
-        compareBtn = button(L.s("Antes/después", "Before/after"), CARD, ACC);
-        compareBtn.setTextSize(11); compareBtn.setVisibility(View.GONE);
+        editGeneratedBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Editar con Qwen", "Edit with Qwen"), Toast.LENGTH_SHORT).show(); return true; });
+        compareBtn = button("⇆", CARD, ACC); compareBtn.setContentDescription(L.s("Antes/después", "Before/after"));
+        compareBtn.setTextSize(18); compareBtn.setPadding(0, 0, 0, 0); compareBtn.setVisibility(View.GONE);
+        compareBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Antes/después", "Before/after"), Toast.LENGTH_SHORT).show(); return true; });
         compareBtn.setOnClickListener(v -> showBeforeAfter(lastFile));
-        LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(0, dp(40), 1); cmpl.leftMargin = dp(6); editRow.addView(compareBtn, cmpl);
+        LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(dp(46), dp(40)); cmpl.leftMargin = dp(6); resRow.addView(compareBtn, cmpl);
+        LinearLayout.LayoutParams edl = new LinearLayout.LayoutParams(dp(46), dp(40)); edl.leftMargin = dp(6); resRow.addView(editGeneratedBtn, edl);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
         favBtn = icon("ic_star_off", CARD);
@@ -327,7 +327,7 @@ public class Main extends Base {
             if (x == againBtn) resRow.addView(x, lp); else imgTools.addView(x, lp);   // "again" stays by the seed; the file actions go to the toolbar
         }
         LinearLayout.LayoutParams cxl = new LinearLayout.LayoutParams(dp(46), dp(40)); cxl.leftMargin = dp(6); imgTools.addView(clearX, cxl);
-        editRow.setVisibility(View.GONE); root.addView(resRow); root.addView(editRow);
+        editRow.setVisibility(View.GONE); root.addView(resRow);
 
         // prompt
         LinearLayout pl = new LinearLayout(this);
@@ -437,7 +437,7 @@ public class Main extends Base {
         refreshSampling();
 
         // size: a drop-down button that opens a two-column picker, and the portrait <-> landscape swap
-        root.addView(label(L.s("РАЗМЕР", "SIZE")));
+        TextView sizeLabel = label(L.s("РАЗМЕР", "SIZE")); root.addView(sizeLabel);
         LinearLayout sizeRow = new LinearLayout(this);
         sizeRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout sizeBtn = new LinearLayout(this);
@@ -479,11 +479,12 @@ public class Main extends Base {
         seed.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
         seed.setBackground(bg(CARD, 14));
         sr.addView(seed, new LinearLayout.LayoutParams(0, -2, 1));
-        Button dice = button("🎲", CARD, TXT);
+        ImageButton dice = icon("ic_dice", CARD); dice.setContentDescription(L.s("Semilla aleatoria", "Random seed")); dice.setImageTintList(ColorStateList.valueOf(TXT));
         dice.setOnClickListener(v -> seed.setText(String.valueOf(new Random().nextInt(1 << 30))));
         LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(52), dp(44)); dl.leftMargin = dp(8);
         sr.addView(dice, dl);
         root.addView(sr);
+        seed.addTextChangedListener(watch(x -> updImgSum()));
 
         // MOSS-Image: user LoRA (picked file is checked at once; strength slider; folded with the turbo adapter on first use)
         loraBox = new LinearLayout(this); loraBox.setOrientation(LinearLayout.VERTICAL);
@@ -573,6 +574,21 @@ public class Main extends Base {
         brow.addView(genBtn, new LinearLayout.LayoutParams(0, dp(54), 1));
         bottom.addView(brow);
         frame.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
+
+        // picture first and the prompt right under it; then the photo to edit, the LoRA (one place for every family) and the extras;
+        // size, seed and sampling go together in the "Image" fold (closed: its summary shows size and seed)
+        LinearLayout imageSet = new LinearLayout(this); imageSet.setOrientation(LinearLayout.VERTICAL);
+        imgFold = fold(imageSet, L.s("IMAGEN", "IMAGE"), "imgset");
+        for (View v : new View[]{sizeLabel, sizeRow, customRow, seedLabel, sr, mossStepsBox, sampBox}) { root.removeView(v); imgFold.body.addView(v); }
+        LinearLayout ramRow = new LinearLayout(this); ramRow.setGravity(Gravity.CENTER_VERTICAL); ramRow.setPadding(0, dp(6), 0, 0);
+        root.removeView(ramTxt); if (loadBtn.getParent() != null) ((ViewGroup) loadBtn.getParent()).removeView(loadBtn);
+        ramRow.addView(ramTxt, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, dp(40)); lbl.leftMargin = dp(8); ramRow.addView(loadBtn, lbl);   // load / free stays in sight under the model
+        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
+        java.util.List<View> rest = new java.util.ArrayList<>();
+        for (int i = 0; i < root.getChildCount(); i++) { View v = root.getChildAt(i); if (!java.util.Arrays.asList(order).contains(v)) rest.add(v); }
+        root.removeAllViews(); for (View v : order) root.addView(v); for (View v : rest) root.addView(v);
+        updImgSum();
 
         setContentView(frame);
         SharedPreferences p = prefs();   // restore the last session's inputs
@@ -874,6 +890,9 @@ public class Main extends Base {
 
     /** a section whose body folds away; the header keeps a one-line summary; the open state is kept in prefs (fold_<key>) */
     static class Fold { LinearLayout body; TextView sum, chev; }
+    Fold imgFold;
+    /** "1024×768 · seed 4242" next to the closed Image fold */
+    void updImgSum() { if (imgFold == null || seed == null) return; String sd = seed.getText().toString().trim(); imgFold.sum.setText(resW + "×" + resH + "  ·  " + (sd.isEmpty() || sd.equals("-1") ? L.s("semilla aleatoria", "random seed") : L.f("semilla %s", "seed %s", sd))); }
     Fold fold(LinearLayout parent, String title, String key) {
         Fold f = new Fold();
         LinearLayout h = new LinearLayout(this); h.setGravity(Gravity.CENTER_VERTICAL);
@@ -1998,7 +2017,8 @@ public class Main extends Base {
         return null;
     }
 
-    void setRes(int w, int h) {
+    void setRes(int w, int h) { setRes0(w, h); updImgSum(); }
+    void setRes0(int w, int h) {
         resW = w; resH = h;
         boolean preset = false;
         for (int[] z : sizeList()) if (z[0] == w && z[1] == h) preset = true;
@@ -2065,7 +2085,7 @@ public class Main extends Base {
             refreshSampling();
             state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMage() ? L.s("Mage-Flow en NPU · pesos desde almacenamiento", "Mage-Flow on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
                 : L.s("Выгружена · загрузится при генерации", "Unloaded · loads when you generate"));
-            loadBtn.setText(isLoaded ? L.s("Выгрузить", "Unload") : L.s("Загрузить", "Load"));
+            loadBtn.setText(isLoaded ? L.s("Liberar modelo", "Free model") : L.s("Cargar modelo", "Load model"));
             loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss() && !isQwen() && !isMage());
             loadBtn.setAlpha(loadBtn.isEnabled() ? 1f : .5f);
             boolean canEditBatch = !busy || (batchAdjustable && !cancelled);

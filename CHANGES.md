@@ -143,6 +143,13 @@
   - **Info al día:** pasos de MOSS y RealSkin, LoKr de MOSS, edición de Qwen (forma de la foto, área a cambiar, antes/después), una sección nueva «LoRAs de Qwen» y teléfonos probados.
   - **Traducciones:** descripciones del catálogo que salían en inglés; «Todas las LoRA» en el filtro del Historial.
 
+- 14 nov 2026 · **Pantalla principal reorganizada:**
+  - **Orden nuevo:** imagen arriba y la descripción justo debajo; después «Editar una foto», la LoRA de la familia (Qwen o MOSS, en el mismo sitio) y Extras.
+  - **Bloque plegable «Imagen»:** tamaño, semilla, pasos de MOSS y muestreo de Anima. Cerrado muestra el resumen («1024×768 · semilla 4242»).
+  - **Cabecera más corta:** el título con Historial y «⋯»; la línea de RAM (al tocarla abre «liberar memoria») y el botón «Cargar modelo» / «Liberar modelo», visibles bajo el selector de modelo.
+  - **«Editar con Qwen» y «Antes/después»:** son botones de icono (✎, ⇆) junto a la semilla de la última imagen; una pulsación larga dice qué hacen.
+  - **Dado de la semilla:** icono del tema en vez del emoji de colores.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
