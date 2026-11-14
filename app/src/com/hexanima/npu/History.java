@@ -96,9 +96,57 @@ public class History extends Base {
             addIcon("ic_star_off", () -> { boolean allFav = true; for (File f : sel) allFav &= Gallery.fav(f); for (File f : sel) Gallery.setFav(f, !allFav); setSelecting(false); });
             addIcon("ic_download", () -> { int n = 0; for (File f : sel) try { Gallery.export(this, f); n++; } catch (Exception ignored) { } Toast.makeText(this, L.f("Сохранено в галерею: %d", "Saved to gallery: %d", n), Toast.LENGTH_SHORT).show(); });
             addIcon("ic_share", () -> Gallery.share(this, new ArrayList<>(sel)));
+            addBar("ZIP", 1, this::packZip);
             addIcon("ic_delete", () -> confirm(L.f("В корзину (%d)?", "Move %d to trash?", sel.size()), () -> { for (File f : sel) Gallery.trash(this, f); setSelecting(false); }));
         }
         for (int i = 0; i < barBtns.getChildCount(); i++) { barBtns.getChildAt(i).setEnabled(en); barBtns.getChildAt(i).setAlpha(en ? 1f : .4f); }
+    }
+
+    /** the selected pictures (and their settings) in one ZIP in Downloads/HexAnima; the name is asked each time; PNG is already compressed, so the entries are stored */
+    void packZip() {
+        final List<File> files = new ArrayList<>(sel); if (files.isEmpty()) return;
+        final EditText name = field("HexAnima"); name.setSingleLine(true);
+        name.setText("HexAnima_" + new SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(new Date()));
+        LinearLayout box = new LinearLayout(this); box.setPadding(dp(20), dp(8), dp(20), 0); box.addView(name, new LinearLayout.LayoutParams(-1, -2));
+        builder().setTitle(L.f("ZIP con %d imágenes", "ZIP with %d pictures", files.size())).setView(box).setNegativeButton(L.s("Отмена", "Cancel"), null)
+            .setPositiveButton("OK", (d, w) -> {
+                String n = name.getText().toString().trim().replaceAll("[\\/:*?\"<>|]", "_"); if (n.isEmpty()) n = "HexAnima"; if (!n.toLowerCase(Locale.ROOT).endsWith(".zip")) n += ".zip";
+                final String fn = n; final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+                final ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(files.size());
+                LinearLayout pv = new LinearLayout(this); pv.setPadding(dp(20), dp(12), dp(20), 0); pv.addView(pb, new LinearLayout.LayoutParams(-1, -2));
+                final AlertDialog prog = builder().setTitle(L.s("Creando ZIP…", "Making the ZIP…")).setView(pv).setCancelable(false).setNegativeButton(L.s("Остановить", "Stop"), (x, y) -> stop.set(true)).show();
+                io.submit(() -> {
+                    android.net.Uri u = null;
+                    try {
+                        android.content.ContentValues cv = new android.content.ContentValues();
+                        cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fn); cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip");
+                        cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/HexAnima");
+                        u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(new java.io.BufferedOutputStream(getContentResolver().openOutputStream(u)))) {
+                            z.setLevel(java.util.zip.Deflater.NO_COMPRESSION);
+                            byte[] buf = new byte[1 << 16]; int k = 0;
+                            for (File f : files) {
+                                if (stop.get()) throw new java.io.InterruptedIOException("stopped");
+                                for (File part : new File[]{f, Gallery.json(f)}) {
+                                    if (!part.isFile()) continue;
+                                    z.putNextEntry(new java.util.zip.ZipEntry(part.getName()));
+                                    try (java.io.InputStream in = new java.io.FileInputStream(part)) { for (int r; (r = in.read(buf)) > 0; ) z.write(buf, 0, r); }
+                                    z.closeEntry();
+                                }
+                                final int done = ++k; ui.post(() -> pb.setProgress(done));
+                            }
+                        }
+                        final android.net.Uri out = u;
+                        ui.post(() -> { prog.dismiss(); setSelecting(false);
+                            builder().setMessage(L.f("Guardado en Descargas/HexAnima/%s", "Saved to Downloads/HexAnima/%s", fn)).setPositiveButton("OK", null)
+                                .setNeutralButton(L.s("Поделиться", "Share"), (x, y) -> startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, out).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "ZIP"))).show(); });
+                    } catch (Exception e) {
+                        if (u != null) try { getContentResolver().delete(u, null, null); } catch (Exception ignored) { }   // no half-written archive is left behind
+                        final boolean stopped = stop.get();
+                        ui.post(() -> { prog.dismiss(); if (!stopped) Toast.makeText(this, "ZIP: " + e.getMessage(), Toast.LENGTH_LONG).show(); });
+                    }
+                });
+            }).show();
     }
 
     void addIcon(String name, Runnable r) {

@@ -45,7 +45,44 @@ Actualización del 14 nov 2026:
   6. LoKr mediante una caché de bloques q8 ya modificados, y Mage.
   7. Traducciones, documentación y release.
   8. Varias imágenes de referencia y fusión.
+- **Revisión visual completa (antes del release):** recorrer todas las pantallas y diálogos, comprobar que todo usa el tema actual (lavanda claro/oscuro) y la fuente Barlow Semi Condensed, corregir lo que se vea fuera de estilo y proponer una organización más clara de la pantalla principal y de los ajustes, con capturas antes/después.
+  - Pantallas: principal, Historial, visor, Modelos y catálogo, Civitai, Ajustes, Info y Bienvenida.
+  - Diálogos: selectores de modelo, tamaño y LoRA; máscara; antes/después; plantillas; etiquetas; ZIP; renombrar; diálogos del sistema que salen con el aspecto por defecto de Android.
+  - Elementos sueltos: interruptores, barras de progreso, toasts y menús emergentes.
+- **Nueva familia solicitada (después de la lista actual):** vídeo con LTX-Video 2B 0.9.8 Distilled en NPU V73, texto a vídeo e imagen a vídeo, con controles de pasos, ancho, alto, fotogramas, velocidad de fotogramas (fps), semilla y prompt negativo opcional. Hay que evaluar la viabilidad: DiT de vídeo, VAE causal de vídeo, memoria, tiempos y codificación MP4 en el teléfono.
+- **Pendientes pequeños de interfaz:** «✕» en la imagen generada para volver a «Tu imagen aparecerá aquí» (sin borrarla del Historial); deslizador antes/después desde el Historial; el selector muestra Qwen como «2B».
 - **Capturas:** guardar en `docs/screenshots/` una de cada función nueva, para el README y las notas del release.
+
+## Sugerencias y mejoras propuestas por Claude (al final de la lista; el usuario decide cuáles se hacen)
+
+**Calidad de imagen**
+1. **Detailer para Qwen y MOSS:** detectar caras y manos (face_yolov8n ya está en la app; falta hand_yolov8n), recortar cada zona, reeditarla con máscara y recomponer. Es lo que más ayudaría con dedos y ojos.
+2. **Ampliación ×2 en la NPU** (un upscaler ligero tipo ESRGAN) para las salidas de Qwen y MOSS, que salen a unos 0,4–0,6 Mpx.
+3. **Medir Alta fidelidad** contra la referencia normal con la misma semilla, y decidir con datos si se activa por defecto en ediciones sin máscara.
+
+**Uso diario**
+4. **Tandas grandes en varias cuadrículas** de 9 en vez de una sola con miniaturas diminutas.
+5. **Antes/después y lado a lado también desde el Historial** y el visor.
+6. **Ajustes recordados por modelo:** tamaño, prefijo de calidad y negativo por defecto al cambiar de modelo.
+7. **Variaciones en tandas:** comodines en el prompt (`{rojo|azul|verde}`) y «variar semilla» a partir de una imagen que guste.
+8. **Cola con prompts o modelos distintos**, y tiempo restante estimado de toda la tanda.
+9. **Temperatura visible en la cabecera** junto a la RAM, y una notificación cuando la tanda se pausa por calor.
+10. **Gestor de almacenamiento:** tamaño por pack y por caché (LoRA q8, `qwen/before/`, `edit/`), con botón para limpiar cada una.
+
+**LoRAs y modelos**
+11. **Un mismo panel de LoRA para Anima, MOSS y Qwen:** lista, fuerza con deslizador, renombrar, triggers y categorías. Hoy cada familia tiene su propia interfaz.
+12. **Renombrar también los overlays de Qwen**; hoy solo se pueden renombrar las LoRAs de Anima y MOSS.
+
+**Interfaz**
+13. Ver la revisión visual de la lista. Además: diálogos propios en lugar de los de Android (evitar botones en MAYÚSCULAS), descripciones de accesibilidad en los botones de icono y zonas táctiles de al menos 48 dp.
+14. **Breve recorrido o «novedades»** al abrir una versión nueva.
+
+**Mantenimiento**
+15. **Dividir `Main.java`** (unas 3000 líneas con funciones de una sola línea muy largas) en clases como EditPanel, LoraPanel, BatchView y MaskEditor. Así habrá menos errores al tocar una parte. Hoy mismo, poner un botón nuevo en la fila de la imagen rompió el diseño de esa fila.
+16. **Comprobación automática en `app/build.sh`:** que falle si una cadena `L.s`/`L.f` nueva no tiene traducción en `es.tsv`.
+17. **Script de pruebas por ADB:** generar una imagen por familia, una edición y una tanda, comprobar tiempos, temperatura y que la salida no sea negra ni marrón. Acortaría mucho cada release.
+18. **«Exportar registros»** (`animad.log`, `qwen.log`, `moss` y datos del dispositivo) en un ZIP para reportar fallos.
+19. **GitHub Actions** que compile la parte Java del APK con los binarios nativos ya generados, para que cada push quede verificado.
 
 El usuario pidió además dejar para el final investigar edición/composición con varias imágenes de referencia (p. ej. imagen 1 como personaje e imagen 2 como pose/meme) en Qwen/Mage; no está implementada ni validada.
 

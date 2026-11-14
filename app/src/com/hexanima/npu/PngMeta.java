@@ -7,7 +7,9 @@ import org.json.JSONObject;
 
 /** Generation settings inside the PNG (iTXt chunks): "anima" = our JSON, "parameters" = the A1111-style text other tools understand. */
 final class PngMeta {
+    static volatile boolean keep = true;   // Settings "Keep metadata in the picture"; off = the PNG has no prompt / seed / model chunk (the History keeps its JSON)
     static byte[] embed(byte[] png, JSONObject m) {
+        if (!keep) return png;
         try {
             String prompt = m.optString("prompt");
             String params = prompt + "\nSteps: 4, Sampler: Euler, CFG scale: 1, Seed: " + m.optString("seed") + ", Size: " + m.optInt("w") + "x" + m.optInt("h") + ", Model: " + m.optString("model");

@@ -571,3 +571,13 @@ Could not save the comparison	No se pudo guardar la comparación
 High fidelity does not fit this size: using the standard reference	Alta fidelidad no cabe con este tamaño: se usa la referencia normal
 Edit · swipe to see the comparison	Edición · desliza para ver la comparación
 Original | edited	Original | editada
+Keep metadata in the picture	Guardar metadatos en la imagen
+Prompt, seed and model inside the PNG. Off, the PNG carries none of them; the app's History keeps its own copy.	Prompt, semilla y modelo dentro del PNG. Desactivado, el PNG no los lleva; el historial de la app guarda su propia copia.
+Negative: ≈%d / 512 tokens	Negativo: ≈%d / 512 tokens
+Rename	Cambiar nombre
+Reset	Restablecer
+Clear recent	Borrar recientes
+ZIP with %d pictures	ZIP con %d imágenes
+Making the ZIP…	Creando ZIP…
+Saved to Downloads/HexAnima/%s	Guardado en Descargas/HexAnima/%s
+Grid · %d	Cuadrícula · %d

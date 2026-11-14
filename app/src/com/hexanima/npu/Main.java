@@ -78,6 +78,8 @@ public class Main extends Base {
     LinearLayout qwenLoraBox; TextView qwenLoraName; Button qwenLoraPick, qwenLoraDrop;
     Fold sampFold, loraFold, extFold;
     LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
+    TextView pageTag;   // "2 / 3" over a batch picture: the caption under a tall picture is off screen
+    TextView clearX;   // small ✕ over the shown picture: back to the placeholder (the picture stays in the History)
     LinearLayout editOpts, editRow; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
     LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop, editMaskBtn, editMaskClear; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ProgressBar bar, ramBar;
@@ -128,7 +130,7 @@ public class Main extends Base {
         RamWidget.unload(this); loaded = false;
         previewFile().delete(); System.gc();
         ui.post(() -> {
-            if (img != null) { img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE); }
+            if (img != null) { img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE); }
             if (state != null) setModelUi(false, false, "");
             RamWidget.updateAll(this);
             ui.post(ramTick);
@@ -250,7 +252,7 @@ public class Main extends Base {
         img = new ImageView(this);
         img.setAdjustViewBounds(true);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        img.setVisibility(View.GONE);
+        showImg(false);
         img.setOnClickListener(v -> { if (lastFile != null) { File[] all = Gallery.list(this, Gallery.ALL); int k = java.util.Arrays.asList(all).indexOf(lastFile); Viewer.open(this, all, Math.max(0, k), Gallery.ALL, false); } });
         batchGestures = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
@@ -264,7 +266,16 @@ public class Main extends Base {
             }
         });
         img.setOnTouchListener((v, e) -> batchGestures.onTouchEvent(e));
-        imgBox.addView(img, new LinearLayout.LayoutParams(-1, -2));
+        android.widget.FrameLayout imgFrame = new android.widget.FrameLayout(this);
+        imgFrame.addView(img, new android.widget.FrameLayout.LayoutParams(-1, -2));
+        clearX = text("✕", 15, 0xFFFFFFFF, true); clearX.setGravity(Gravity.CENTER); clearX.setBackground(bg(0x99000000, 16)); clearX.setVisibility(View.GONE);
+        clearX.setOnClickListener(v -> clearShown());
+        android.widget.FrameLayout.LayoutParams xl = new android.widget.FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.END); xl.topMargin = dp(10); xl.rightMargin = dp(10);
+        imgFrame.addView(clearX, xl);
+        pageTag = text("", 12, 0xFFFFFFFF, true); pageTag.setBackground(bg(0x99000000, 12)); pageTag.setPadding(dp(10), dp(3), dp(10), dp(4)); pageTag.setVisibility(View.GONE);
+        android.widget.FrameLayout.LayoutParams ptl = new android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START); ptl.topMargin = dp(14); ptl.leftMargin = dp(12);
+        imgFrame.addView(pageTag, ptl);
+        imgBox.addView(imgFrame, new LinearLayout.LayoutParams(-1, -2));
         root.addView(imgBox, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout resRow = new LinearLayout(this);
         resRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -322,6 +333,7 @@ public class Main extends Base {
         prompt.setDropDownBackgroundDrawable(bg(CARD, 12));
         prompt.setDropDownHeight(dp(240));
         root.addView(prompt, new LinearLayout.LayoutParams(-1, -2));
+        cleanWhileTyping(prompt);
         loadTags();
         // under the prompt: [# Tags] [(−)] [(+)] ........ token count
         LinearLayout tb = new LinearLayout(this); tb.setGravity(Gravity.CENTER_VERTICAL); tb.setPadding(0, dp(6), 0, 0);
@@ -347,8 +359,10 @@ public class Main extends Base {
         negEdit = field("lowres, worst quality, bad anatomy…");
         negEdit.setText(Settings.negative(this)); negEdit.setMinLines(2); negEdit.setGravity(Gravity.TOP); negEdit.setBackground(bg(CARD, 14));
         negEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        negEdit.addTextChangedListener(watch(s -> prefs().edit().putString(Settings.key(this, "neg"), s).apply()));
+        negEdit.addTextChangedListener(watch(s -> { prefs().edit().putString(Settings.key(this, "neg"), s).apply(); countTokens(); }));
+        cleanWhileTyping(negEdit);
         sampBox.addView(negEdit);
+        negTokText = text("", 12, DIM, false); negTokText.setGravity(Gravity.END); negTokText.setPadding(0, dp(4), dp(6), 0); sampBox.addView(negTokText);   // encoded separately from the prompt: its own count
         sampFold = fold(sampBox, L.s("СЭМПЛИНГ", "SAMPLING"), "samp");
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL);
         stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt(Settings.key(this, "steps"), v).apply(); } catch (NumberFormatException e) { } });
@@ -558,6 +572,7 @@ public class Main extends Base {
     }
 
     @Override protected void onResume() {
+        PngMeta.keep = Settings.keepMeta(this);
         super.onResume();
         visible = true;
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(2);
@@ -577,6 +592,7 @@ public class Main extends Base {
         File[] recent = Gallery.list(this, Gallery.ALL);
         if (recent.length == 0) return;
         File f = recent[0];
+        if (f.getName().equals(prefs().getString("hidden_last", ""))) return;   // cleared with ✕ and nothing new since
         BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(f.getPath(), bounds);
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return;
@@ -586,7 +602,7 @@ public class Main extends Base {
         Bitmap b = BitmapFactory.decodeFile(f.getPath(), opt);
         if (b == null) return;
         lastFile = f; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
-        img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+        img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE);
         setFavIcon(Gallery.fav(f));
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
         refreshGeneratedEditAction();
@@ -694,7 +710,27 @@ public class Main extends Base {
         editMaskClear.setVisibility(b != null && masked && !isMage() ? View.VISIBLE : View.GONE);
         if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);
     }
+    void showImg(boolean on) {
+        img.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (clearX != null) clearX.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+    /** take the shown picture off the main screen; it stays in the History and does not come back on the next start */
+    void clearShown() {
+        if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        File[] recent = Gallery.list(this, Gallery.ALL);
+        prefs().edit().putString("hidden_last", recent.length > 0 ? recent[0].getName() : "").apply();
+        lastFile = null; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
+        img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE);
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.GONE);
+        saved.setText(""); refreshGeneratedEditAction();
+    }
     void refreshGeneratedEditAction() {
+        if (pageTag != null) {
+            int n = batchFiles.size(); boolean grid = batchGridFile != null && batchGridFile.isFile();
+            boolean show = lastFile != null && img.getVisibility() == View.VISIBLE && (n > 1 || (n == 1 && grid));
+            pageTag.setVisibility(show ? View.VISIBLE : View.GONE);
+            if (show) pageTag.setText(batchDisplayIndex >= n ? (n == 1 ? L.s("Original | editada", "Original | edited") : L.f("Cuadrícula · %d", "Grid · %d", n)) + "  ‹ ›" : (batchDisplayIndex + 1) + " / " + n + "  ‹ ›");
+        }
         if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && lastFile != batchGridFile ? View.VISIBLE : View.GONE);
         if (compareBtn != null) compareBtn.setVisibility(lastFile != null && lastFile != batchGridFile && Qwen.beforeFile(getFilesDir(), lastFile).isFile() ? View.VISIBLE : View.GONE);
         if (editRow != null) editRow.setVisibility(editGeneratedBtn.getVisibility() == View.VISIBLE || compareBtn.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
@@ -879,6 +915,20 @@ public class Main extends Base {
         return t;
     }
 
+    /** line breaks, tabs, no-break and zero-width spaces become one space and runs of spaces collapse (a pasted prompt used to break at invisible characters) */
+    static String clean(String s) { return s.replaceAll("[\\s\\u00a0\\u200b-\\u200d\\u2028\\u2029\\ufeff]+", " "); }
+    /** keeps a prompt field clean while typing or pasting, without moving the cursor more than the removed characters */
+    void cleanWhileTyping(EditText f) {
+        f.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence c, int a, int b, int d) { }
+            public void onTextChanged(CharSequence c, int a, int b, int d) { }
+            public void afterTextChanged(android.text.Editable e) {
+                String o = e.toString(), n = clean(o); if (n.equals(o)) return;
+                int sel = Math.min(f.getSelectionStart(), n.length()); e.replace(0, e.length(), n); f.setSelection(Math.max(0, Math.min(sel, f.getText().length())));
+            }
+        });
+    }
+
     // ---- LoRA picker: ticking adds only <lora:name:w> to the prompt, unticking takes them out ----
     static java.util.regex.Pattern loraTag(String n) { return java.util.regex.Pattern.compile("<lora:" + java.util.regex.Pattern.quote(n) + "(?::([^>]*))?>", java.util.regex.Pattern.CASE_INSENSITIVE); }
     /** the weight the prompt gives this LoRA, or null when the prompt does not call it */
@@ -933,7 +983,8 @@ public class Main extends Base {
         final Runnable count = () -> { int k = 0; for (CheckBox b : boxes) if (b.isChecked()) k++; cnt.setText(k == 0 ? "" : L.f("активно: %d", "active: %d", k)); };
         for (String n : names) {
             File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); final String words = Civitai.words(f);
-            String title = md != null && !md.optString("name").isEmpty() ? md.optString("name") : n;
+            final String title0 = md != null && !md.optString("name").isEmpty() ? md.optString("name") : n, al = alias(true, "anima/" + n);
+            String title = al.isEmpty() ? title0 : al;
             LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(4), dp(8), dp(10), dp(8));
             String w0 = loraWeight(n);
             row.setBackground(bg(w0 != null ? SEL : FIELD, 12));
@@ -943,6 +994,9 @@ public class Main extends Base {
             TextView tn = text(title, 15, TXT, true); tn.setSingleLine(true); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
             TextView sub = text(words.isEmpty() ? n : words, 12, DIM, false); sub.setSingleLine(true); sub.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(sub);
             row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView pen = text("✎", 16, DIM, false); pen.setPadding(dp(6), dp(4), dp(4), dp(4));
+            pen.setOnClickListener(x -> renameDialog(true, "anima/" + n, title0, () -> { dlg.dismiss(); loraLibrary(); }));
+            row.addView(pen);
             EditText we = field("1.0"); we.setText(w0 != null ? w0 : "1.0"); we.setTextSize(14); we.setGravity(Gravity.CENTER); we.setSingleLine(true);
             we.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); we.setPadding(dp(4), dp(6), dp(4), dp(6)); we.setBackground(bg(CARD, 10));
             LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(dp(56), -2); wl.leftMargin = dp(8); row.addView(we, wl);
@@ -996,7 +1050,8 @@ public class Main extends Base {
         for (File f : fs == null ? new File[0] : fs) {
             if (!f.isFile() || !f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".safetensors")) continue;
             JSONObject md = Civitai.meta(f); String words = Civitai.words(f);
-            String name = md != null && !md.optString("name").isEmpty() ? md.optString("name") : f.getName().replaceFirst("(?i)\\.safetensors$", "");
+            final String name0 = md != null && !md.optString("name").isEmpty() ? md.optString("name") : f.getName().replaceFirst("(?i)\\.safetensors$", ""), mal = alias(true, "moss/" + f.getName());
+            String name = mal.isEmpty() ? name0 : mal;
             String vid = md == null ? "" : Long.toString(md.optLong("version_id"));
             String currentId = prefs().getString("moss_lora_id", "");
             boolean active = prefs().getString("moss_lora_file", "").equals(f.getName()) || (!vid.equals("0") && currentId.equals("civitai-" + vid));
@@ -1008,6 +1063,9 @@ public class Main extends Base {
             TextView detail = text(sub, 12, DIM, false); detail.setSingleLine(true); detail.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(detail);
             TextView size = text(String.format(java.util.Locale.US, "%.0f MB", f.length() / 1048576.0), 11, DIM, false); col.addView(size);
             row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView mpen = text("✎", 16, DIM, false); mpen.setPadding(dp(6), dp(4), dp(8), dp(4));
+            mpen.setOnClickListener(x -> renameDialog(true, "moss/" + f.getName(), name0, () -> { dlg.dismiss(); mossLoraLibrary(); }));
+            row.addView(mpen);
             Button choose = button(active ? L.s("Quitar selección", "Clear selection") : L.s("Elegir", "Select"), CARD, active ? WARN : ACC); choose.setTextSize(12); row.addView(choose, new LinearLayout.LayoutParams(dp(112), dp(40)));
             View.OnClickListener select = z -> {
                 if (active) {
@@ -1596,7 +1654,13 @@ public class Main extends Base {
         String p = prompt.getText().toString().replaceAll("(?i)<lora:[^>]*>", "");
         int n = (int) Math.ceil((p.length() + (isMoss() ? 0 : Settings.prefix(this).length())) / 3.6);
         { int lim = isMoss() ? 480 : 512; tokText.setText(L.f("≈%d / %d токенов", "≈%d / %d tokens", n, lim)); tokText.setTextColor(n > lim ? BAD : n > lim * 0.85 ? WARN : DIM); }
+        if (negTokText != null && negEdit != null) {   // the negative prompt is encoded on its own (CFG > 1), so it has its own limit
+            int nn = (int) Math.ceil(negEdit.getText().length() / 3.6);
+            negTokText.setText(L.f("Negativo: ≈%d / 512 tokens", "Negative: ≈%d / 512 tokens", nn)); negTokText.setTextColor(nn > 512 ? BAD : nn > 435 ? WARN : DIM);
+            negTokText.setVisibility(negEdit.getText().length() > 0 ? View.VISIBLE : View.GONE);
+        }
     }
+    TextView negTokText;
     boolean sampFill;   // the fields were filled from the prefs (again after a reset)
     void refreshSampling() {
         if (sampBox == null || samplerBtn == null) return;
@@ -1699,14 +1763,21 @@ public class Main extends Base {
             save.setOnClickListener(v -> {
                 String t = prompt.getText().toString().trim();
                 if (t.isEmpty()) { Toast.makeText(this, L.s("Введите описание", "Enter a prompt"), Toast.LENGTH_SHORT).show(); return; }
-                List<String> l = savedPrompts(); l.remove(t); l.add(0, t); while (l.size() > 30) l.remove(l.size() - 1);
+                List<String> l = savedPrompts(); l.remove(t); l.add(0, t); while (l.size() > 200) l.remove(l.size() - 1);
                 prefs().edit().putString("saved", new JSONArray(l).toString()).apply(); fill[0].run();
             });
             box.addView(save, new LinearLayout.LayoutParams(-1, dp(44)));
             List<String> sv = savedPrompts();
             if (!sv.isEmpty()) { box.addView(sect(L.s("Сохранённые", "Saved"))); for (String t : sv) box.addView(promptRow(t, true, dlg, fill)); }
             List<String> rc = recentPrompts();
-            if (!rc.isEmpty()) { box.addView(sect(L.s("Недавние", "Recent"))); for (String t : rc) box.addView(promptRow(t, false, dlg, fill)); }
+            if (!rc.isEmpty()) {
+                LinearLayout rh = new LinearLayout(this); rh.setGravity(Gravity.CENTER_VERTICAL);
+                rh.addView(sect(L.s("Недавние", "Recent")), new LinearLayout.LayoutParams(0, -2, 1));
+                TextView clr = link(L.s("Borrar recientes", "Clear recent")); rh.addView(clr);
+                clr.setOnClickListener(v -> { prefs().edit().putLong("recent_cleared", System.currentTimeMillis()).apply(); fill[0].run(); });
+                box.addView(rh);
+                for (String t : rc) box.addView(promptRow(t, false, dlg, fill));
+            }
         };
         fill[0].run();
         ScrollView s = new ScrollView(this); s.addView(box);
@@ -1719,6 +1790,12 @@ public class Main extends Base {
         LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setBackground(bg(FIELD, 12)); r.setPadding(dp(12), dp(10), dp(8), dp(10));
         TextView tv = text(t, 13, TXT, false); tv.setMaxLines(2); tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
         r.addView(tv, new LinearLayout.LayoutParams(0, -2, 1));
+        if (!removable) {   // a star saves a recent prompt (filled = already saved; tapping again removes it from Saved)
+            final boolean isSaved = savedPrompts().contains(t);
+            TextView st = text(isSaved ? "★" : "☆", 18, isSaved ? ACC : DIM, false); st.setPadding(dp(12), dp(4), dp(8), dp(4));
+            st.setOnClickListener(v -> { List<String> l = savedPrompts(); if (l.contains(t)) l.remove(t); else l.add(0, t); while (l.size() > 200) l.remove(l.size() - 1); prefs().edit().putString("saved", new JSONArray(l).toString()).apply(); fill[0].run(); });
+            r.addView(st);
+        }
         if (removable) {
             TextView x = text("✕", 16, DIM, false); x.setPadding(dp(12), dp(4), dp(8), dp(4));
             x.setOnClickListener(v -> { List<String> l = savedPrompts(); l.remove(t); prefs().edit().putString("saved", new JSONArray(l).toString()).apply(); fill[0].run(); });
@@ -1739,7 +1816,12 @@ public class Main extends Base {
     List<String> recentPrompts() {
         List<String> l = new ArrayList<>();
         File[] fs = Gallery.list(this, Gallery.ALL);
-        for (int i = 0; i < fs.length && l.size() < 10 && i < 60; i++) { String p = Gallery.meta(fs[i]).optString("prompt").trim(); if (!p.isEmpty() && !l.contains(p)) l.add(p); }
+        long since = prefs().getLong("recent_cleared", 0);   // "Clear recent" hides older prompts; the pictures stay in the History
+        for (int i = 0; i < fs.length && l.size() < 200; i++) {
+            long t = 0; try { t = Long.parseLong(fs[i].getName().replaceAll("\\.png$", "")); } catch (NumberFormatException ignored) { }
+            if (t <= since) break;
+            String p = Gallery.meta(fs[i]).optString("prompt").trim(); if (!p.isEmpty() && !l.contains(p)) l.add(p);
+        }
         return l;
     }
 
@@ -1787,7 +1869,26 @@ public class Main extends Base {
     String mossSizeError(int w, int h) { return Moss.sizeError(w, h); }
 
     // ---- model state --------------------------------------------------------------------------
-    String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }
+    String modelName() { return model.isEmpty() ? L.s("нет модели", "no model") : store.name(model); }   // the original name: kept in the picture's metadata
+
+    // ---- own names for models and LoRAs (files/model_names.json, files/lora_names.json): display only, files and IDs stay as they are ----
+    File namesFile(boolean lora) { return new File(getFilesDir(), lora ? "lora_names.json" : "model_names.json"); }
+    JSONObject names(boolean lora) { try { return new JSONObject(Models.read(namesFile(lora))); } catch (Exception e) { return new JSONObject(); } }
+    String alias(boolean lora, String key) { return names(lora).optString(key, ""); }
+    void setAlias(boolean lora, String key, String name) {
+        JSONObject j = names(lora);
+        try { if (name == null || name.trim().isEmpty()) j.remove(key); else j.put(key, name.trim()); try (java.io.FileWriter w = new java.io.FileWriter(namesFile(lora))) { w.write(j.toString()); } } catch (Exception ignored) { }
+    }
+    String shownModel(String id) { String a = alias(false, id); return a.isEmpty() ? store.name(id) : a; }
+    /** rename dialog: an empty name or Reset brings the original back */
+    void renameDialog(boolean lora, String key, String original, Runnable after) {
+        final EditText e = field(original); e.setSingleLine(true); String cur = alias(lora, key); e.setText(cur.isEmpty() ? original : cur); e.setSelection(e.getText().length());
+        LinearLayout box = new LinearLayout(this); box.setPadding(dp(20), dp(8), dp(20), 0); box.addView(e, new LinearLayout.LayoutParams(-1, -2));
+        builder().setTitle(L.s("Cambiar nombre", "Rename")).setView(box)
+            .setPositiveButton("OK", (d, w) -> { String n = e.getText().toString().trim(); setAlias(lora, key, n.equals(original) ? "" : n); after.run(); })
+            .setNeutralButton(L.s("Restablecer", "Reset"), (d, w) -> { setAlias(lora, key, ""); after.run(); })
+            .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+    }
 
     /** model picker: one card per installed model (size, turbo, speed badges; the selected one highlighted), then catalog / Civitai / import */
     void pickModel() {
@@ -1803,15 +1904,18 @@ public class Main extends Base {
             LinearLayout card = new LinearLayout(this); card.setGravity(Gravity.CENTER_VERTICAL); card.setPadding(dp(14), dp(12), dp(14), dp(12));
             GradientDrawable g = bg(sel ? SEL : FIELD, 14); if (sel) g.setStroke(dp(2), ACC); card.setBackground(g);
             LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
-            TextView tn = text(store.name(id), 16, TXT, true); tn.setMaxLines(2); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
+            TextView tn = text(shownModel(id), 16, TXT, true); tn.setMaxLines(2); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
             LinearLayout bs = new LinearLayout(this); bs.setPadding(0, dp(6), 0, 0);
             List<TextView> b = new ArrayList<>();
-            b.add(badge(moss ? "MOSS" : store.is29(id) ? "2.9B" : "2B", ACC));
+            b.add(badge(moss ? "MOSS" : Qwen.is(id) ? "Qwen · 7B" : Mage.is(id) ? "Mage" : store.is29(id) ? "2.9B" : "2B", ACC));
             if (!moss) b.add(badge(turbo ? "Turbo · 4" : "CFG · 20", turbo ? ACC3 : ACC2));
             if (turbo) b.add(badge(L.f("~%d с", "~%d s", Math.max(3, store.speed(id))), OK));
             for (TextView t : b) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2); lp.rightMargin = dp(6); bs.addView(t, lp); }
             col.addView(bs);
             card.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView pen = text("✎", 18, DIM, false); pen.setPadding(dp(10), dp(4), dp(10), dp(4));
+            pen.setOnClickListener(x -> renameDialog(false, id, store.name(id), () -> { dlg[0].dismiss(); setModelUi(loaded, false, ""); pickModel(); }));
+            card.addView(pen);
             if (sel) card.addView(text("✓", 20, ACC, true));
             card.setOnClickListener(x -> { dlg[0].dismiss(); if (!id.equals(model)) setModel(id); });
             LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2); cl.bottomMargin = dp(8); list.addView(card, cl);
@@ -1848,7 +1952,7 @@ public class Main extends Base {
         for (int[] z : sizeList()) if (z[0] == w && z[1] == h) preset = true;
         if (sizeText != null) sizeText.setText(sizeLabel(w, h) + (preset && !customOpen ? "" : "  ·  " + L.s("Свой", "Custom")));
         if (customRow != null) { customRow.setVisibility(customOpen || !preset ? View.VISIBLE : View.GONE); if (!wEdit.getText().toString().equals(String.valueOf(w)) || !hEdit.getText().toString().equals(String.valueOf(h))) { wEdit.setText(String.valueOf(w)); hEdit.setText(String.valueOf(h)); } }
-        if (chipName != null) chipName.setText(modelName());
+        if (chipName != null) chipName.setText(model.isEmpty() ? modelName() : shownModel(model));
         if (genBtn != null && !busy) genBtn.setText(genLabel());
     }
 
@@ -2125,7 +2229,7 @@ public class Main extends Base {
         final long t0 = System.currentTimeMillis();
         previewFile().delete();
         pvTime = 0;
-        img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE);
+        img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE);
         ex.submit(() -> {
             int made = 0; Bitmap lastBm = null; final List<File> madeFiles = new ArrayList<>();
             for (int i = 0; ; i++) {
@@ -2136,7 +2240,7 @@ public class Main extends Base {
                 if (tooHot() && !waitCool(t0)) { hotStop = true; break; }   // pause before every image, including the first; Stop cancels the wait
                 previewFile().delete();
                 pvTime = 0;
-                ui.post(() -> { if (busy) { img.setImageDrawable(null); img.setVisibility(View.GONE); placeholder.setVisibility(View.VISIBLE); } });
+                ui.post(() -> { if (busy) { img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE); } });
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
                 final File f = runOne(pr, seedS, w, h, t0);
@@ -2150,7 +2254,7 @@ public class Main extends Base {
                 final List<File> fileSnapshot = new ArrayList<>(madeFiles);
                 ui.post(() -> {
                     batchFiles = fileSnapshot; batchGridFile = null; batchDisplayIndex = batchFiles.size() - 1;
-                    lastFile = f; img.setImageBitmap(bm); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+                    lastFile = f; img.setImageBitmap(bm); showImg(true); placeholder.setVisibility(View.GONE);
                     refreshGeneratedEditAction();
                     setFavIcon(false);
                     for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
@@ -2161,14 +2265,14 @@ public class Main extends Base {
             if (gk != 0 && gridBms.size() >= 2 && !cancelled) {
                 final File gf = saveGrid(gridBms, gridLabels, pr, String.valueOf(gridSeed), w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · swipe to view images")); refreshGeneratedEditAction(); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · swipe to view images")); refreshGeneratedEditAction(); }); }
             } else if (gk == 0 && madeFiles.size() == 1 && pendingCompare != null && pendingCompare.isFile() && !cancelled) {
                 final File cf = pendingCompare;
                 ui.post(() -> { batchGridFile = cf; batchDisplayIndex = 0; saved.setText(L.s("Edición · desliza para ver la comparación", "Edit · swipe to see the comparison")); refreshGeneratedEditAction(); });
             } else if (gk == 0 && madeFiles.size() > 1) {
                 final File gf = saveBatchGrid(madeFiles, pr, w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · swipe to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · swipe to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
@@ -2216,7 +2320,7 @@ public class Main extends Base {
         batchDisplayIndex = (page % pages.size() + pages.size()) % pages.size();
         File f = pages.get(batchDisplayIndex);
         Bitmap b = BitmapFactory.decodeFile(f.getPath()); if (b == null) return;
-        lastFile = f; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE);
+        lastFile = f; img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE);
         refreshGeneratedEditAction();
         setFavIcon(Gallery.fav(f));
         JSONObject m = Gallery.meta(f);
@@ -2244,35 +2348,46 @@ public class Main extends Base {
         } catch (Exception e) { return null; }
     }
 
-    /** Save every picture from a regular batch as a bounded contact sheet (max 2048²), keeping the individual PNGs too. */
+    /** Contact sheet of a batch, at most 2048 px on its long side. The layout keeps the pictures as large as possible and avoids empty
+     *  cells when that costs little (3 portraits sit in one row instead of 2×2 with a hole); an incomplete last row is centred.
+     *  Each picture gets its number on a dark badge, with a thin gap between the cells. */
     File saveBatchGrid(List<File> files, String prompt, int w, int h) {
         if (files == null || files.size() < 2) return null;
-        int n = files.size(), cols = (int) Math.ceil(Math.sqrt(n)), rows = (n + cols - 1) / cols, side = 2048;
-        int maxW = Math.max(1, side / cols), maxH = Math.max(1, side / rows);
+        final int n = files.size(), side = 2048, gap = 8;
         BitmapFactory.Options first = new BitmapFactory.Options(); first.inJustDecodeBounds = true; BitmapFactory.decodeFile(files.get(0).getPath(), first);
         float aspect = first.outWidth > 0 && first.outHeight > 0 ? first.outWidth / (float) first.outHeight : 1f;
-        int cellW, cellH;
-        if (aspect >= maxW / (float) maxH) { cellW = maxW; cellH = Math.max(1, Math.round(maxW / aspect)); }
-        else { cellH = maxH; cellW = Math.max(1, Math.round(maxH * aspect)); }
+        int cols = 1, cellW = 1, cellH = 1; double best = -1;
+        for (int c = 1; c <= n; c++) {
+            int r = (n + c - 1) / c; if (r > 1 && c > 1 && (r - 1) * c >= n) continue;   // no layout with a whole empty row
+            int mw = Math.max(1, (side - gap * (c - 1)) / c), mh = Math.max(1, (side - gap * (r - 1)) / r), cw, ch;
+            if (aspect >= mw / (float) mh) { cw = mw; ch = Math.max(1, Math.round(mw / aspect)); } else { ch = mh; cw = Math.max(1, Math.round(mh * aspect)); }
+            double score = (double) cw * ch * (1 - .12 * (c * r - n));   // picture area, each empty cell costs 12 %
+            if (score > best + 1e-6) { best = score; cols = c; cellW = cw; cellH = ch; }
+        }
+        final int rows = (n + cols - 1) / cols;
         Bitmap grid;
-        try { grid = Bitmap.createBitmap(cellW * cols, cellH * rows, Bitmap.Config.ARGB_8888); }
+        try { grid = Bitmap.createBitmap(cellW * cols + gap * (cols - 1), cellH * rows + gap * (rows - 1), Bitmap.Config.ARGB_8888); }
         catch (OutOfMemoryError e) { System.gc(); return null; }
         android.graphics.Canvas c = new android.graphics.Canvas(grid); c.drawColor(0xFF181522);
         android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
-        android.graphics.Paint label = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        label.setColor(0xFFFFFFFF); label.setTextSize(Math.max(12, Math.min(32, cellW * 0.13f))); label.setTypeface(F_SEMI);
+        android.graphics.Paint label = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), pill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        label.setColor(0xFFFFFFFF); label.setTextSize(Math.max(18, Math.min(44, cellW * 0.08f))); label.setTypeface(F_SEMI); label.setTextAlign(android.graphics.Paint.Align.CENTER);
+        pill.setColor(0xB0000000);
         for (int i = 0; i < n; i++) {
             File f = files.get(i); BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true; BitmapFactory.decodeFile(f.getPath(), bounds);
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
             int sample = 1; while (bounds.outWidth / (sample * 2) >= cellW && bounds.outHeight / (sample * 2) >= cellH) sample *= 2;
             BitmapFactory.Options opt = new BitmapFactory.Options(); opt.inSampleSize = sample;
             Bitmap tile = BitmapFactory.decodeFile(f.getPath(), opt); if (tile == null) continue;
-            int x = (i % cols) * cellW, y = (i / cols) * cellH;
+            int row = i / cols, inRow = row == rows - 1 ? n - row * cols : cols;   // the last row may be shorter: centre it
+            int rowStart = (grid.getWidth() - (inRow * cellW + gap * (inRow - 1))) / 2;
+            int x = rowStart + (i % cols) * (cellW + gap), y = row * (cellH + gap);
             float scale = Math.min(cellW / (float) tile.getWidth(), cellH / (float) tile.getHeight());
             int dw = Math.round(tile.getWidth() * scale), dh = Math.round(tile.getHeight() * scale);
             android.graphics.Rect dst = new android.graphics.Rect(x + (cellW - dw) / 2, y + (cellH - dh) / 2, x + (cellW + dw) / 2, y + (cellH + dh) / 2);
             c.drawBitmap(tile, null, dst, paint); tile.recycle();
-            c.drawText(String.valueOf(i + 1), x + 5, y + Math.min(cellH - 2, label.getTextSize() + 4), label);
+            float r = label.getTextSize() * .9f, cx = dst.left + r + 14, cy = dst.top + r + 14;
+            c.drawCircle(cx, cy, r, pill); c.drawText(String.valueOf(i + 1), cx, cy + label.getTextSize() * .35f, label);
         }
         try {
             ByteArrayOutputStream bo = new ByteArrayOutputStream(); grid.compress(Bitmap.CompressFormat.PNG, 100, bo); grid.recycle();
@@ -2528,7 +2643,7 @@ public class Main extends Base {
         File pv = previewFile(); long m = pv.lastModified();
         if (!busy || m == 0 || m == pvTime || m < t0) return;
         pvTime = m; final int imageAt = curIdx; final Bitmap b = BitmapFactory.decodeFile(pv.getPath()); if (b == null) return;
-        ui.post(() -> { if (!busy || curIdx != imageAt || previewFile().lastModified() != m) return; img.setImageBitmap(b); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); });
+        ui.post(() -> { if (!busy || curIdx != imageAt || previewFile().lastModified() != m) return; img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE); });
     }
     void setProgressUi(int pct, String msg, long t0) {
         showPreview(t0);

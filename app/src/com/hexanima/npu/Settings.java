@@ -24,6 +24,7 @@ public class Settings extends Base {
     static String coolMode(Context c) { SharedPreferences p = prefs(c); return p.getString("cool_mode", p.contains("cool") && !p.getBoolean("cool", true) ? "off" : "auto"); }
     static boolean lowRam(Context c) { return prefs(c).getBoolean("lowram", Compat.ramGb(c) < 9.5); }
     static boolean keepOn(Context c) { return prefs(c).getBoolean("keepon", true); }
+    static boolean keepMeta(Context c) { return prefs(c).getBoolean("keep_meta", true); }
     static String rawPrefix(Context c) { String p = prefs(c).getString("prefix", DEFAULT_PREFIX); return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
     /** what goes before the prompt: trimmed, ending with a comma and a space; a single space when the user cleared it (anima.sh treats an empty PREFIX as "use the default") */
     static String prefix(Context c) { String p = rawPrefix(c).trim(); return p.isEmpty() ? " " : (p.endsWith(",") ? p : p + ",") + " "; }
@@ -95,6 +96,7 @@ public class Settings extends Base {
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
+        c3.addView(toggle(L.s("Guardar metadatos en la imagen", "Keep metadata in the picture"), L.s("Prompt, semilla y modelo dentro del PNG. Desactivado, el PNG no los lleva; el historial de la app guarda su propia copia.", "Prompt, seed and model inside the PNG. Off, the PNG carries none of them; the app's History keeps its own copy."), keepMeta(this), on -> { p.edit().putBoolean("keep_meta", on).apply(); PngMeta.keep = on; }));
         String[] cn0 = {L.s("Автоматически", "Automatic"), L.s("Всегда", "Always"), L.s("Никогда", "Never")}, cv0 = {"auto", "on", "off"};
         int ci0 = Math.max(0, java.util.Arrays.asList(cv0).indexOf(coolMode(this)));
         c3.addView(choice(L.s("Режим без перегрева", "Cool mode"), cn0[ci0], v -> {

@@ -18,6 +18,23 @@
   - **Arreglo de diseño:** «Editar con Qwen» y «Antes/después» pasan a su propia fila. En una sola fila, el texto del seed se partía en una columna muy alta y el botón de compartir se salía de la pantalla.
   - Capturas: `qwen-masked-edit-feathered-20261114.png`, `qwen-before-after-slider-20261114.png`, `qwen-side-by-side-result-20261114.png` y `qwen-hifi-unmasked-edit-20261114.png`.
   - Pendiente: abrir el deslizador antes/después desde el Historial.
+  - Pendiente: revisión visual de todas las pantallas, diálogos y menús. Todo debe quedar con el tema actual y la fuente Barlow, sin elementos con el estilo por defecto de Android, y con una propuesta para organizar mejor la pantalla principal y los ajustes.
+  - Pendiente (nueva familia): vídeo con LTX-Video 2B 0.9.8 Distilled en NPU V73, texto a vídeo e imagen a vídeo, con pasos, ancho, alto, fotogramas, fps, semilla y prompt negativo opcional. Primero hay que evaluar si es viable en el teléfono.
+  - Pendiente: una pequeña «✕» en la esquina de la imagen generada para quitarla de la pantalla principal y volver a «Tu imagen aparecerá aquí». Solo la quita de la vista; la imagen sigue en el Historial.
+- 14 nov 2026 · Funciones de upstream 1.5.4–1.6.0 adaptadas a esta rama:
+  - **✕ en la esquina de la imagen generada:** vuelve a «Tu imagen aparecerá aquí». La imagen sigue en el Historial y no reaparece al reabrir hasta la siguiente generación. Verificado en el teléfono. Captura: `image-clear-x-20261114.png`.
+  - **Renombrar modelos y LoRAs:** lápiz ✎ en cada modelo del selector y en cada LoRA de las bibliotecas Anima y MOSS. Es solo el nombre visible: se guarda en `model_names.json` / `lora_names.json` y «Restablecer» vuelve al original. Los metadatos de la imagen conservan el nombre original. Se verificó en el teléfono renombrar y restablecer «MOSS-Image 5B». Captura: `model-rename-qwen7b-badge-20261114.png`.
+  - **Selector:** Qwen muestra «Qwen · 7B» y Mage «Mage», en vez de «2B».
+  - **Limpieza de prompts:** al escribir o pegar en el prompt o el negativo, los saltos de línea, tabuladores y espacios invisibles se convierten en un espacio. Verificado: dos Intro seguidos quedaron como un solo espacio.
+  - **Contador propio para el prompt negativo** («Negativo: ≈N / 512 tokens»), visible cuando hay texto.
+  - **Ajustes · «Guardar metadatos en la imagen»** (activado por defecto). Desactivado, el PNG no lleva prompt, semilla ni modelo; el Historial conserva su JSON.
+  - **Historial · ZIP de las imágenes seleccionadas:** se pide el nombre, se guarda en Descargas/HexAnima, sin compresión porque los PNG ya están comprimidos, e incluye los JSON de ajustes. Si se detiene, se borra el archivo a medias. Al terminar se ofrece compartir.
+  - **Plantillas:** estrella ☆/★ para guardar un prompt reciente, «Borrar recientes» (las imágenes se quedan) y hasta 200 recientes y 200 guardados.
+  - **Cuadrícula de tandas adaptable:** elige la distribución con las imágenes más grandes y evita celdas vacías cuando cuestan poco. Con 3 verticales salen en una fila; con 5, 3 + 2 con la última fila centrada. Deja una separación fina entre imágenes y pone el número sobre un círculo oscuro. Al deslizar entre las páginas de una tanda, una etiqueta «2 / 3 ‹ ›» arriba a la izquierda indica la página, porque el texto bajo una imagen vertical queda fuera de la pantalla. Verificado con una tanda ×3 de Harem 3D (35–39 s): cuadrícula y paso a la imagen 1 y a la 2. Capturas: `batch-x3-grid-20261114.png` y `batch-x3-swipe-image1-20261114.png`.
+  - **ZIP verificado en el teléfono:** 3 imágenes y sus JSON en un ZIP válido de 4,2 MB en Descargas/HexAnima. Ese ZIP de prueba se borró después. Captura: `history-select-zip-20261114.png`.
+  - **Contador del negativo verificado:** «Negativo: ≈6 / 512 tokens». Captura: `negative-token-counter-20261114.png`. Con modelos turbo (CFG 1) el negativo no se aplica.
+  - **Varias LoRAs Anima con interruptor y fuerza (1.5.5):** esta rama ya lo tenía, con casillas y fuerza mediante etiquetas `<lora:…>`.
+  - Siguen pendientes de upstream: caché de las últimas codificaciones de texto (parche nativo de sd.cpp), botones «i» de ayuda, CFG atenuado en modelos turbo, fondo de pantalla propio y catalog7/common512 para V69.
 - Pendientes añadidos a la lista:
   - LoRAs de Qwen sin pasar por el PC: leer los Safetensors directamente o convertirlos en el teléfono.
   - Intensidad ajustable para las LoRAs de Qwen. Hoy cada overlay lleva la fuerza fija de la conversión, así que esto va ligado a convertir en el teléfono, como hace `lorafold` en MOSS.
