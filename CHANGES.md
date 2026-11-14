@@ -5,6 +5,19 @@
 - 14 nov 2026 · Editor de máscara: un trazo empieza solo cuando un dedo se mueve más allá del umbral táctil (o al soltar, como punto). Si un segundo dedo llega después, ese trazo se deshace, así que pellizcar para hacer zoom ya no pinta. Nuevos botones Pincel | Borrador | Mover; en Mover, un dedo desplaza la imagen ampliada sin pintar. Probado en el Poco F6 Pro: trazo, punto con un toque, desplazamiento con zoom 1,6× sin marcar y borrador. El pellizco real con dos dedos no se puede simular por ADB y falta validarlo a mano. Capturas: `docs/screenshots/mask-move-mode-zoom-20261114.png` y `mask-eraser-20261114.png`.
 - 14 nov 2026 · Bibliotecas de LoRA de Anima y MOSS: botón «Importar» junto a Civitai y Hecho. En MOSS, el archivo importado se guarda en la biblioteca (junto a las descargas de Civitai) y queda seleccionado. Probado con `Ratatatat74-moss.safetensors` desde Descargas: «Compatible: rango 8, 41 de 42 bloques». Después se restauró Impressionism como LoRA activa. Capturas: `moss-lora-library-import-20261114.png` y `moss-lora-imported-from-storage-20261114.png`.
 - 14 nov 2026 · MOSS base y Harem usan siempre sus 4 pasos destilados, sin selector. RealSkin muestra solo «4 pasos rapid-moss / 8 pasos DMD», y únicamente si el complemento DMD está instalado. Verificado en el teléfono con Harem y RealSkin. Capturas: `harem-moss-fixed-4-steps-20261114.png` y `realskin-main-20261114.png`.
+- 14 nov 2026 · Calidad de edición en Qwen:
+  - **Bordes difuminados:** el pincel se amplía un poco y se suaviza en una copia de hasta 1024 px. Los píxeles pintados se reemplazan del todo y los de fuera del borde suave siguen idénticos a la foto.
+  - **Ajuste de color:** se corrige el tono de la edición con la diferencia media en el anillo del borde, limitada a ±24 niveles.
+  - **Antes/después:** junto a «Editar con Qwen» hay un botón que abre un deslizador original/editada, con opción de guardar la pareja lado a lado. Cada edición guarda una copia JPEG de la foto original (se conservan las últimas 40).
+  - **«Guardar comparación» (opcional):** guarda también la pareja original/editada en el historial; se pasa de una a otra deslizando la imagen.
+  - **«Alta fidelidad» (opcional):** la referencia sigue el tamaño de salida hasta 1 Mpx en vez de 0,4 Mpx. Si no cabe en la atención, se vuelve sola al tamaño normal.
+  - **Pruebas en el Poco F6 Pro:**
+    - Edición con máscara (sombrero rojo) con recorte de detalle y comparación: 70,2 s, sin costura visible.
+    - Edición sin máscara con Alta fidelidad a 576×1024: ViT 2304 parches (4,1 s), pasos de 23,1 + 3×12,1 s, total 102,8 s. El zorro conservó cara y pelaje.
+    - La batería subió de 36,5 °C a 39,3 °C y no se hicieron más pruebas. Falta comparar contra la referencia normal con la misma semilla.
+  - **Arreglo de diseño:** «Editar con Qwen» y «Antes/después» pasan a su propia fila. En una sola fila, el texto del seed se partía en una columna muy alta y el botón de compartir se salía de la pantalla.
+  - Capturas: `qwen-masked-edit-feathered-20261114.png`, `qwen-before-after-slider-20261114.png`, `qwen-side-by-side-result-20261114.png` y `qwen-hifi-unmasked-edit-20261114.png`.
+  - Pendiente: abrir el deslizador antes/después desde el Historial.
 - Pendientes añadidos a la lista:
   - LoRAs de Qwen sin pasar por el PC: leer los Safetensors directamente o convertirlos en el teléfono.
   - Intensidad ajustable para las LoRAs de Qwen. Hoy cada overlay lleva la fuerza fija de la conversión, así que esto va ligado a convertir en el teléfono, como hace `lorafold` en MOSS.

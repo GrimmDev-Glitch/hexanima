@@ -78,6 +78,7 @@ public class Main extends Base {
     LinearLayout qwenLoraBox; TextView qwenLoraName; Button qwenLoraPick, qwenLoraDrop;
     Fold sampFold, loraFold, extFold;
     LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
+    LinearLayout editOpts, editRow; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
     LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop, editMaskBtn, editMaskClear; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ProgressBar bar, ramBar;
     ImageView img;
@@ -273,7 +274,12 @@ public class Main extends Base {
         editGeneratedBtn = button(L.s("Editar con Qwen", "Edit with Qwen"), CARD, ACC);
         editGeneratedBtn.setTextSize(11); editGeneratedBtn.setVisibility(View.GONE);
         editGeneratedBtn.setOnClickListener(v -> useShownImageAsQwenSource());
-        LinearLayout.LayoutParams qel = new LinearLayout.LayoutParams(-2, dp(40)); qel.leftMargin = dp(4); resRow.addView(editGeneratedBtn, qel);
+        editRow = new LinearLayout(this); editRow.setGravity(Gravity.CENTER_VERTICAL); editRow.setPadding(0, dp(6), 0, 0);   // own row: the seed text and the icons keep their width
+        editRow.addView(editGeneratedBtn, new LinearLayout.LayoutParams(0, dp(40), 1));
+        compareBtn = button(L.s("Antes/después", "Before/after"), CARD, ACC);
+        compareBtn.setTextSize(11); compareBtn.setVisibility(View.GONE);
+        compareBtn.setOnClickListener(v -> showBeforeAfter());
+        LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(0, dp(40), 1); cmpl.leftMargin = dp(6); editRow.addView(compareBtn, cmpl);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
         favBtn = icon("ic_star_off", CARD);
@@ -287,7 +293,7 @@ public class Main extends Base {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
             resRow.addView(x, lp);
         }
-        root.addView(resRow);
+        editRow.setVisibility(View.GONE); root.addView(resRow); root.addView(editRow);
 
         // prompt
         LinearLayout pl = new LinearLayout(this);
@@ -487,6 +493,10 @@ public class Main extends Base {
         editMaskClear.setOnClickListener(v -> { Qwen.editMask(getFilesDir()).delete(); refreshEdit(); });
         LinearLayout.LayoutParams emc = new LinearLayout.LayoutParams(0, dp(38), 1); emc.leftMargin = dp(8); em.addView(editMaskClear, emc);
         editBox.addView(em);
+        editOpts = new LinearLayout(this); editOpts.setOrientation(LinearLayout.VERTICAL);
+        sw(editOpts, L.s("Alta fidelidad", "High fidelity"), L.s("La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.", "The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory."), "qwen_hifi", false);
+        sw(editOpts, L.s("Guardar comparación", "Save a comparison"), L.s("Además de la edición, guarda la original y la editada lado a lado; desliza la imagen para verla.", "Besides the edit, saves the original and the edit side by side; swipe the picture to see it."), "qwen_compare", false);
+        editBox.addView(editOpts);
         root.addView(editBox);
         refreshEdit();
 
@@ -682,9 +692,68 @@ public class Main extends Base {
         editDrop.setVisibility(b != null ? View.VISIBLE : View.GONE);
         editMaskBtn.setVisibility(b != null && !isMage() ? View.VISIBLE : View.GONE);
         editMaskClear.setVisibility(b != null && masked && !isMage() ? View.VISIBLE : View.GONE);
+        if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);
     }
     void refreshGeneratedEditAction() {
         if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && lastFile != batchGridFile ? View.VISIBLE : View.GONE);
+        if (compareBtn != null) compareBtn.setVisibility(lastFile != null && lastFile != batchGridFile && Qwen.beforeFile(getFilesDir(), lastFile).isFile() ? View.VISIBLE : View.GONE);
+        if (editRow != null) editRow.setVisibility(editGeneratedBtn.getVisibility() == View.VISIBLE || compareBtn.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
+    }
+
+    /** the edit over the original: drag the divider to reveal one or the other; "Save side by side" stores a comparison picture */
+    class BeforeAfterView extends View {
+        final Bitmap before, after; float split = .5f; final android.graphics.Rect dst = new android.graphics.Rect(); final android.graphics.Rect bsrc;
+        final android.graphics.Paint fp = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG), lp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), tp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        BeforeAfterView(Bitmap before, Bitmap after) {
+            super(Main.this); this.before = before; this.after = after; bsrc = Qwen.coverRect(before, after.getWidth(), after.getHeight());
+            lp.setColor(0xFFFFFFFF); lp.setStrokeWidth(dp(2)); tp.setColor(0xFFFFFFFF); tp.setTextSize(dp(12)); tp.setTypeface(F_SEMI); tp.setShadowLayer(dp(2), 0, 0, 0xFF000000);
+        }
+        @Override protected void onDraw(android.graphics.Canvas c) {
+            float s = Math.min(getWidth() / (float) after.getWidth(), getHeight() / (float) after.getHeight());
+            int w = Math.round(after.getWidth() * s), h = Math.round(after.getHeight() * s), l = (getWidth() - w) / 2, t = (getHeight() - h) / 2;
+            dst.set(l, t, l + w, t + h); int sx = l + Math.round(w * split);
+            c.save(); c.clipRect(l, t, sx, t + h); c.drawBitmap(before, bsrc, dst, fp); c.restore();
+            c.save(); c.clipRect(sx, t, l + w, t + h); c.drawBitmap(after, null, dst, fp); c.restore();
+            c.drawLine(sx, t, sx, t + h, lp); c.drawCircle(sx, t + h / 2f, dp(10), lp);
+            tp.setTextAlign(android.graphics.Paint.Align.LEFT); c.drawText(L.s("Original", "Original"), l + dp(8), t + dp(18), tp);
+            tp.setTextAlign(android.graphics.Paint.Align.RIGHT); c.drawText(L.s("Editada", "Edited"), l + w - dp(8), t + dp(18), tp);
+        }
+        @Override public boolean onTouchEvent(MotionEvent e) {
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            if (dst.width() > 0) { split = Math.max(0f, Math.min(1f, (e.getX() - dst.left) / dst.width())); invalidate(); }
+            return true;
+        }
+    }
+    void showBeforeAfter() {
+        final File after = lastFile; if (after == null) return;
+        final File bf = Qwen.beforeFile(getFilesDir(), after); if (!bf.isFile()) return;
+        final Bitmap a = BitmapFactory.decodeFile(after.getPath()), b = BitmapFactory.decodeFile(bf.getPath()); if (a == null || b == null) return;
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
+        v.addView(text(L.s("Antes / después", "Before / after"), 20, TXT, true));
+        TextView hint = text(L.s("Desliza el dedo sobre la imagen para mover la línea.", "Slide a finger over the picture to move the line."), 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
+        v.addView(new BeforeAfterView(b, a), new LinearLayout.LayoutParams(-1, dp(440)));
+        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+        Button saveSbs = button(L.s("Guardar lado a lado", "Save side by side"), FIELD, ACC); bot.addView(saveSbs, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button close = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(44), 1); cl.leftMargin = dp(8); bot.addView(close, cl);
+        v.addView(bot);
+        final AlertDialog d = dialog(v);
+        d.setOnDismissListener(x -> { a.recycle(); b.recycle(); });
+        close.setOnClickListener(x -> d.dismiss());
+        saveSbs.setOnClickListener(x -> {
+            File f = saveSideBySide(b, a, Gallery.meta(after));
+            Toast.makeText(this, f != null ? L.s("Comparación guardada en el historial", "Comparison saved to the history") : L.s("No se pudo guardar la comparación", "Could not save the comparison"), Toast.LENGTH_SHORT).show();
+        });
+    }
+    /** stores "original | edit" in the history (the prompt and seed of the edit go into its metadata) */
+    File saveSideBySide(Bitmap before, Bitmap after, JSONObject editMeta) {
+        Bitmap g = Qwen.sideBySide(before, after, L.s("Original", "Original"), L.s("Editada", "Edited"), F_SEMI);
+        try {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream(); g.compress(Bitmap.CompressFormat.PNG, 100, bytes);
+            JSONObject meta = new JSONObject().put("prompt", editMeta.optString("prompt")).put("seed", editMeta.optString("seed")).put("w", g.getWidth()).put("h", g.getHeight())
+                .put("model", editMeta.optString("model")).put("id", editMeta.optString("id")).put("compare", true);
+            return Gallery.save(this, PngMeta.embed(bytes.toByteArray(), meta), meta);
+        } catch (Exception e) { return null; }
+        finally { g.recycle(); }
     }
     void useShownImageAsQwenSource() {
         if (busy) { Toast.makeText(this, L.s("Espera a que termine la tanda", "Wait for the batch to finish"), Toast.LENGTH_SHORT).show(); return; }
@@ -1835,6 +1904,7 @@ public class Main extends Base {
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isQwen() || isMage() ? View.GONE : View.VISIBLE); refreshLora(); }
             if (qwenLoraBox != null) { qwenLoraBox.setVisibility(isQwen() ? View.VISIBLE : View.GONE); refreshQwenLora(); }
             if (editBox != null) editBox.setVisibility(isQwen() || isMage() ? View.VISIBLE : View.GONE);
+            if (editOpts != null) editOpts.setVisibility(editBm != null && isQwen() ? View.VISIBLE : View.GONE);
             refreshExtras();
             refreshSampling();
             state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMage() ? L.s("Mage-Flow en NPU · pesos desde almacenamiento", "Mage-Flow on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
@@ -2040,7 +2110,7 @@ public class Main extends Base {
         final int n = gk != 0 ? 4 : count, w = resW, h = resH;
         final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
         final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
-        batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; refreshGeneratedEditAction();
+        batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; pendingCompare = null; refreshGeneratedEditAction();
         busy = true; cancelled = false; curIdx = 0; curN = n; batchAdjustable = gk == 0;
         setModelUi(loaded, false, "");
         View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
@@ -2092,6 +2162,9 @@ public class Main extends Base {
                 final File gf = saveGrid(gridBms, gridLabels, pr, String.valueOf(gridSeed), w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
                 if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); img.setVisibility(View.VISIBLE); placeholder.setVisibility(View.GONE); saved.setText(L.s("Сетка сравнений · desliza para ver imágenes", "Comparison grid · swipe to view images")); refreshGeneratedEditAction(); }); }
+            } else if (gk == 0 && madeFiles.size() == 1 && pendingCompare != null && pendingCompare.isFile() && !cancelled) {
+                final File cf = pendingCompare;
+                ui.post(() -> { batchGridFile = cf; batchDisplayIndex = 0; saved.setText(L.s("Edición · desliza para ver la comparación", "Edit · swipe to see the comparison")); refreshGeneratedEditAction(); });
             } else if (gk == 0 && madeFiles.size() > 1) {
                 final File gf = saveBatchGrid(madeFiles, pr, w, h);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
@@ -2147,7 +2220,9 @@ public class Main extends Base {
         refreshGeneratedEditAction();
         setFavIcon(Gallery.fav(f));
         JSONObject m = Gallery.meta(f);
-        saved.setText(batchDisplayIndex == batchFiles.size()
+        saved.setText(batchDisplayIndex == batchFiles.size() && batchFiles.size() == 1
+            ? L.s("Original | editada", "Original | edited")
+            : batchDisplayIndex == batchFiles.size()
             ? L.f("Cuadrícula · %d imágenes", "Grid · %d images", batchFiles.size())
             : L.f("Imagen %d de %d · seed %s", "Image %d of %d · seed %s", batchDisplayIndex + 1, batchFiles.size(), m.optString("seed", "?")));
     }
@@ -2364,8 +2439,14 @@ public class Main extends Base {
         int drop; String edArg = "";
         try {
             if (edit) {
-                Qwen.Edit e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
+                boolean hifi = prefs().getBoolean("qwen_hifi", false);
+                Qwen.Edit e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
                 int keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
+                if (hifi && keys > Qwen.MAX_KEYS) {   // too many tokens for one attention pass: fall back to the standard reference size
+                    e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids, Qwen.COND_AREA); drop = e.drop;
+                    keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
+                    ui.post(() -> Toast.makeText(this, L.s("Alta fidelidad no cabe con este tamaño: se usa la referencia normal", "High fidelity does not fit this size: using the standard reference"), Toast.LENGTH_LONG).show());
+                }
                 if (keys > Qwen.MAX_KEYS) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, L.s("Foto y resultado juntos son demasiado grandes: elige un tamaño menor", "The photo and result together are too large: pick a smaller size"), Toast.LENGTH_LONG).show()); return null; }
             } else drop = Qwen.writeIds(home, pr, ids);
         } catch (Exception e) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, "qwen: " + e, Toast.LENGTH_LONG).show()); return null; }
@@ -2400,8 +2481,16 @@ public class Main extends Base {
                 : Qwen.applyEditMask(png, src, maskFile, w, h);
             int finalW = edit && maskFile.isFile() ? src.getWidth() : w, finalH = edit && maskFile.isFile() ? src.getHeight() : h;
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", finalW).put("h", finalH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
-            if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null);
-            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+            if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null).put("hifi", prefs().getBoolean("qwen_hifi", false));
+            File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
+            if (edit && out != null) {
+                Qwen.saveBefore(home, src, out);
+                if (prefs().getBoolean("qwen_compare", false)) {
+                    Bitmap after = BitmapFactory.decodeByteArray(png, 0, png.length);
+                    if (after != null) { pendingCompare = saveSideBySide(src, after, meta); after.recycle(); }
+                }
+            }
+            return out;
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Ошибка генерации: %s (лог files/qwen/qwen.log)", "Generation failed: %s (log files/qwen/qwen.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
         finally { if (detail != null) detail.recycle(); }
     }

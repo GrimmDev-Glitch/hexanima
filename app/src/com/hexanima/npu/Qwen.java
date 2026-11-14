@@ -296,41 +296,126 @@ final class Qwen {
         }
     }
 
-    /** Composite only the white/antialiased brush area; pixels outside the brush stay byte-for-byte from source. */
+    /** Composite the painted area with a soft edge: the brush is grown slightly and blurred so no hard seam shows, and the edit's
+     *  colour is matched to the photo along the border (the VAE round trip can shift tone a little). Pixels outside the feathered
+     *  brush stay byte-for-byte from source. */
     private static Bitmap compositeMask(Bitmap source, Bitmap mask, Bitmap edit, int left, int top) throws IOException {
         int w = source.getWidth(), h = source.getHeight(), rw = edit.getWidth(), rh = edit.getHeight();
         if (mask.getWidth() != w || mask.getHeight() != h || left < 0 || top < 0 || left + rw > w || top + rh > h)
             throw new IOException("Qwen mask/output geometry does not match the imported photo");
-        Bitmap out = source.copy(Bitmap.Config.ARGB_8888, true);
-        int[] srcRow = new int[w], maskRow = new int[w], dstRow = new int[w], editRow = new int[rw];
+        // feather on a copy of at most 1024 px (a full-size photo can be 12 Mpx), then sample it bilinearly; the fine brush stays the floor
+        float fs = Math.min(1f, 1024f / Math.max(w, h)); int fw = Math.max(1, Math.round(w * fs)), fh = Math.max(1, Math.round(h * fs));
+        Bitmap small = fs < 1 ? Bitmap.createScaledBitmap(mask, fw, fh, true) : mask;
+        float[] fm = featherMask(small, Math.max(2, Math.round(Math.max(fw, fh) * .006f)));
+        if (small != mask) small.recycle();
+        int[] maskRow = new int[w];
+        float[] a = new float[rw * rh];   // indexed relative to (left, top)
         for (int y = top; y < top + rh; y++) {
-            source.getPixels(srcRow, 0, w, 0, y, w, 1); mask.getPixels(maskRow, 0, w, 0, y, w, 1);
+            mask.getPixels(maskRow, 0, w, 0, y, w, 1);
+            float sy = Math.max(0, Math.min(fh - 1, (y + .5f) * fh / h - .5f)); int y0 = (int) sy, y1 = Math.min(fh - 1, y0 + 1); float ty = sy - y0;
+            for (int x = left; x < left + rw; x++) {
+                float sx = Math.max(0, Math.min(fw - 1, (x + .5f) * fw / w - .5f)); int x0 = (int) sx, x1 = Math.min(fw - 1, x0 + 1); float tx = sx - x0;
+                float v = (fm[y0 * fw + x0] * (1 - tx) + fm[y0 * fw + x1] * tx) * (1 - ty) + (fm[y1 * fw + x0] * (1 - tx) + fm[y1 * fw + x1] * tx) * ty;
+                a[(y - top) * rw + (x - left)] = Math.max(v, ((maskRow[x] >> 16) & 255) / 255f);
+            }
+        }
+        // colour offset from the ring just inside the feathered edge (0.05 < a < 0.6): mean(source) - mean(edit), clamped
+        double[] sum = new double[6]; long n = 0;
+        int[] srcRow = new int[w], dstRow = new int[w], editRow = new int[rw];
+        for (int y = top; y < top + rh; y++) {
+            source.getPixels(srcRow, 0, w, 0, y, w, 1); edit.getPixels(editRow, 0, rw, 0, y - top, rw, 1);
+            for (int x = left; x < left + rw; x++) {
+                float m = a[(y - top) * rw + (x - left)]; if (m <= .05f || m >= .6f) continue;
+                int s = srcRow[x], e = editRow[x - left];
+                sum[0] += (s >> 16) & 255; sum[1] += (s >> 8) & 255; sum[2] += s & 255; sum[3] += (e >> 16) & 255; sum[4] += (e >> 8) & 255; sum[5] += e & 255; n++;
+            }
+        }
+        int[] off = new int[3];
+        if (n >= 64) for (int c = 0; c < 3; c++) off[c] = (int) Math.max(-24, Math.min(24, Math.round((sum[c] - sum[c + 3]) / n)));
+        Bitmap out = source.copy(Bitmap.Config.ARGB_8888, true);
+        for (int y = top; y < top + rh; y++) {
+            source.getPixels(srcRow, 0, w, 0, y, w, 1);
             out.getPixels(dstRow, 0, w, 0, y, w, 1); edit.getPixels(editRow, 0, rw, 0, y - top, rw, 1);
             for (int x = left; x < left + rw; x++) {
-                float a = ((maskRow[x] >> 16) & 255) / 255f; if (a <= 0f) continue;
+                float m = a[(y - top) * rw + (x - left)]; if (m <= 0f) continue;
                 int s = srcRow[x], e = editRow[x - left];
-                int r = Math.round(((s >> 16) & 255) * (1 - a) + ((e >> 16) & 255) * a);
-                int g = Math.round(((s >> 8) & 255) * (1 - a) + ((e >> 8) & 255) * a);
-                int b = Math.round((s & 255) * (1 - a) + (e & 255) * a);
+                int er = clamp8(((e >> 16) & 255) + off[0]), eg = clamp8(((e >> 8) & 255) + off[1]), eb = clamp8((e & 255) + off[2]);
+                int r = Math.round(((s >> 16) & 255) * (1 - m) + er * m);
+                int g = Math.round(((s >> 8) & 255) * (1 - m) + eg * m);
+                int b = Math.round((s & 255) * (1 - m) + eb * m);
                 dstRow[x] = 0xFF000000 | (r << 16) | (g << 8) | b;
             }
             out.setPixels(dstRow, 0, w, 0, y, w, 1);
         }
         return out;
     }
+    private static int clamp8(int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+    /** brush coverage 0..1, dilated by r (running max) then softened with box blurs of radius r; the painted core stays 1 */
+    static float[] featherMask(Bitmap mask, int r) {
+        int w = mask.getWidth(), h = mask.getHeight(); float[] o = new float[w * h], m = new float[w * h], t = new float[w * h]; int[] row = new int[w];
+        for (int y = 0; y < h; y++) { mask.getPixels(row, 0, w, 0, y, w, 1); for (int x = 0; x < w; x++) o[y * w + x] = ((row[x] >> 16) & 255) / 255f; }
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) { float v = 0; int x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r); for (int k = x0; k <= x1; k++) v = Math.max(v, o[y * w + k]); t[y * w + x] = v; }
+        for (int x = 0; x < w; x++) for (int y = 0; y < h; y++) { float v = 0; int y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r); for (int k = y0; k <= y1; k++) v = Math.max(v, t[k * w + x]); m[y * w + x] = v; }
+        for (int pass = 0; pass < 2; pass++) { boxBlur(m, t, w, h, r, true); boxBlur(t, m, w, h, r, false); }
+        for (int i = 0; i < m.length; i++) if (o[i] > m[i]) m[i] = o[i];
+        return m;
+    }
+    private static void boxBlur(float[] in, float[] out, int w, int h, int r, boolean horiz) {
+        int len = horiz ? w : h, lines = horiz ? h : w; float inv = 1f / (2 * r + 1);
+        for (int l = 0; l < lines; l++) {
+            float acc = 0;
+            for (int k = -r; k <= r; k++) { int i = Math.max(0, Math.min(len - 1, k)); acc += in[horiz ? l * w + i : i * w + l]; }
+            for (int i = 0; i < len; i++) {
+                out[horiz ? l * w + i : i * w + l] = acc * inv;
+                int add = Math.min(len - 1, i + r + 1), sub = Math.max(0, i - r);
+                acc += in[horiz ? l * w + add : add * w + l] - in[horiz ? l * w + sub : sub * w + l];
+            }
+        }
+    }
+
+    /** a copy of the photo an edit started from, kept beside the result for the before/after view (JPEG, last 40) */
+    static File beforeDir(File home) { return new File(dir(home), "before"); }
+    static File beforeFile(File home, File result) { return new File(beforeDir(home), result.getName().replaceFirst("(?i)\\.png$", "") + ".jpg"); }
+    static void saveBefore(File home, Bitmap src, File result) {
+        File d = beforeDir(home); d.mkdirs();
+        try (FileOutputStream o = new FileOutputStream(beforeFile(home, result))) { src.compress(Bitmap.CompressFormat.JPEG, 92, o); } catch (IOException ignored) { }
+        File[] fs = d.listFiles(); if (fs != null && fs.length > 40) { java.util.Arrays.sort(fs, (x, y) -> Long.compare(x.lastModified(), y.lastModified())); for (int i = 0; i < fs.length - 40; i++) fs[i].delete(); }
+    }
+
+    /** "before | after" side by side at the result's height (at most 1024), a label under each half */
+    static Bitmap sideBySide(Bitmap before, Bitmap after, String l1, String l2, android.graphics.Typeface tf) {
+        int ah = Math.min(1024, after.getHeight()), aw = Math.round(after.getWidth() * ah / (float) after.getHeight()), lh = Math.max(36, ah / 20), gap = 8;
+        Bitmap g = Bitmap.createBitmap(aw * 2 + gap, ah + lh, Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(g); c.drawColor(0xFF1B172F);
+        android.graphics.Paint fp = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        c.drawBitmap(before, coverRect(before, aw, ah), new android.graphics.Rect(0, 0, aw, ah), fp);
+        c.drawBitmap(after, null, new android.graphics.Rect(aw + gap, 0, aw * 2 + gap, ah), fp);
+        android.graphics.Paint tp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG); tp.setColor(0xFFE9E6F5); tp.setTextSize(lh * .6f); if (tf != null) tp.setTypeface(tf); tp.setTextAlign(android.graphics.Paint.Align.CENTER);
+        c.drawText(l1, aw / 2f, ah + lh * .72f, tp); c.drawText(l2, aw + gap + aw / 2f, ah + lh * .72f, tp);
+        return g;
+    }
+    /** the centred part of b with the aspect of w x h (what a centre crop shows) */
+    static android.graphics.Rect coverRect(Bitmap b, int w, int h) {
+        float sa = b.getWidth() / (float) b.getHeight(), da = w / (float) h;
+        if (sa > da) { int cw = Math.round(b.getHeight() * da); int x = (b.getWidth() - cw) / 2; return new android.graphics.Rect(x, 0, x + cw, b.getHeight()); }
+        int ch = Math.round(b.getWidth() / da); int y = (b.getHeight() - ch) / 2; return new android.graphics.Rect(0, y, b.getWidth(), y + ch);
+    }
 
     static final class Edit { int drop, cw, ch, nc, nm, tokens; }
 
-    /** condition size: the photo's aspect at about min(target area, 0.4 Mpx), sides multiples of 32 (what the ViT and the VAE both need) */
-    static int[] condSize(int srcW, int srcH, int tw, int th) {
-        double area = Math.min((double) tw * th, 393216.0), ratio = (double) srcW / srcH;
+    static final double COND_AREA = 393216.0, COND_AREA_HI = 1048576.0;   // ~0.4 Mpx by default; "high fidelity" lets the reference follow the output size up to 1 Mpx
+    /** condition size: the photo's aspect at about min(target area, cap), sides multiples of 32 (what the ViT and the VAE both need) */
+    static int[] condSize(int srcW, int srcH, int tw, int th) { return condSize(srcW, srcH, tw, th, COND_AREA); }
+    static int[] condSize(int srcW, int srcH, int tw, int th, double cap) {
+        double area = Math.min((double) tw * th, cap), ratio = (double) srcW / srcH;
         int cw = (int) Math.max(64, Math.round(Math.sqrt(area * ratio) / 32) * 32), ch = (int) Math.max(64, Math.round(area / cw / 32) * 32);
         return new int[]{cw, ch};
     }
 
     /** writes EDIT_DIR/{meta.txt, rgba.f32, px.f32} and the ids file for editing `src` with `prompt` into a tw×th picture */
-    static Edit prepareEdit(File home, Bitmap src, String prompt, int tw, int th, File idsOut) throws Exception {
-        int[] cs = condSize(src.getWidth(), src.getHeight(), tw, th); final int cw = cs[0], ch = cs[1];
+    static Edit prepareEdit(File home, Bitmap src, String prompt, int tw, int th, File idsOut) throws Exception { return prepareEdit(home, src, prompt, tw, th, idsOut, COND_AREA); }
+    static Edit prepareEdit(File home, Bitmap src, String prompt, int tw, int th, File idsOut, double cap) throws Exception {
+        int[] cs = condSize(src.getWidth(), src.getHeight(), tw, th, cap); final int cw = cs[0], ch = cs[1];
         Bitmap b = src.copy(Bitmap.Config.ARGB_8888, false);
         while (b.getWidth() > 2 * cw || b.getHeight() > 2 * ch) { Bitmap next = Bitmap.createScaledBitmap(b, Math.max(cw, b.getWidth() / 2), Math.max(ch, b.getHeight() / 2), true); if (next != b) b.recycle(); b = next; }   // halve first: one big bilinear step would alias
         if (b.getWidth() != cw || b.getHeight() != ch) { Bitmap next = Bitmap.createScaledBitmap(b, cw, ch, true); if (next != b) b.recycle(); b = next; }

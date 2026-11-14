@@ -556,3 +556,18 @@ Qwen LoRA	LoRA de Qwen
 Move	Mover
 Empty: download LoRAs from Civitai or import a file.	Vacía: descarga LoRAs de Civitai o importa un archivo.
 RealSkin: 4-step rapid-moss or 8-step DMD (more detail, about 1.6× slower).	RealSkin: rapid-moss de 4 pasos o DMD de 8 pasos (más detalle, ~1,6× más lento).
+High fidelity	Alta fidelidad
+The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory.	La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.
+Save a comparison	Guardar comparación
+Besides the edit, saves the original and the edit side by side; swipe the picture to see it.	Además de la edición, guarda la original y la editada lado a lado; desliza la imagen para verla.
+Before/after	Antes/después
+Original	Original
+Edited	Editada
+Before / after	Antes / después
+Slide a finger over the picture to move the line.	Desliza el dedo sobre la imagen para mover la línea.
+Save side by side	Guardar lado a lado
+Comparison saved to the history	Comparación guardada en el historial
+Could not save the comparison	No se pudo guardar la comparación
+High fidelity does not fit this size: using the standard reference	Alta fidelidad no cabe con este tamaño: se usa la referencia normal
+Edit · swipe to see the comparison	Edición · desliza para ver la comparación
+Original | edited	Original | editada
