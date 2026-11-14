@@ -121,6 +121,13 @@
   - **Palabras activadoras propias:** en Anima, MOSS y Qwen, la pulsación larga sobre una LoRA permite editar sus activadoras (o una frase activadora) y añadirlas al prompt, también para LoRAs que no traen ninguna.
   - **Forma de la foto:** las ediciones de Qwen salen por defecto con la orientación de la foto, al preset más parecido y con un tamaño cercano al elegido. Antes, una foto vertical editada a 1024×768 salía horizontal y recortada. El interruptor «Forma de la foto» permite usar exactamente el tamaño elegido. Probado en el Poco F6 Pro: foto vertical 576×1024 con el tamaño 1024×768 elegido → edición 576×1024 en 102 s (alta fidelidad), sin recortes.
 
+- 14 nov 2026 · **LoKr en MOSS (bloque 6):**
+  - El LoKr ya no pasa por el kernel DSP. `liblorafold.so bake-lokr` suma `fuerza × kron(w1, w2)` a los pesos q8 de cada bloque DiT y los recuantiza con el mismo formato de tiles.
+  - Las copias se escriben en `files/moss/lokr/<modelo>_<id>_<fuerza>/dit/`. El resto de la carpeta del modelo (glue, te, ref, vae, lora8) son enlaces, y moss.sh carga esa carpeta sin cambios en el runner. Funciona también sobre RealSkin y Harem, y con el modo DMD de 8 pasos.
+  - En el Poco F6 Pro, `MOSSRealisticSnapshotV1` a fuerza 1,0 se prepara en unos 16 s (41 bloques, delta medio 1,7 % de los pesos, 5,1 GB). Imagen 1024×768 en 71,5 s con la preparación incluida; pasos de 10,5–10,9 s, igual que sin LoKr (51,8 s). Imagen coherente con el estilo del LoKr, sin bloqueos ni cuadros marrones.
+  - La causa del cuadro marrón anterior quedó fuera del camino: el kernel no cambia. Se guarda solo una caché; se rehace al cambiar de LoKr, fuerza o modelo, y comprueba que haya 6 GB libres.
+  - `deleteTree` ya no sigue enlaces simbólicos: al borrar la caché o una vista de variante se borra solo el enlace, nunca los archivos del modelo.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

@@ -361,6 +361,74 @@ static bool fold_block(const ST& st, const Scan& sc, const std::string& pack, in
   fclose(f); return true;
 }
 
+// ---------------------------------------------------------------- LoKr baked into the base weights (no kernel change)
+// bake-lokr MODELDIR FILE STRENGTH OUTDIR: OUTDIR becomes a model folder whose dit/blkNN.bin hold W + strength * kron(w1, w2)
+// requantised to the same q8 tiles; every other entry of MODELDIR (glue, te, ref, vae, lora8...) is a symlink, so mossrun just loads OUTDIR.
+static void quant_tile(float a[32][32], u8* t) {
+  for (int c = 0; c < 32; c++) {
+    float m = 0; for (int r = 0; r < 32; r++) { a[r][c] = (float)(_Float16)a[r][c]; m = std::max(m, fabsf(a[r][c])); }
+    float sc = m / 127.f; if (sc < 6.2e-5f) sc = 6.2e-5f; _Float16 h = (_Float16)sc; float sf = (float)h; u16 hb; memcpy(&hb, &h, 2);
+    memcpy(t + 4 * c, &hb, 2); memcpy(t + 4 * c + 2, &hb, 2);
+    for (int r = 0; r < 32; r++) { float q = nearbyintf(a[r][c] / sf); q = std::min(127.f, std::max(-127.f, q)); t[128 + (((r >> 1) * 32 + c) << 1) + (r & 1)] = (u8)((int)q + 128); }
+  }
+}
+static bool bake_block(const ST& st, const Scan& sc, const std::string& src, const std::string& dst, int L, float strength, double* relOut) {
+  int fd = open(src.c_str(), O_RDONLY); if (fd < 0) return false;
+  struct stat sb; fstat(fd, &sb); std::vector<u8> buf(sb.st_size); bool ok = pread_all(fd, buf.data(), buf.size(), 0); close(fd); if (!ok) return false;
+  double dn = 0, wn = 0;
+  // pack matrices touched by each LoKr projection: qkv -> q,k,v (rows 0/3072/6144), o -> o, ffn_up_gate -> up_gate (interleaved panels), ffn_down -> down
+  struct T { int lokrMi, packMi, rowOff; } targets[] = {{0, 0, 0}, {0, 1, 3072}, {0, 2, 6144}, {4, 3, 0}, {5, 4, 0}, {6, 5, 0}};
+  int lastMi = -1; std::vector<float> w2; float w1[16] = {0}; int on4 = 0, in4 = 0;
+  for (const T& tg : targets) {
+    auto it = sc.m.find({L, tg.lokrMi}); if (it == sc.m.end() || it->second.w1.empty() || it->second.w2.empty()) continue;
+    if (lastMi != tg.lokrMi) {
+      const TI& a = st.t.at(it->second.w1); const TI& b = st.t.at(it->second.w2);
+      for (int i = 0; i < 16; i++) w1[i] = st.at(a, i) * strength;
+      on4 = (int)b.shape[0]; in4 = (int)b.shape[1]; w2.resize((size_t)on4 * in4); for (size_t i = 0; i < w2.size(); i++) w2[i] = st.at(b, i);
+      lastMi = tg.lokrMi;
+    }
+    const MatG& g = MG[tg.packMi]; const int KB = g.K / 32, NB = g.N / 32; const size_t po = panel_off(tg.packMi), pnl = (size_t)(KB + 4) * TILE;
+    for (int nb = 0; nb < NB; nb++) {
+      const int lb = tg.packMi == 4 ? ((nb & 1) ? NB / 2 + nb / 2 : nb / 2) : nb;
+      for (int kb = 0; kb < KB; kb++) {
+        u8* t = &buf[po + nb * pnl + (size_t)kb * TILE]; float a[32][32];
+        for (int r = 0; r < 32; r++) for (int c = 0; c < 32; c++) {
+          const int O = tg.rowOff + lb * 32 + c, I = kb * 32 + r;
+          const float w = deq(t, r, c), d = w1[(O / on4) * 4 + I / in4] * w2[(size_t)(O % on4) * in4 + (I % in4)];
+          a[r][c] = w + d; dn += (double)d * d; wn += (double)w * w;
+        }
+        quant_tile(a, t);
+      }
+    }
+  }
+  if (relOut) *relOut = wn > 0 ? sqrt(dn / wn) : 0;
+  std::string tmp = dst + ".part"; FILE* f = fopen(tmp.c_str(), "wb"); if (!f) return false;
+  ok = fwrite(buf.data(), 1, buf.size(), f) == buf.size(); ok = fclose(f) == 0 && ok;
+  return ok && rename(tmp.c_str(), dst.c_str()) == 0;
+}
+#include <dirent.h>
+#include <climits>
+static int bake_lokr(const ST& st, const Scan& sc, const std::string& mdir0, float strength, const std::string& out) {
+  char rp[PATH_MAX]; if (!realpath(mdir0.c_str(), rp)) return fail("FILE", "model folder not found"); const std::string mdir = rp;
+  mkdir(out.c_str(), 0777); const std::string od = out + "/dit"; mkdir(od.c_str(), 0777);
+  struct stat t; if (stat(od.c_str(), &t) || !S_ISDIR(t.st_mode)) return fail("FOLD", "cannot create output directory");
+  // links to everything the runner reads besides dit/ (skip our own outputs and logs)
+  if (DIR* d = opendir(mdir.c_str())) { while (dirent* e = readdir(d)) { std::string n = e->d_name;
+      if (n == "." || n == ".." || n == "dit" || n == "lokr" || n == "lora" || n == "dsp" || n == "moss.log" || n == "z.raw" || n.find(".part") != std::string::npos) continue;
+      std::string l = out + "/" + n; unlink(l.c_str()); if (symlink((mdir + "/" + n).c_str(), l.c_str())) { closedir(d); return fail("FOLD", "symlink " + n); } }
+    closedir(d); }
+  std::atomic<int> next(0), done(0), bad(0); std::mutex mu; std::vector<double> rel(NLAYER, 0);
+  std::vector<std::thread> th; int nth = 3;   // a block buffer is 135 MB: 3 at a time keeps RAM near 400 MB
+  for (int i = 0; i < nth; i++) th.emplace_back([&] { for (;;) { int L = next++; if (L >= NLAYER) break;
+    char src[700], dst[700]; snprintf(src, sizeof src, "%s/dit/blk%02d.bin", mdir.c_str(), L); snprintf(dst, sizeof dst, "%s/blk%02d.bin", od.c_str(), L);
+    bool any = false; for (int mi : {0, 4, 5, 6}) { auto it = sc.m.find({L, mi}); if (it != sc.m.end() && !it->second.w1.empty()) any = true; }
+    bool ok; if (any) ok = bake_block(st, sc, src, dst, L, strength, &rel[L]); else { unlink(dst); ok = symlink(src, dst) == 0; }
+    if (!ok) bad++; int dd = ++done; std::lock_guard<std::mutex> lk(mu); printf("progress %d %d\n", dd, NLAYER); fflush(stdout); } });
+  for (auto& x : th) x.join(); if (bad) return fail("FOLD", "failed on " + std::to_string(bad.load()) + " blocks");
+  double mx = 0, sum = 0; int n = 0; for (double r : rel) if (r > 0) { mx = std::max(mx, r); sum += r; n++; }
+  printf("OK\tblocks=%d\tdelta_mean=%.4f\tdelta_max=%.4f\n", n, n ? sum / n : 0, mx); return 0;
+}
+
 static int fold_lokr(const ST& st, const Scan& sc, float strength, const std::string& outdir) {
   if (mkdir(outdir.c_str(), 0777) && errno != EEXIST) return fail("FOLD", "cannot create output directory");
   std::atomic<int> next(0), done(0), bad(0); std::mutex mu;
@@ -380,6 +448,11 @@ int main(int argc, char** argv) {
     ST st; if (!st.open(argv[3])) return fail("FILE", st.err); Info inf; std::string warn; if (check(st, inf, warn)) return 1;
     if (!inf.lokr) return fail("NOTLORA", "selected file is not LoKr");
     Scan sc = scan(st); return fold_lokr(st, sc, (float)atof(argv[4]), argv[5]);
+  }
+  if (argc >= 6 && !strcmp(argv[1], "bake-lokr")) {
+    ST st; if (!st.open(argv[3])) return fail("FILE", st.err); Info inf; std::string warn; if (check(st, inf, warn)) return 1;
+    if (!inf.lokr) return fail("NOTLORA", "selected file is not LoKr");
+    Scan sc = scan(st); return bake_lokr(st, sc, argv[2], (float)atof(argv[4]), argv[5]);
   }
   if (argc >= 6 && !strcmp(argv[1], "fold")) {
     ST st; if (!st.open(argv[3])) return fail("FILE", st.err); Info inf; std::string warn; if (check(st, inf, warn)) return 1;

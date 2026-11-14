@@ -3,7 +3,7 @@ package com.hexanima.npu;
 import java.io.*;
 import java.util.*;
 
-/** User MOSS adapters. A/B LoRAs are folded into turbo slots. LoKr parsing/folding remains experimental and is not enabled by the app after the V73 generation stalled. */
+/** User MOSS adapters. A/B LoRAs are folded into turbo slots; LoKr is baked into a copy of the DiT blocks (no DSP kernel change). */
 final class MossLora {
     static File dir(File home) { return new File(Moss.dir(home), "lora"); }
     static File civitaiDir(File home) { return new File(dir(home), "civitai"); }
@@ -111,5 +111,29 @@ final class MossLora {
         } catch (Exception e) { msg[0] = String.valueOf(e); deleteTree(out); return null; }
     }
 
-    static void deleteTree(File f) { File[] k = f.listFiles(); if (k != null) for (File c : k) deleteTree(c); f.delete(); }
+    /** LoKr: bakes W + strength*kron(w1,w2) into the q8 DiT blocks of `model` (base or a variant view) and returns a model folder
+     *  (dit/ baked, everything else linked) that moss.sh loads instead; one cache is kept (about 5.7 GB), rebuilt on a new LoKr/strength/model */
+    static File ensureLokr(File home, String bin, File model, String key, String id, float strength, Progress pr, java.util.function.BooleanSupplier cancelled, String[] msg) {
+        File root = new File(Moss.dir(home), "lokr"), out = new File(root, key + "_" + id + "_" + Math.round(strength * 100));
+        if (new File(out, ".ok").exists()) return out;
+        File[] old = root.listFiles(); if (old != null) for (File f : old) deleteTree(f);
+        root.mkdirs();
+        if (root.getUsableSpace() < 6_500_000_000L) { msg[0] = L.s("Hacen falta unos 6 GB libres para preparar el LoKr", "About 6 GB of free space are needed to prepare the LoKr"); return null; }
+        try {
+            Process p = new ProcessBuilder(bin + "/liblorafold.so", "bake-lokr", model.getPath(), src(home).getPath(), String.valueOf(strength), out.getPath()).redirectErrorStream(true).start();
+            String last = "";
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                for (String l; (l = r.readLine()) != null; ) {
+                    if (cancelled.getAsBoolean()) { p.destroy(); deleteTree(out); return null; }
+                    if (l.startsWith("progress ")) { String[] a = l.split(" "); pr.at(Integer.parseInt(a[1]), Integer.parseInt(a[2])); } else last = l;
+                }
+            }
+            if (p.waitFor() != 0 || !last.startsWith("OK")) { msg[0] = last; deleteTree(out); return null; }
+            new File(out, ".ok").createNewFile(); return out;
+        } catch (Exception e) { msg[0] = String.valueOf(e); deleteTree(out); return null; }
+    }
+    static void deleteLokrCache(File home) { deleteTree(new File(Moss.dir(home), "lokr")); }
+
+    /** removes a folder; a symbolic link is removed itself, never what it points to (variant views and the LoKr cache link to the real model files) */
+    static void deleteTree(File f) { if (java.nio.file.Files.isSymbolicLink(f.toPath())) { f.delete(); return; } File[] k = f.listFiles(); if (k != null) for (File c : k) deleteTree(c); f.delete(); }
 }

@@ -508,7 +508,7 @@ This LoKr was marked as a lossy conversion and cannot be enabled. Select the ori
 Updates the image while Anima models are generating	Actualiza la imagen mientras se generan imágenes con modelos Anima
 LoRA trigger words added to the prompt	Palabras activadoras de la LoRA añadidas al prompt
 MOSS-Image LoRA library	Biblioteca de LoRAs MOSS-Image
-Choose one compatible A/B LoRA. Set its strength in the LoRA section.	Elige una LoRA A/B compatible. Ajusta su fuerza en la sección LoRA.
+Choose one compatible A/B LoRA or LoKr. Set its strength in the LoRA section.	Elige una LoRA A/B o un LoKr compatible. Ajusta su fuerza en la sección LoRA.
 No trigger words declared	No declara palabras activadoras
 Clear selection	Quitar selección
 Could not select the LoRA: %s	No se pudo seleccionar el LoRA: %s
@@ -631,3 +631,6 @@ Words or a phrase that activate the LoRA, comma separated. "Add trigger words to
 LoRA strength (0 to 2)	Intensidad de la LoRA (0 a 2)
 Photo's shape	Forma de la foto
 The edit comes out portrait, landscape or square like the photo, at about the size you picked. Turn it off to use exactly the picked size.	La edición sale vertical, horizontal o cuadrada como la foto, con un tamaño parecido al elegido. Desactívalo para usar exactamente el tamaño elegido.
+Preparing the LoKr… %d/%d	Preparando el LoKr… %d/%d
+About 6 GB of free space are needed to prepare the LoKr	Hacen falta unos 6 GB libres para preparar el LoKr
+LoKr: the first picture at each strength prepares a copy of the weights (about 20 s and 5.7 GB, only the last one is kept).	LoKr: la primera imagen con cada intensidad prepara una copia de los pesos (unos 20 s y 5,7 GB, se guarda solo la última).

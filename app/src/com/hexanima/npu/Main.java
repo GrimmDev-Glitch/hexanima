@@ -896,8 +896,7 @@ public class Main extends Base {
     boolean loraFitsModel() {
         if (!isMoss() || loraId().isEmpty() || !loraSrc().exists()) return true;
         MossLora.Check c = MossLora.check(BIN, loraSrc());
-        // LoKr reached the V73 DSP path but stalled at the first DiT step; only validated A/B adapters are enabled.
-        return c.ok && !c.lokr;
+        return c.ok;   // A/B: turbo-slot overlay; LoKr: baked DiT blocks
     }
     boolean loraOn() { return !loraId().isEmpty() && loraSrc().exists() && loraStr() > 0 && loraFitsModel(); }
     boolean canUseRsDmd() {
@@ -912,7 +911,7 @@ public class Main extends Base {
         String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when picked. Library: “LoRAs” above the prompt.");
         boolean fits = !has || loraFitsModel();
         String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
-        if (has && !fits) info = L.s("LoKr reconocido, pero desactivado hasta validar el kernel DSP V73. Usa una LoRA MOSS A/B compatible o genera sin LoKr.", "LoKr detected, but disabled until the V73 DSP kernel is validated. Use a compatible MOSS A/B LoRA or generate without LoKr.");
+        if (has && fits && MossLora.check(BIN, loraSrc()).lokr) info += "\n" + L.s("LoKr: la primera imagen con cada intensidad prepara una copia de los pesos (unos 20 s y 5,7 GB, se guarda solo la última).", "LoKr: the first picture at each strength prepares a copy of the weights (about 20 s and 5.7 GB, only the last one is kept).");
         loraFold.sum.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") + String.format(java.util.Locale.US, " · %.2f", loraStr()) : L.s("нет", "none"));
         loraFold.sum.setTextColor(has ? ACC : DIM);
         loraInfo.setText(info);
@@ -1134,7 +1133,7 @@ public class Main extends Base {
         final File dir = MossLora.civitaiDir(getFilesDir()); dir.mkdirs();
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
         v.addView(text(L.s("Библиотека MOSS", "MOSS-Image LoRA library"), 20, TXT, true));
-        v.addView(text(L.s("Выберите одну совместимую LoRA A/B. Сила настраивается в блоке LoRA.", "Choose one compatible A/B LoRA. Set its strength in the LoRA section."), 12, DIM, false));
+        v.addView(text(L.s("Выберите одну совместимую LoRA A/B. Сила настраивается в блоке LoRA.", "Choose one compatible A/B LoRA or LoKr. Set its strength in the LoRA section."), 12, DIM, false));
         EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
         final HorizontalScrollView catScroll = new HorizontalScrollView(this); catScroll.setHorizontalScrollBarEnabled(false); final LinearLayout catRow = new LinearLayout(this); catScroll.addView(catRow);
@@ -2675,19 +2674,22 @@ public class Main extends Base {
         final int mossSteps = rsDmd ? 8 : 4;   // the distilled MOSS models are made for 4 steps
         setProgressUi(3, L.s("Токенизация…", "Tokenising…"), t0);
         try { Moss.writeIds(home, pr, ids); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "tokenizer: " + e, Toast.LENGTH_LONG).show()); return null; }
-        String loraEnv = ""; final float lstr = loraStr();
+        String loraEnv = ""; final float lstr = loraStr(); File lokrDir = null;
         if (useLora) {
             if (activeLora == null || !activeLora.ok) { ui.post(() -> Toast.makeText(this, activeLora == null ? L.s("No se pudo validar la LoRA", "Could not validate the LoRA") : activeLora.message(), Toast.LENGTH_LONG).show()); return null; }
             final String[] msg = {""};
-            File ovl = MossLora.ensure(home, BIN, loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Подготовка LoRA… %d/%d", "Preparing the LoRA… %d/%d", d, t), t0), () -> cancelled, msg);
+            File ovl = activeLora.lokr
+                ? MossLora.ensureLokr(home, BIN, MR, Moss.isVariant(model) ? Moss.variantKey(model) : "base", loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Preparando el LoKr… %d/%d", "Preparing the LoKr… %d/%d", d, t), t0), () -> cancelled, msg)
+                : MossLora.ensure(home, BIN, loraId(), lstr, (d, t) -> setProgressUi(1 + 5 * d / t, L.f("Подготовка LoRA… %d/%d", "Preparing the LoRA… %d/%d", d, t), t0), () -> cancelled, msg);
             if (ovl == null) { if (!cancelled) ui.post(() -> Toast.makeText(this, L.f("Не удалось подготовить LoRA: %s", "Could not prepare the LoRA: %s", msg[0]), Toast.LENGTH_LONG).show()); return null; }
-            loraEnv = (activeLora.lokr ? "MOSS_LOKR=" : "MOSS_LORA=") + q(ovl.getPath()) + " ";
+            if (activeLora.lokr) lokrDir = ovl; else loraEnv = "MOSS_LORA=" + q(ovl.getPath()) + " ";
         }
+        final File RUN = lokrDir != null ? lokrDir : MR;   // the baked LoKr folder replaces the model folder for this run (log and output live there too)
         final boolean[] done = {false};
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
-                String s = su("echo $(grep -c '^te:' " + MR + "/moss.log) $(grep -c '^refiner:' " + MR + "/moss.log) $(grep -c '^step ' " + MR + "/moss.log) $(grep -c '^done' " + MR + "/moss.log) $(grep -c '^te: cached' " + MR + "/moss.log) $(grep -c '^step_start ' " + MR + "/moss.log)", true);
+                String s = su("echo $(grep -c '^te:' " + RUN + "/moss.log) $(grep -c '^refiner:' " + RUN + "/moss.log) $(grep -c '^step ' " + RUN + "/moss.log) $(grep -c '^done' " + RUN + "/moss.log) $(grep -c '^te: cached' " + RUN + "/moss.log) $(grep -c '^step_start ' " + RUN + "/moss.log)", true);
                 try {
                     String[] a = s.split("\\s+"); int te = Integer.parseInt(a[0]), rf = Integer.parseInt(a[1]), st = Integer.parseInt(a[2]), dn = Integer.parseInt(a[3]), tc = Integer.parseInt(a[4]), ss = Integer.parseInt(a[5]);
                     if (dn > 0) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
@@ -2698,9 +2700,9 @@ public class Main extends Base {
                 } catch (Exception ignored) { }
             }
         });
-        su("rm -f " + q(MR.getPath() + "/moss.log"), true);
+        su("rm -f " + q(RUN.getPath() + "/moss.log"), true);
         poll.start();
-        su("rm -f " + q(raw.getPath()) + "; " + loraEnv + (rsDmd ? "MODE=8 " : "") + "M=" + q(MR.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + mossSteps + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        su("rm -f " + q(raw.getPath()) + "; " + loraEnv + (rsDmd ? "MODE=8 " : "") + "M=" + q(RUN.getPath()) + " sh " + D + "/moss.sh " + q(ids.getPath()) + " " + w + " " + h + " " + seedS + " " + mossSteps + " " + q(raw.getPath()) + " < /dev/null >> " + D + "/gen.log 2>&1", false);
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
