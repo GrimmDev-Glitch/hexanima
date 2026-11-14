@@ -149,6 +149,8 @@
   - **Cabecera más corta:** el título con Historial y «⋯»; la línea de RAM (al tocarla abre «liberar memoria») y el botón «Cargar modelo» / «Liberar modelo», visibles bajo el selector de modelo.
   - **«Editar con Qwen» y «Antes/después»:** son botones de icono (✎, ⇆) junto a la semilla de la última imagen; una pulsación larga dice qué hacen.
   - **Dado de la semilla:** icono del tema en vez del emoji de colores.
+  - **Prompt negativo:** justo debajo de la descripción en los modelos que lo usan (Anima); el muestreo sigue dentro de «Imagen».
+  - **Título «LORA» igual en todas las familias:** el bloque es compartido por Anima y MOSS, y Qwen tiene el suyo en el mismo sitio. Revisado en el teléfono con Qwen, MOSS y Anima.
 
 ## MOSS en V73 (experimental)
 

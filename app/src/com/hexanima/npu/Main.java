@@ -77,7 +77,7 @@ public class Main extends Base {
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
     LinearLayout qwenLoraBox, qwenStrRow; TextView qwenLoraName, qwenStrVal; Button qwenLoraPick, qwenLoraDrop; SeekBar qwenStr; volatile boolean qwenFolding;
     Fold sampFold, loraFold, extFold;
-    LinearLayout sampBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
+    LinearLayout sampBox, negBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
     LinearLayout pageBar, imgTools;   // ‹ 2 / 3 › over a batch picture (swiping needs a quick fling; the buttons always work)
     TextView pageTag;   // "2 / 3" over a batch picture: the caption under a tall picture is off screen
     TextView clearX;   // small ✕ over the shown picture: back to the placeholder (the picture stays in the History)
@@ -215,7 +215,7 @@ public class Main extends Base {
         root.addView(state);
 
         qwenLoraBox = new LinearLayout(this); qwenLoraBox.setOrientation(LinearLayout.VERTICAL);
-        qwenLoraBox.addView(label(L.s("LORA DE QWEN", "QWEN LORA")));
+        qwenLoraBox.addView(label("LORA"));
         LinearLayout qlr = new LinearLayout(this); qlr.setGravity(Gravity.CENTER_VERTICAL);
         qwenLoraName = text(L.s("Ninguna", "None"), 13, TXT, false); qwenLoraName.setSingleLine(true); qwenLoraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         qwenLoraName.setBackground(bg(CARD, 14)); qwenLoraName.setPadding(dp(12), dp(11), dp(12), dp(11));
@@ -374,18 +374,19 @@ public class Main extends Base {
 
         // sampling, right under the prompt (Anima models; stored in the same prefs as before): negative prompt, steps, CFG, clip skip, sampler, scheduler
         sampBox = new LinearLayout(this); sampBox.setOrientation(LinearLayout.VERTICAL);
+        negBox = new LinearLayout(this); negBox.setOrientation(LinearLayout.VERTICAL);   // the negative prompt sits right under the prompt (models that use it)
         LinearLayout negHead = new LinearLayout(this); negHead.setGravity(Gravity.CENTER_VERTICAL);
         negHead.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ", "NEGATIVE PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
         TextView negDef = link(L.s("По умолчанию", "Default")); negDef.setOnClickListener(v -> negEdit.setText(Settings.turbo(this) ? "" : Settings.NEG_DEFAULT)); negHead.addView(negDef);
         TextView negClr = link(L.s("Очистить", "Clear")); negClr.setOnClickListener(v -> negEdit.setText("")); negHead.addView(negClr);
-        sampBox.addView(negHead);
+        negBox.addView(negHead);
         negEdit = field("lowres, worst quality, bad anatomy…");
         negEdit.setText(Settings.negative(this)); negEdit.setMinLines(2); negEdit.setGravity(Gravity.TOP); negEdit.setBackground(bg(CARD, 14));
         negEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         negEdit.addTextChangedListener(watch(s -> { prefs().edit().putString(Settings.key(this, "neg"), s).apply(); countTokens(); }));
         cleanWhileTyping(negEdit);
-        sampBox.addView(negEdit);
-        negTokText = text("", 12, DIM, false); negTokText.setGravity(Gravity.END); negTokText.setPadding(0, dp(4), dp(6), 0); sampBox.addView(negTokText);   // encoded separately from the prompt: its own count
+        negBox.addView(negEdit);
+        negTokText = text("", 12, DIM, false); negTokText.setGravity(Gravity.END); negTokText.setPadding(0, dp(4), dp(6), 0); negBox.addView(negTokText);   // encoded separately from the prompt: its own count
         sampFold = fold(sampBox, L.s("СЭМПЛИНГ", "SAMPLING"), "samp");
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL);
         stepsEdit = numField(nr, L.s("ШАГИ", "STEPS"), String.valueOf(Settings.steps(this)), false, s -> { try { int v = Integer.parseInt(s.trim()); if (v >= 1 && v <= 60) prefs().edit().putInt(Settings.key(this, "steps"), v).apply(); } catch (NumberFormatException e) { } });
@@ -488,7 +489,7 @@ public class Main extends Base {
 
         // MOSS-Image: user LoRA (picked file is checked at once; strength slider; folded with the turbo adapter on first use)
         loraBox = new LinearLayout(this); loraBox.setOrientation(LinearLayout.VERTICAL);
-        loraFold = fold(loraBox, L.s("ФАЙЛ LORA", "LORA FILE"), "lora");
+        loraFold = fold(loraBox, "LORA", "lora");
         LinearLayout lr = new LinearLayout(this); lr.setGravity(Gravity.CENTER_VERTICAL);
         loraName = text(L.s("не выбрана", "none"), 14, TXT, false); loraName.setSingleLine(true); loraName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         loraName.setBackground(bg(CARD, 16)); loraName.setPadding(dp(16), dp(12), dp(16), dp(12));
@@ -584,7 +585,7 @@ public class Main extends Base {
         root.removeView(ramTxt); if (loadBtn.getParent() != null) ((ViewGroup) loadBtn.getParent()).removeView(loadBtn);
         ramRow.addView(ramTxt, new LinearLayout.LayoutParams(0, -2, 1));
         LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, dp(40)); lbl.leftMargin = dp(8); ramRow.addView(loadBtn, lbl);   // load / free stays in sight under the model
-        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
+        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, negBox, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
         java.util.List<View> rest = new java.util.ArrayList<>();
         for (int i = 0; i < root.getChildCount(); i++) { View v = root.getChildAt(i); if (!java.util.Arrays.asList(order).contains(v)) rest.add(v); }
         root.removeAllViews(); for (View v : order) root.addView(v); for (View v : rest) root.addView(v);
@@ -1749,7 +1750,7 @@ public class Main extends Base {
         cutBtn.setText((cut >= 100 ? L.s("CFG: на всех шагах", "CFG: on every step") : L.f("CFG: первые %d %% шагов", "CFG: first %d %% of the steps", cut)) + "  ▾");
         cutBtn.setVisibility(Settings.cfgOn(this) ? View.VISIBLE : View.GONE);
         cfgEdit.setAlpha(Settings.turbo(this) ? .45f : 1f);   // still editable, but a turbo model is made for CFG 1
-        sampBox.setVisibility(!isMoss() && !isQwen() && !isMage() && !model.isEmpty() ? View.VISIBLE : View.GONE);
+        sampBox.setVisibility(!isMoss() && !isQwen() && !isMage() && !model.isEmpty() ? View.VISIBLE : View.GONE); negBox.setVisibility(sampBox.getVisibility());
         // MOSS runs its distilled 4 steps; only RealSkin with the DMD add-on installed gets a choice (4 rapid-moss / 8 DMD)
         if (mossStepsBox != null) mossStepsBox.setVisibility(isMoss() && Moss.isRs(model) && canUseRsDmd() ? View.VISIBLE : View.GONE);
         if (mossStepsBtn != null) {
