@@ -81,7 +81,7 @@ public class Main extends Base {
     LinearLayout pageBar, imgTools;   // ‹ 2 / 3 › over a batch picture (swiping needs a quick fling; the buttons always work)
     TextView pageTag;   // "2 / 3" over a batch picture: the caption under a tall picture is off screen
     TextView clearX;   // small ✕ over the shown picture: back to the placeholder (the picture stays in the History)
-    LinearLayout editOpts, editRow; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
+    LinearLayout editOpts, editRow, refsRow; Button editAddRef; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
     LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop, editMaskBtn, editMaskClear; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ProgressBar bar, ramBar;
     ImageView img;
@@ -529,6 +529,12 @@ public class Main extends Base {
         editDrop = button("✕", CARD, TXT); editDrop.setOnClickListener(v -> dropEdit());
         LinearLayout.LayoutParams ed2 = new LinearLayout.LayoutParams(dp(48), dp(44)); ed2.leftMargin = dp(8); er.addView(editDrop, ed2);
         editBox.addView(er);
+        // more reference pictures (Qwen): image 2 and 3 next to the photo, e.g. "the character of image 1 wearing the outfit of image 2"
+        refsRow = new LinearLayout(this); refsRow.setGravity(Gravity.CENTER_VERTICAL); refsRow.setPadding(0, dp(8), 0, 0);
+        editBox.addView(refsRow);
+        editAddRef = button(L.s("+ Otra imagen de referencia", "+ Another reference picture"), FIELD, ACC); editAddRef.setTextSize(12); editAddRef.setAllCaps(false);
+        editAddRef.setOnClickListener(v -> { if (busy) return; startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), 17); });
+        LinearLayout.LayoutParams arl = new LinearLayout.LayoutParams(-1, dp(38)); arl.topMargin = dp(6); editBox.addView(editAddRef, arl);
         LinearLayout em = new LinearLayout(this); em.setPadding(0, dp(6), 0, 0);
         editMaskBtn = button(L.s("✎ Область изменения", "✎ Area to edit"), FIELD, ACC); editMaskBtn.setTextSize(12);
         editMaskBtn.setOnClickListener(v -> paintQwenMask()); em.addView(editMaskBtn, new LinearLayout.LayoutParams(0, dp(38), 1));
@@ -709,6 +715,7 @@ public class Main extends Base {
         if (req == 12 && res == RESULT_OK && d != null && d.getData() != null) { importAd(d.getData()); return; }
         if (req == 13 && res == RESULT_OK && d != null && d.getData() != null) { importCheckpoint(d.getData()); return; }
         if (req == 10 && res == RESULT_OK && d != null && d.getData() != null) { importEdit(d.getData()); return; }
+        if (req == 17 && res == RESULT_OK && d != null && d.getData() != null) { final Uri u = d.getData(); ex2.submit(() -> { try { Qwen.importRef(getContentResolver(), u, getFilesDir()); } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Не удалось открыть фото: %s", "Cannot open the photo: %s", e.getMessage()), Toast.LENGTH_LONG).show()); } ui.post(this::refreshEdit); }); return; }
         if (req == 7 && res == RESULT_OK && d != null) {
             prompt.setText(d.getStringExtra("prompt")); seed.setText(d.getStringExtra("seed"));
             customOpen = false;
@@ -757,8 +764,27 @@ public class Main extends Base {
         editInfo.setText(b != null ? isMage() ? L.f("Foto %d×%d. Describe cómo transformarla. Mage reconstruye la imagen completa y puede cambiar detalles y composición.", "Photo %d×%d. Describe how to transform it. Mage redraws the whole image and may change details and composition.", b.getWidth(), b.getHeight()) : L.f("Фото %d×%d. Describe qué cambiar, por ejemplo «haz que el cielo parezca de atardecer». Pinta solo la zona que quieras editar.", "Photo %d×%d. The prompt says what to change, e.g. \"make the sky a sunset\". Paint only the area to edit.", b.getWidth(), b.getHeight()) + (masked ? L.s("\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.", "\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.") : L.s("\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.", "\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest."))
             : L.s("Выберите фото, чтобы изменить его по описанию. Без фото модель просто рисует картинку.", "Pick a photo to change it by the prompt. Without one the model just draws a picture."));
         editDrop.setVisibility(b != null ? View.VISIBLE : View.GONE);
-        editMaskBtn.setVisibility(b != null && !isMage() ? View.VISIBLE : View.GONE);
-        editMaskClear.setVisibility(b != null && masked && !isMage() ? View.VISIBLE : View.GONE);
+        final java.util.List<File> refs = b != null && isQwen() ? Qwen.extraRefs(getFilesDir()) : new ArrayList<>();
+        editMaskBtn.setVisibility(b != null && !isMage() && refs.isEmpty() ? View.VISIBLE : View.GONE);   // the painted area belongs to a single photo
+        editMaskClear.setVisibility(b != null && masked && !isMage() && refs.isEmpty() ? View.VISIBLE : View.GONE);
+        if (refsRow != null) {
+            refsRow.removeAllViews(); refsRow.setVisibility(refs.isEmpty() ? View.GONE : View.VISIBLE);
+            if (!refs.isEmpty()) { TextView one = text(L.s("1 = esta foto", "1 = this photo"), 12, DIM, false); one.setPadding(dp(2), 0, dp(8), 0); refsRow.addView(one); }
+            for (int i = 0; i < refs.size(); i++) {
+                final File rf = refs.get(i); FrameLayout fr = new FrameLayout(this);
+                ImageView iv = new ImageView(this); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setBackground(bg(CARD, 12)); iv.setClipToOutline(true);
+                Bitmap tb = BitmapFactory.decodeFile(rf.getPath()); if (tb != null) iv.setImageBitmap(Bitmap.createScaledBitmap(tb, 128, Math.max(1, 128 * tb.getHeight() / tb.getWidth()), true));
+                fr.addView(iv, new FrameLayout.LayoutParams(dp(56), dp(56)));
+                TextView num = text(String.valueOf(i + 2), 12, ON_ACC, true); num.setGravity(Gravity.CENTER); num.setBackground(bg(ACC, 9));
+                fr.addView(num, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.START));
+                TextView x = text("✕", 12, TXT, true); x.setGravity(Gravity.CENTER); x.setBackground(bg(FIELD, 9));
+                x.setOnClickListener(v -> { rf.delete(); java.util.List<File> left = Qwen.extraRefs(getFilesDir()); for (int k = 0; k < left.size(); k++) left.get(k).renameTo(Qwen.refFile(getFilesDir(), k + 2)); refreshEdit(); });
+                fr.addView(x, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.END));
+                LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(56), dp(56)); fl.rightMargin = dp(8); refsRow.addView(fr, fl);
+            }
+            if (!refs.isEmpty()) { TextView how = text(L.s("Escribe, por ejemplo: «el personaje de la imagen 1 con la ropa de la imagen 2».", "Write, for example: \"the character of image 1 wearing the outfit of image 2\"."), 12, DIM, false); refsRow.addView(how, new LinearLayout.LayoutParams(0, -2, 1)); }
+        }
+        if (editAddRef != null) editAddRef.setVisibility(b != null && isQwen() && 1 + refs.size() < Qwen.MAX_REFS && !masked ? View.VISIBLE : View.GONE);
         if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);
     }
     void showImg(boolean on) {
@@ -825,7 +851,7 @@ public class Main extends Base {
     void dropEdit() {
         if (busy) return;
         editBm = null; prefs().edit().putBoolean("qwen_edit_on", false).apply();
-        ex2.submit(() -> { Qwen.editSrc(getFilesDir()).delete(); Qwen.editMask(getFilesDir()).delete(); Models.deleteTree(Qwen.editDir(getFilesDir())); ui.post(this::refreshEdit); });
+        ex2.submit(() -> { Qwen.editSrc(getFilesDir()).delete(); Qwen.editMask(getFilesDir()).delete(); Qwen.clearRefs(getFilesDir()); Models.deleteTree(Qwen.editDir(getFilesDir())); ui.post(this::refreshEdit); });
         setRes(resW, resH);
     }
     void importEdit(Uri uri) {
@@ -2086,7 +2112,7 @@ public class Main extends Base {
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isQwen() || isMage() ? View.GONE : View.VISIBLE); refreshLora(); }
             if (qwenLoraBox != null) { qwenLoraBox.setVisibility(isQwen() ? View.VISIBLE : View.GONE); refreshQwenLora(); }
             if (editBox != null) editBox.setVisibility(isQwen() || isMage() ? View.VISIBLE : View.GONE);
-            if (editOpts != null) editOpts.setVisibility(editBm != null && isQwen() ? View.VISIBLE : View.GONE);
+            if (editOpts != null) refreshEdit();   // the family decides the mask, the options and the extra reference pictures
             refreshExtras();
             refreshSampling();
             state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMage() ? L.s("Mage-Flow en NPU · pesos desde almacenamiento", "Mage-Flow on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
@@ -2681,21 +2707,29 @@ public class Main extends Base {
     /** one Qwen-Image picture (or an edit of the picked photo): tokenise / prepare the photo here, everything else on the NPU through qwen.sh */
     File runOneQwen(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), Q = Qwen.dir(home), ids = new File(Q, "ids.i32"), raw = new File(Q, "img.f32");
-        final Bitmap src = editBm; final boolean edit = src != null;
-        final File maskFile = Qwen.editMask(home);
+        final java.util.List<File> refFiles = editBm != null ? Qwen.extraRefs(home) : new ArrayList<>();
+        Bitmap src0 = editBm;
+        if (src0 != null && !refFiles.isEmpty()) {   // several reference pictures: one collage, picture 1 on the left
+            java.util.List<Bitmap> pics = new ArrayList<>(); pics.add(src0);
+            for (File rf : refFiles) { Bitmap rb = BitmapFactory.decodeFile(rf.getPath()); if (rb != null) pics.add(rb); }
+            if (pics.size() > 1) { src0 = Qwen.collage(pics); for (int i = 1; i < pics.size(); i++) pics.get(i).recycle(); }
+        }
+        final Bitmap src = src0; final boolean edit = src != null; final int nRefs = edit ? 1 + refFiles.size() : 0;
+        final String prE = nRefs > 1 ? Qwen.refsPreamble(nRefs) + pr : pr;
+        final File maskFile = nRefs > 1 ? new File(home, "no_mask_with_refs") : Qwen.editMask(home);
         final Qwen.DetailCrop detail = edit && maskFile.isFile() ? Qwen.detailCrop(src, maskFile) : null;
         final Bitmap condition = detail != null ? detail.image : src;
-        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : edit && prefs().getBoolean("qwen_keep_aspect", true) ? Qwen.editSize(src.getWidth(), src.getHeight(), w, h) : new int[]{w, h};
+        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : edit && nRefs < 2 && prefs().getBoolean("qwen_keep_aspect", true) ? Qwen.editSize(src.getWidth(), src.getHeight(), w, h) : new int[]{w, h};
         final int runW = detailDims[0], runH = detailDims[1];
         setProgressUi(2, edit ? L.s("Подготовка фото…", "Preparing the photo…") : L.s("Токенизация…", "Tokenising…"), t0);
         int drop; String edArg = "";
         try {
             if (edit) {
                 boolean hifi = prefs().getBoolean("qwen_hifi", false);
-                Qwen.Edit e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
+                Qwen.Edit e = Qwen.prepareEdit(home, condition, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
                 int keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
                 if (hifi && keys > Qwen.MAX_KEYS) {   // too many tokens for one attention pass: fall back to the standard reference size
-                    e = Qwen.prepareEdit(home, condition, pr, runW, runH, ids, Qwen.COND_AREA); drop = e.drop;
+                    e = Qwen.prepareEdit(home, condition, prE, runW, runH, ids, Qwen.COND_AREA); drop = e.drop;
                     keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
                     ui.post(() -> Toast.makeText(this, L.s("Alta fidelidad no cabe con este tamaño: se usa la referencia normal", "High fidelity does not fit this size: using the standard reference"), Toast.LENGTH_LONG).show());
                 }
@@ -2733,6 +2767,7 @@ public class Main extends Base {
                 : Qwen.applyEditMask(png, src, maskFile, runW, runH);
             int finalW = edit && maskFile.isFile() ? src.getWidth() : runW, finalH = edit && maskFile.isFile() ? src.getHeight() : runH;
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", finalW).put("h", finalH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            if (nRefs > 1) meta.put("refs", nRefs);
             if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null).put("hifi", prefs().getBoolean("qwen_hifi", false));
             File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
             if (edit && out != null) {

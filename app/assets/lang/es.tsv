@@ -672,3 +672,6 @@ Free model	Liberar modelo
 Load model	Cargar modelo
 Library	Biblioteca
 A .safetensors file, checked when imported. Long-press a LoRA in the Library for its trigger words, category or to delete it.	Un archivo .safetensors, se revisa al importarlo. Mantén pulsada una LoRA en la Biblioteca para sus activadores, su categoría o para eliminarla.
++ Another reference picture	+ Otra imagen de referencia
+1 = this photo	1 = esta foto
+Write, for example: "the character of image 1 wearing the outfit of image 2".	Escribe, por ejemplo: «el personaje de la imagen 1 con la ropa de la imagen 2».

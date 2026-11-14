@@ -279,6 +279,39 @@ final class Qwen {
         return result;
     }
 
+    // ---- several reference pictures: picture 1 is the edit photo, pictures 2 and 3 are stored next to it; the model reads one collage
+    //      (left to right) and the prompt is told which picture is which, so "the character of image 1 with the outfit of image 2" works
+    static final int MAX_REFS = 3;
+    static File refFile(File home, int k) { return new File(dir(home), "edit_ref" + k + ".png"); }
+    static java.util.List<File> extraRefs(File home) { java.util.List<File> out = new java.util.ArrayList<>(); for (int k = 2; k <= MAX_REFS; k++) if (refFile(home, k).isFile()) out.add(refFile(home, k)); return out; }
+    static void clearRefs(File home) { for (int k = 2; k <= MAX_REFS; k++) refFile(home, k).delete(); }
+    /** stores a picked picture as the next free reference slot; null when all slots are used */
+    static File importRef(android.content.ContentResolver cr, Uri uri, File home) throws Exception {
+        int k = 2; while (k <= MAX_REFS && refFile(home, k).isFile()) k++; if (k > MAX_REFS) return null;
+        Bitmap bm = ImageDecoder.decodeBitmap(ImageDecoder.createSource(cr, uri), (d, info, src) -> {
+            int w = info.getSize().getWidth(), h = info.getSize().getHeight(), m = Math.max(w, h);
+            if (m > 1536) d.setTargetSize(Math.round(w * 1536f / m), Math.round(h * 1536f / m));
+            d.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+        });
+        File f = refFile(home, k); try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { bm.compress(Bitmap.CompressFormat.PNG, 100, o); } bm.recycle(); return f;
+    }
+    /** pictures side by side at one height (a thin grey gap between them), at most 3072 px wide */
+    static Bitmap collage(java.util.List<Bitmap> pics) {
+        int H = 1024, gap = 24; double wsum = 0; for (Bitmap b : pics) wsum += b.getWidth() * (double) H / b.getHeight();
+        double total = wsum + gap * (pics.size() - 1); if (total > 3072) { H = (int) Math.floor(H * 3072 / total); gap = Math.max(8, gap * H / 1024); }
+        int W = gap * (pics.size() - 1); int[] ws = new int[pics.size()];
+        for (int i = 0; i < pics.size(); i++) { ws[i] = Math.max(1, Math.round(pics.get(i).getWidth() * (float) H / pics.get(i).getHeight())); W += ws[i]; }
+        Bitmap out = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(out); c.drawColor(0xFF7F7F7F);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG); int x = 0;
+        for (int i = 0; i < pics.size(); i++) { c.drawBitmap(pics.get(i), null, new android.graphics.Rect(x, 0, x + ws[i], H), p); x += ws[i] + gap; }
+        return out;
+    }
+    /** English sentence put before the user's prompt so the model knows where each picture is in the collage */
+    static String refsPreamble(int n) {
+        String where = n == 2 ? "image 1 is on the left and image 2 is on the right" : "image 1 is on the left, image 2 in the middle and image 3 on the right";
+        return "The reference is a collage of " + (n == 2 ? "two" : "three") + " separate pictures: " + where + ". Use them only as references and create one single new picture that fills the whole frame, not a collage and not side by side: ";
+    }
+
     /** Store a generated bitmap as the next edit source, with the same size limit as a gallery import. */
     static Bitmap storePhoto(Bitmap input, File home) throws IOException {
         int w = input.getWidth(), h = input.getHeight(), m = Math.max(w, h);

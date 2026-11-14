@@ -154,6 +154,12 @@
   - **Panel de LoRA único:** Anima, MOSS y Qwen usan la misma tarjeta plegable «LORA», con el resumen nombre · intensidad. Dentro: nombre con ✕, información, intensidad (deslizador y número) y los mismos tres botones, «Biblioteca · Importar · Civitai». El overlay .zip de Qwen pasa a ser un enlace secundario. Las activadoras, la categoría y el borrado siguen en la pulsación larga dentro de la Biblioteca.
   - **Título «LORA» igual en todas las familias:** el bloque es compartido por Anima y MOSS, y Qwen tiene el suyo en el mismo sitio. Revisado en el teléfono con Qwen, MOSS y Anima.
 
+- 14 nov 2026 · **Varias imágenes de referencia (bloque 8, primera versión, en pruebas):**
+  - En «Editar una foto» de Qwen, «+ Otra imagen de referencia» añade hasta 3 imágenes. La foto es la 1 y las demás se numeran 2 y 3, con ✕ para quitarlas.
+  - Por ahora el modelo recibe un collage (de izquierda a derecha) y una frase previa que dice dónde está cada imagen. Con varias imágenes se usa el tamaño elegido y no hay área a cambiar.
+  - Prueba en el Poco F6 Pro, «el pescador de la imagen 1 sostiene al zorro de la imagen 2»: 125 s. El zorro aparece en brazos del pescador con buena fidelidad a los dos, pero la salida conserva la composición del collage (el zorro también queda a un lado), incluso pidiendo «una sola imagen, no un collage».
+  - Siguiente paso: referencias nativas en el runner, con cada imagen como bloque propio (su VAE, su ViT y su posición), como hace Qwen-Image-Edit con varias imágenes, para que el resultado sea una escena nueva.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
