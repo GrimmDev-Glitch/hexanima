@@ -4,7 +4,7 @@
 if [ "$1" = stop ]; then pidof libmagerun_mage.so >/dev/null && kill -9 $(pidof libmagerun_mage.so); exit 0; fi
 IDS=$1 DROP=$2 W=$3 H=$4 SEED=$5 STEPS=$6 OUT=$7 ED=$8
 ARCH=v69; SKEL=$BIN/libmageskel.so
-case "$(getprop ro.soc.model)" in SM8550) ARCH=v73; SKEL=$BIN/libmageskel_v73.so;; esac
+case "$(getprop ro.soc.model)" in SM8550) ARCH=v73; SKEL=$BIN/libqwenskel_v73.so;; esac   # Qwen V73 kernel: Qwen3-VL text mode 22 fails fast (Mage TE is 2560 wide) instead of the Anima kernel hanging; Mage stays hidden
 [ -f "$SKEL" ] || { echo "Missing Mage DSP kernel for $ARCH" >&2; exit 1; }
 mkdir -p "$M/dsp" "$M/cache"; cp -f "$SKEL" "$M/dsp/libmega_skel.so"
 rm -f "$M/mage.log" "$M/z.f32" "$M/prev.bin" "$OUT"

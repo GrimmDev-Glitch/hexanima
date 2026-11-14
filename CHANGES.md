@@ -128,6 +128,8 @@
   - La causa del cuadro marrón anterior quedó fuera del camino: el kernel no cambia. Se guarda solo una caché; se rehace al cambiar de LoKr, fuerza o modelo, y comprueba que haya 6 GB libres.
   - `deleteTree` ya no sigue enlaces simbólicos: al borrar la caché o una vista de variante se borra solo el enlace, nunca los archivos del modelo.
 
+- 14 nov 2026 · **Mage en V73:** el atasco en «Encoding text on NPU…» venía de usar el kernel de Anima, que no tiene los modos de Mage. Con el kernel de Qwen V73 el runner falla en unos 20 s con un error claro en el modo 22: el codificador de Mage mide 2560 de ancho y el modo está escrito para 4096. Mage sigue oculto; detalle y opciones en `docs/MAGE_V73_PORT.md`. El aviso «Error de generación» ya indica el registro de la familia en uso (moss.log, qwen.log, mage.log o animad.log), no siempre animad.log.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

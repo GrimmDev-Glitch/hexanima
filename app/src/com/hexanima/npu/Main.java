@@ -2456,7 +2456,7 @@ public class Main extends Base {
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 bar.setVisibility(View.GONE);
                 if (wasCancelled) status.setText(L.s("Остановлено", "Stopped"));
-                else if (!okAny) status.setText(L.s("Ошибка генерации (лог: files/anima/animad.log)", "Generation failed (log: files/anima/animad.log)"));
+                else if (!okAny) status.setText(L.f("Ошибка генерации (лог: %s)", "Generation failed (log: %s)", isMoss() ? "files/moss/moss.log" : isQwen() ? "files/qwen/qwen.log" : isMage() ? "files/mage/mage.log" : "files/anima/animad.log"));
                 else status.setText(L.f("Готово за %.1f с", "Done in %.1f s", sec));
                 if (hot) status.setText(status.getText() + "  ·  " + L.s("Пауза: телефон сильно нагрелся, дайте ему остыть", "Paused: the phone is very hot, let it cool down"));
                 setModelUi(loaded, false, "");
