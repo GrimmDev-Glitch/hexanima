@@ -23,7 +23,7 @@ import org.json.JSONObject;
 public class CivitaiActivity extends Base {
     static final String[] TYPES = {"LORA", "Checkpoint"}, SORTS = {"Most Downloaded", "Highest Rated", "Newest"};
     EditText query; LinearLayout results; TextView status; Button more;
-    String type = "LORA", base = Civitai.BASE, sort = "Most Downloaded", cursor = null; boolean nsfw = false;
+    String type = "LORA", base = Civitai.BASE, sort = "Most Downloaded", cursor = null, tag = ""; boolean nsfw = false;
     final ExecutorService net = Executors.newFixedThreadPool(3);
     final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     final AtomicBoolean cancel = new AtomicBoolean();
@@ -43,6 +43,9 @@ public class CivitaiActivity extends Base {
         LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(dp(52), dp(46)); gl.leftMargin = dp(8); sr.addView(go, gl);
         col.addView(sr);
         familyRow = chips(col, L.s("FAMILIA", "FAMILY"), new String[]{"Anima", "MOSS-Image", "Qwen 2.1"}, new String[]{Civitai.BASE, Civitai.MOSS_BASE, Civitai.QWEN_BASE}, base, v -> { base = v; search(true); });
+        String[] catNames = new String[Civitai.CATS.length + 1], catVals = new String[Civitai.CATS.length + 1]; catNames[0] = L.s("Todas", "All"); catVals[0] = "";
+        for (int i = 0; i < Civitai.CATS.length; i++) { catNames[i + 1] = Civitai.catName(Civitai.CATS[i]); catVals[i + 1] = Civitai.CATS[i]; }
+        chips(col, L.s("CATEGORÍA", "CATEGORY"), catNames, catVals, tag, v -> { tag = v; search(true); });
         typeRow = chips(col, L.s("ТИП", "TYPE"), new String[]{"LoRA", L.s("Модели", "Checkpoints")}, TYPES, type, v -> { type = v; search(true); });
         sortRow = chips(col, L.s("СОРТИРОВКА", "SORT"), new String[]{L.s("Популярные", "Most downloaded"), L.s("Лучшие", "Highest rated"), L.s("Новые", "Newest")}, SORTS, sort, v -> { sort = v; search(true); });
         LinearLayout nr = new LinearLayout(this); nr.setGravity(Gravity.CENTER_VERTICAL); nr.setPadding(dp(2), dp(10), 0, dp(4));
@@ -96,13 +99,13 @@ public class CivitaiActivity extends Base {
         if (fresh) { cursor = null; results.removeAllViews(); }
         final String q = query.getText().toString().trim(); final long[] link = Civitai.parseLink(q);
         status.setText(L.s("Ищу…", "Searching…")); more.setVisibility(View.GONE);
-        final String fType = type, fBase = base, fSort = sort, fCursor = cursor; final boolean fNsfw = nsfw;
+        final String fType = type, fBase = base, fSort = sort, fCursor = cursor, fTag = tag; final boolean fNsfw = nsfw;
         net.submit(() -> {
             try {
                 List<JSONObject> items = new ArrayList<>(); String next = null;
                 if (link != null) items.add(Civitai.model(this, link[0]));
                 else {
-                    JSONObject r = Civitai.search(this, q, fType, fBase, fSort, fNsfw, fCursor);
+                    JSONObject r = Civitai.search(this, q, fType, fBase, fSort, fNsfw, fCursor, fTag);
                     JSONArray a = r.optJSONArray("items"); if (a != null) for (int i = 0; i < a.length(); i++) items.add(a.getJSONObject(i));
                     JSONObject md = r.optJSONObject("metadata"); if (md != null && md.has("nextCursor")) next = md.optString("nextCursor", null);
                 }

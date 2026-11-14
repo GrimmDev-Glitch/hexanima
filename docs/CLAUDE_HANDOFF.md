@@ -49,6 +49,14 @@ Actualización del 14 nov 2026:
   - Pantallas: principal, Historial, visor, Modelos y catálogo, Civitai, Ajustes, Info y Bienvenida.
   - Diálogos: selectores de modelo, tamaño y LoRA; máscara; antes/después; plantillas; etiquetas; ZIP; renombrar; diálogos del sistema que salen con el aspecto por defecto de Android.
   - Elementos sueltos: interruptores, barras de progreso, toasts y menús emergentes.
+- **Al final, instalar la release en el teléfono del usuario sin perder sus datos.**
+  - **Situación:** el teléfono tiene solo `com.hexanima.npu.dev` (firma de desarrollo), con unos 55 GB de modelos en su almacenamiento privado (Anima 11 GB, MOSS 13 GB, Qwen 23 GB, Mage 8 GB). La release es `com.hexanima.npu`, firmada con otra clave: se instala como otra app y no puede leer los datos de Dev. Al 14 nov 2026 hay 68 GB libres.
+  - **Plan:**
+    1. Añadir a la app la importación de modelos desde una carpeta de preparación, `/sdcard/Android/data/com.hexanima.npu/files/import/`: mover archivo por archivo y verificar SHA-256 con los manifiestos, para no necesitar el doble de espacio.
+    2. Copiar los packs desde Dev con `adb shell "run-as com.hexanima.npu.dev cat … > /sdcard/Android/data/com.hexanima.npu/files/import/…"`, por familias.
+    3. Abrir la release, verificar una generación por familia y solo entonces, con permiso del usuario, desinstalar Dev.
+  - **Conservar también** el historial (`files/gallery`), los ajustes, los nombres propios (`model_names.json`, `lora_names.json`), las LoRAs y sus JSON, y las plantillas (preferencias).
+- **Lo último de todo, antes del release: limpiar qué va a GitHub.** Revisar qué vale la pena publicar. Por ejemplo, `docs/CLAUDE_HANDOFF.md` (este prompt) no debería quedar en el repositorio público. Lo mismo para scripts de prueba locales, notas de diagnóstico y archivos que solo sirven en este PC. Sacarlos con `git rm --cached` y añadirlos a `.gitignore`, conservándolos en disco.
 - **Mejorar fotos existentes con un escalador (pedido por el usuario):**
   - Empezar con **Real-ESRGAN General x4v3** (unos 3,5 MB, GPU/CPU): la opción más fácil de probar, como en LLM Hub.
   - Después, en NPU, comparar con **UltraSharp Realistic Upscaler** sobre la misma foto, ampliando ojos y manos, y quedarse con el que conserve mejor párpados, iris y dedos.

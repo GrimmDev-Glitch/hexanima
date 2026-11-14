@@ -967,6 +967,46 @@ public class Main extends Base {
         prompt.setText(p); prompt.setSelection(prompt.getText().length());
     }
 
+    // ---- LoRA categories (character, clothing, pose, style…): chips over a library, from the Civitai tags or the user's own choice ----
+    static boolean catMatch(String cat, String sel) { return sel.isEmpty() || (sel.equals("-") ? cat.isEmpty() : sel.equals(cat)); }
+    /** All + the categories present in this library (+ Uncategorised when some have none); hidden when nothing is categorised */
+    void fillCatChips(LinearLayout row, List<String> cats, String[] sel, Runnable apply) {
+        row.removeAllViews();
+        List<String> vals = new ArrayList<>(); vals.add("");
+        for (String c : Civitai.CATS) if (cats.contains(c)) vals.add(c);
+        if (cats.contains("")) vals.add("-");
+        ((View) row.getParent()).setVisibility(vals.size() > 2 || (vals.size() == 2 && !vals.get(1).equals("-")) ? View.VISIBLE : View.GONE);
+        for (String v : vals) {
+            int k = 0; for (String c : cats) if (catMatch(c, v)) k++;
+            Button b = button((v.isEmpty() ? L.s("Todas", "All") : Civitai.catName(v.equals("-") ? "" : v)) + "  " + k, v.equals(sel[0]) ? SEL : FIELD, v.equals(sel[0]) ? ACC : TXT); b.setTextSize(12);
+            b.setOnClickListener(x -> { sel[0] = v; fillCatChips(row, cats, sel, apply); apply.run(); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(34)); if (row.getChildCount() > 0) lp.leftMargin = dp(6); row.addView(b, lp);
+        }
+    }
+    /** long tap on a library LoRA: category, trigger words, and (Anima) delete */
+    void loraMenu(String title, File f, String words, Runnable delete, Runnable reopen) {
+        List<String> items = new ArrayList<>(); items.add(L.f("Categoría: %s…", "Category: %s…", Civitai.catName(Civitai.category(f)))); items.add(L.s("Copiar palabras activadoras", "Copy trigger words")); if (delete != null) items.add(L.s("Удалить", "Delete"));
+        builder().setTitle(title).setItems(items.toArray(new String[0]), (d, i) -> {
+            if (i == 0) {
+                String[] names = new String[Civitai.CATS.length + 1]; names[0] = Civitai.catName("");
+                for (int k = 0; k < Civitai.CATS.length; k++) names[k + 1] = Civitai.catName(Civitai.CATS[k]);
+                builder().setTitle(L.s("Categoría", "Category")).setItems(names, (d2, k) -> { Civitai.setCategory(f, k == 0 ? "none" : Civitai.CATS[k - 1]); reopen.run(); }).show();
+            } else if (i == 1) {
+                if (words.isEmpty()) { Toast.makeText(this, L.s("Sin palabras activadoras declaradas", "No trigger words declared"), Toast.LENGTH_SHORT).show(); return; }
+                android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText("LoRA triggers", words));
+            } else if (delete != null) delete.run();
+        }).show();
+    }
+    /** files downloaded before the tags were stored: one tap fetches their Civitai tags */
+    void addDetectLink(LinearLayout v, File dir, Runnable reopen) {
+        final List<File> todo = new ArrayList<>(); File[] fs = dir.listFiles();
+        if (fs != null) for (File f : fs) { if (!f.getName().endsWith(".safetensors")) continue; JSONObject m = Civitai.meta(f); if (m != null && !m.has("tags") && m.optLong("model_id") > 0) todo.add(f); }
+        if (todo.isEmpty()) return;
+        TextView l = link(L.f("Detectar categorías en Civitai (%d)", "Detect categories on Civitai (%d)", todo.size())); l.setPadding(dp(2), dp(8), 0, 0);
+        l.setOnClickListener(x -> { l.setText(L.s("Consultando Civitai…", "Asking Civitai…")); l.setEnabled(false); ex2.submit(() -> { for (File f : todo) Civitai.fillTags(this, f); ui.post(reopen); }); });
+        v.addView(l, v.getChildCount() - 1);
+    }
+
     /** LoRA library: [✓] name · trigger words · weight, a filter on top; long tap offers trigger copying or deletion; Civitai finds more */
     void loraLibrary() {
         if (isMoss()) { mossLoraLibrary(); return; }
@@ -977,6 +1017,9 @@ public class Main extends Base {
         final TextView cnt = text("", 12, ACC, true); th.addView(cnt); v.addView(th);
         final EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
+        final HorizontalScrollView catScroll = new HorizontalScrollView(this); catScroll.setHorizontalScrollBarEnabled(false); final LinearLayout catRow = new LinearLayout(this); catScroll.addView(catRow);
+        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, -2); crl.bottomMargin = dp(8); v.addView(catScroll, crl);
+        final List<String> rowCats = new ArrayList<>(); final String[] catSel = {""};
         ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
         v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
         LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
@@ -1021,9 +1064,9 @@ public class Main extends Base {
             });
             we.addTextChangedListener(watch(s -> { String w = s.trim().replace(',', '.'); try { Float.parseFloat(w); if (cb.isChecked()) loraSetWeight(n, w); } catch (NumberFormatException ignored) { } }));
             row.setOnClickListener(x -> cb.toggle());
-            row.setOnLongClickListener(x -> { builder().setNeutralButton(L.s("Copiar palabras activadoras", "Copy trigger words"), (dialog, which) -> { android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText("LoRA triggers", words)); }).setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(); return true; });
+            row.setOnLongClickListener(x -> { loraMenu(title, f, words, () -> builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(), () -> { dlg.dismiss(); loraLibrary(); }); return true; });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp);
-            rows.add(row); keys.add((n + " " + title + " " + words).toLowerCase(java.util.Locale.ROOT)); boxes.add(cb);
+            rows.add(row); keys.add((n + " " + title + " " + words).toLowerCase(java.util.Locale.ROOT)); boxes.add(cb); rowCats.add(Civitai.category(f));
         }
         count.run();
         // the folded blocks of the last LoRA set (megarun MEGA_LORA_CACHE): makes the next load as fast as without a LoRA, costs a model's size on storage
@@ -1036,7 +1079,10 @@ public class Main extends Base {
             cl.setOnClickListener(x -> { if (ks != null) for (File k : ks) { File[] fs = k.listFiles(); if (fs != null) for (File f : fs) f.delete(); k.delete(); } if (tes != null) for (File f : tes) f.delete(); cl.setVisibility(View.GONE); });
             v.addView(cl, v.getChildCount() - 1);
         }
-        filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
+        final Runnable applyF = () -> { String q = filter.getText().toString().trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility((q.isEmpty() || keys.get(i).contains(q)) && catMatch(rowCats.get(i), catSel[0]) ? View.VISIBLE : View.GONE); };
+        fillCatChips(catRow, rowCats, catSel, applyF);
+        filter.addTextChangedListener(watch(s -> applyF.run()));
+        addDetectLink(v, dir, () -> { dlg.dismiss(); loraLibrary(); });
     }
 
     /** MOSS has one A/B adapter slot: choose a validated file from the Civitai library, or clear the active slot. */
@@ -1047,6 +1093,9 @@ public class Main extends Base {
         v.addView(text(L.s("Выберите одну совместимую LoRA A/B. Сила настраивается в блоке LoRA.", "Choose one compatible A/B LoRA. Set its strength in the LoRA section."), 12, DIM, false));
         EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
+        final HorizontalScrollView catScroll = new HorizontalScrollView(this); catScroll.setHorizontalScrollBarEnabled(false); final LinearLayout catRow = new LinearLayout(this); catScroll.addView(catRow);
+        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, -2); crl.bottomMargin = dp(8); v.addView(catScroll, crl);
+        final List<String> rowCats = new ArrayList<>(); final String[] catSel = {""};
         ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
         v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
         LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
@@ -1097,10 +1146,13 @@ public class Main extends Base {
                 } catch (Exception e) { builder().setMessage(L.f("No se pudo seleccionar el LoRA: %s", "Could not select the LoRA: %s", e.getMessage())).setPositiveButton("OK", null).show(); }
             };
             row.setOnClickListener(select); choose.setOnClickListener(select);
-            row.setOnLongClickListener(z -> { builder().setMessage(name).setNeutralButton(L.s("Copiar palabras activadoras", "Copy trigger words"), (d, i) -> { if (!words.isEmpty()) { android.content.ClipboardManager cm = (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE); if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("MOSS triggers", words)); } }).setNegativeButton(L.s("Cerrar", "Close"), null).show(); return true; });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp); rows.add(row); keys.add((name + " " + words + " " + f.getName()).toLowerCase(java.util.Locale.ROOT));
+            row.setOnLongClickListener(z -> { loraMenu(name, f, words, null, () -> { dlg.dismiss(); mossLoraLibrary(); }); return true; });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp); rows.add(row); keys.add((name + " " + words + " " + f.getName()).toLowerCase(java.util.Locale.ROOT)); rowCats.add(Civitai.category(f));
         }
-        filter.addTextChangedListener(watch(s -> { String q = s.trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility(q.isEmpty() || keys.get(i).contains(q) ? View.VISIBLE : View.GONE); }));
+        final Runnable applyF = () -> { String q = filter.getText().toString().trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility((q.isEmpty() || keys.get(i).contains(q)) && catMatch(rowCats.get(i), catSel[0]) ? View.VISIBLE : View.GONE); };
+        fillCatChips(catRow, rowCats, catSel, applyF);
+        filter.addTextChangedListener(watch(s -> applyF.run()));
+        addDetectLink(v, dir, () -> { dlg.dismiss(); mossLoraLibrary(); });
     }
 
     // ---- tag palette and the (tag:weight) buttons ----

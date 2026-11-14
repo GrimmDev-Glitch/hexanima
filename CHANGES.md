@@ -38,6 +38,13 @@
   - **Ayuda «ⓘ»:** al tocar los títulos de Pasos, CFG, Sampler/Planificador y Seed se abre una explicación sencilla. El campo CFG se atenúa con un modelo o LoRA turbo; sigue siendo editable. Captura: `info-cfg-dimmed-turbo-20261114.png`. El diálogo usa el estilo por defecto de Android; queda para la revisión visual.
   - **Caché de codificaciones de texto (upstream 1.5.4): no se integró.** El `libsdcli.so` del APK no coincide con ninguno de los tres árboles de stable-diffusion.cpp que hay en WSL. `~/sd-src` tiene `ggml` vacío, y `~/sd-src-build` y `~/sd-src-compatible` son otras versiones. Recompilar arriesgaba el camino de Anima. En V73 el codificador de 512 tokens corre en la NPU, así que la caché solo ahorraría tiempo en el camino CPU (LoRAs con pesos de texto o prompts de más de 512 tokens). Antes de integrarla hay que reconstruir un árbol fuente reproducible del binario.
   - **Pendientes de upstream:** fondo de pantalla propio (pasa a la revisión visual) y catalog7/common512 para V69.
+- 14 nov 2026 · **Categorías de LoRAs:**
+  - Al descargar de Civitai se guardan las etiquetas del modelo en el JSON de cada LoRA.
+  - Las bibliotecas Anima y MOSS muestran chips «Todas · Personaje · Ropa · Pose · Estilo · Concepto · Fondo · Objeto · Sin categoría», con el número de LoRAs en cada una y combinables con el filtro de texto.
+  - La pulsación larga ofrece «Categoría…» para elegirla a mano (también en LoRAs importadas), copiar triggers y, en Anima, eliminar.
+  - Para LoRAs bajadas antes de este cambio, «Detectar categorías en Civitai (N)» consulta sus etiquetas una vez.
+  - El buscador de Civitai tiene un filtro de categoría (parámetro `tag`).
+  - Verificado en el teléfono: la detección clasificó las 5 LoRAs Anima (Personaje 1, Estilo 4) y el chip «Personaje» dejó solo MIRA. Captura: `lora-categories-20261114.png`.
 - Pendientes añadidos a la lista:
   - LoRAs de Qwen sin pasar por el PC: leer los Safetensors directamente o convertirlos en el teléfono.
   - Intensidad ajustable para las LoRAs de Qwen. Hoy cada overlay lleva la fuerza fija de la conversión, así que esto va ligado a convertir en el teléfono, como hace `lorafold` en MOSS.

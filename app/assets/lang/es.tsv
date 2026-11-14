@@ -589,3 +589,16 @@ The number that fixes the starting noise. The same seed with the same prompt, mo
 SAMPLER · SCHEDULER	SAMPLER · PLANIFICADOR
 Sampler and scheduler	Sampler y planificador
 The sampler decides how the noise is removed at each step and the scheduler how the steps are spread from heavy to light noise. Euler with Normal is the safest. Second-order samplers double the time. If unsure, keep the defaults (↺).	El sampler decide cómo se quita el ruido en cada paso y el planificador cómo se reparten los pasos entre mucho y poco ruido. Euler con «Normal» es lo más seguro. Los samplers de 2.º orden duplican el tiempo. Si no estás seguro, deja los valores por defecto (↺).
+Character	Personaje
+Clothing	Ropa
+Pose	Pose
+Style	Estilo
+Concept	Concepto
+Background	Fondo
+Object	Objeto
+Uncategorised	Sin categoría
+CATEGORY	CATEGORÍA
+Category	Categoría
+Category: %s…	Categoría: %s…
+Detect categories on Civitai (%d)	Detectar categorías en Civitai (%d)
+Asking Civitai…	Consultando Civitai…

@@ -52,8 +52,10 @@ final class Civitai {
     }
 
     /** search: type "LORA" / "Checkpoint", base "Anima" (BASE) or "" (all), sort "Most Downloaded" / "Highest Rated" / "Newest"; cursor from the previous page or null */
-    static JSONObject search(Context c, String query, String type, String base, String sort, boolean nsfw, String cursor) throws Exception {
+    static JSONObject search(Context c, String query, String type, String base, String sort, boolean nsfw, String cursor) throws Exception { return search(c, query, type, base, sort, nsfw, cursor, ""); }
+    static JSONObject search(Context c, String query, String type, String base, String sort, boolean nsfw, String cursor, String tag) throws Exception {
         StringBuilder u = new StringBuilder(API + "models?limit=20");
+        if (tag != null && !tag.isEmpty()) u.append("&tag=").append(URLEncoder.encode(tag, "UTF-8"));
         if (!query.isEmpty()) u.append("&query=").append(URLEncoder.encode(query, "UTF-8"));
         u.append("&types=").append(URLEncoder.encode(type, "UTF-8"));
         if (!base.isEmpty()) u.append("&baseModels=").append(URLEncoder.encode(base, "UTF-8"));
@@ -185,12 +187,41 @@ final class Civitai {
         try {
             JSONObject m = new JSONObject().put("name", model.optString("name")).put("version", version.optString("name")).put("model_id", model.optLong("id")).put("version_id", version.optLong("id"))
                 .put("type", model.optString("type")).put("base", version.optString("baseModel")).put("words", version.optJSONArray("trainedWords") != null ? version.optJSONArray("trainedWords") : new JSONArray())
-                .put("preview", preview(version)).put("nsfw", model.optBoolean("nsfw"));
+                .put("preview", preview(version)).put("nsfw", model.optBoolean("nsfw")).put("tags", model.optJSONArray("tags") != null ? model.optJSONArray("tags") : new JSONArray());
             try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); }
         } catch (Exception ignored) { }
     }
     static File metaFile(File f) { return new File(f.getParent(), f.getName().replaceAll("\\.safetensors$", "") + ".json"); }
     static JSONObject meta(File f) { try { return new JSONObject(Models.read(metaFile(f))); } catch (Exception e) { return null; } }
+    /** LoRA categories shown as filter chips: the Civitai tag that decides each one (the first match wins, in this order) */
+    static final String[] CATS = {"character", "clothing", "poses", "style", "concept", "background", "objects"};
+    static String catName(String c) {
+        switch (c) {
+            case "character": return L.s("Personaje", "Character"); case "clothing": return L.s("Ropa", "Clothing"); case "poses": return L.s("Pose", "Pose");
+            case "style": return L.s("Estilo", "Style"); case "concept": return L.s("Concepto", "Concept"); case "background": return L.s("Fondo", "Background");
+            case "objects": return L.s("Objeto", "Object"); default: return L.s("Sin categoría", "Uncategorised");
+        }
+    }
+    /** the category of a library file: the user's own choice ("cat" in its JSON), else from the Civitai tags; "" when unknown */
+    static String category(File f) {
+        JSONObject m = meta(f); if (m == null) return "";
+        String own = m.optString("cat", ""); if (!own.isEmpty()) return own;
+        JSONArray t = m.optJSONArray("tags"); if (t == null) return "";
+        java.util.Set<String> tags = new java.util.HashSet<>(); for (int i = 0; i < t.length(); i++) tags.add(t.optString(i).toLowerCase(Locale.ROOT).trim());
+        if (tags.contains("pose")) tags.add("poses"); if (tags.contains("clothes") || tags.contains("outfit")) tags.add("clothing"); if (tags.contains("characters") || tags.contains("anime character")) tags.add("character");
+        for (String c : CATS) if (tags.contains(c)) return c;
+        return "";
+    }
+    /** stores the user's category for a file (creates the JSON for a locally imported one) */
+    static void setCategory(File f, String cat) {
+        try { JSONObject m = meta(f); if (m == null) m = new JSONObject().put("name", f.getName().replaceAll("(?i)\\.safetensors$", "")); m.put("cat", cat == null ? "" : cat); try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); } } catch (Exception ignored) { }
+    }
+    /** a library file downloaded before tags were stored: fetch its model's tags once (network) */
+    static boolean fillTags(Context c, File f) {
+        JSONObject m = meta(f); if (m == null || m.has("tags") || m.optLong("model_id") <= 0) return false;
+        try { JSONObject model = model(c, m.optLong("model_id")); m.put("tags", model.optJSONArray("tags") != null ? model.optJSONArray("tags") : new JSONArray()); try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); } return true; }
+        catch (Exception e) { return false; }
+    }
     /** "word1, word2" of a library file (empty if unknown) */
     static String words(File f) {
         JSONObject m = meta(f); if (m == null) return ""; JSONArray w = m.optJSONArray("words"); if (w == null) return "";
