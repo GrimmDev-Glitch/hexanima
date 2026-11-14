@@ -311,7 +311,7 @@ public class Main extends Base {
         editRow.addView(editGeneratedBtn, new LinearLayout.LayoutParams(0, dp(40), 1));
         compareBtn = button(L.s("Antes/después", "Before/after"), CARD, ACC);
         compareBtn.setTextSize(11); compareBtn.setVisibility(View.GONE);
-        compareBtn.setOnClickListener(v -> showBeforeAfter());
+        compareBtn.setOnClickListener(v -> showBeforeAfter(lastFile));
         LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(0, dp(40), 1); cmpl.leftMargin = dp(6); editRow.addView(compareBtn, cmpl);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
@@ -774,61 +774,6 @@ public class Main extends Base {
         if (editRow != null) editRow.setVisibility(editGeneratedBtn.getVisibility() == View.VISIBLE || compareBtn.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
     }
 
-    /** the edit over the original: drag the divider to reveal one or the other; "Save side by side" stores a comparison picture */
-    class BeforeAfterView extends View {
-        final Bitmap before, after; float split = .5f; final android.graphics.Rect dst = new android.graphics.Rect(); final android.graphics.Rect bsrc;
-        final android.graphics.Paint fp = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG), lp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), tp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        BeforeAfterView(Bitmap before, Bitmap after) {
-            super(Main.this); this.before = before; this.after = after; bsrc = Qwen.coverRect(before, after.getWidth(), after.getHeight());
-            lp.setColor(0xFFFFFFFF); lp.setStrokeWidth(dp(2)); tp.setColor(0xFFFFFFFF); tp.setTextSize(dp(12)); tp.setTypeface(F_SEMI); tp.setShadowLayer(dp(2), 0, 0, 0xFF000000);
-        }
-        @Override protected void onDraw(android.graphics.Canvas c) {
-            float s = Math.min(getWidth() / (float) after.getWidth(), getHeight() / (float) after.getHeight());
-            int w = Math.round(after.getWidth() * s), h = Math.round(after.getHeight() * s), l = (getWidth() - w) / 2, t = (getHeight() - h) / 2;
-            dst.set(l, t, l + w, t + h); int sx = l + Math.round(w * split);
-            c.save(); c.clipRect(l, t, sx, t + h); c.drawBitmap(before, bsrc, dst, fp); c.restore();
-            c.save(); c.clipRect(sx, t, l + w, t + h); c.drawBitmap(after, null, dst, fp); c.restore();
-            c.drawLine(sx, t, sx, t + h, lp); c.drawCircle(sx, t + h / 2f, dp(10), lp);
-            tp.setTextAlign(android.graphics.Paint.Align.LEFT); c.drawText(L.s("Original", "Original"), l + dp(8), t + dp(18), tp);
-            tp.setTextAlign(android.graphics.Paint.Align.RIGHT); c.drawText(L.s("Editada", "Edited"), l + w - dp(8), t + dp(18), tp);
-        }
-        @Override public boolean onTouchEvent(MotionEvent e) {
-            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-            if (dst.width() > 0) { split = Math.max(0f, Math.min(1f, (e.getX() - dst.left) / dst.width())); invalidate(); }
-            return true;
-        }
-    }
-    void showBeforeAfter() {
-        final File after = lastFile; if (after == null) return;
-        final File bf = Qwen.beforeFile(getFilesDir(), after); if (!bf.isFile()) return;
-        final Bitmap a = BitmapFactory.decodeFile(after.getPath()), b = BitmapFactory.decodeFile(bf.getPath()); if (a == null || b == null) return;
-        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
-        v.addView(text(L.s("Antes / después", "Before / after"), 20, TXT, true));
-        TextView hint = text(L.s("Desliza el dedo sobre la imagen para mover la línea.", "Slide a finger over the picture to move the line."), 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
-        v.addView(new BeforeAfterView(b, a), new LinearLayout.LayoutParams(-1, dp(440)));
-        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
-        Button saveSbs = button(L.s("Guardar lado a lado", "Save side by side"), FIELD, ACC); bot.addView(saveSbs, new LinearLayout.LayoutParams(0, dp(44), 1));
-        Button close = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(44), 1); cl.leftMargin = dp(8); bot.addView(close, cl);
-        v.addView(bot);
-        final AlertDialog d = dialog(v);
-        d.setOnDismissListener(x -> { a.recycle(); b.recycle(); });
-        close.setOnClickListener(x -> d.dismiss());
-        saveSbs.setOnClickListener(x -> {
-            File f = saveSideBySide(b, a, Gallery.meta(after));
-            Toast.makeText(this, f != null ? L.s("Comparación guardada en el historial", "Comparison saved to the history") : L.s("No se pudo guardar la comparación", "Could not save the comparison"), Toast.LENGTH_SHORT).show();
-        });
-    }
-    /** stores "original | edit" in the history (the prompt and seed of the edit go into its metadata) */
-    File saveSideBySide(Bitmap before, Bitmap after, JSONObject editMeta) {
-        Bitmap g = Qwen.sideBySide(before, after, L.s("Original", "Original"), L.s("Editada", "Edited"), F_SEMI);
-        try {
-            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream(); g.compress(Bitmap.CompressFormat.PNG, 100, bytes);
-            JSONObject meta = new JSONObject().put("prompt", editMeta.optString("prompt")).put("seed", editMeta.optString("seed")).put("w", g.getWidth()).put("h", g.getHeight())
-                .put("model", editMeta.optString("model")).put("id", editMeta.optString("id")).put("compare", true);
-            return Gallery.save(this, PngMeta.embed(bytes.toByteArray(), meta), meta);
-        } catch (Exception e) { return null; }
-        finally { g.recycle(); }
-    }
     void useShownImageAsQwenSource() {
         if (busy) { Toast.makeText(this, L.s("Espera a que termine la tanda", "Wait for the batch to finish"), Toast.LENGTH_SHORT).show(); return; }
         final File chosen = lastFile;

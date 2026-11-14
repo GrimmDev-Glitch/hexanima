@@ -114,6 +114,7 @@ public class Viewer extends Base {
         ico("ic_download", () -> { try { Gallery.export(this, f); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
         ico("ic_share", () -> Gallery.share(this, f));
         favB = ico("ic_star_off", () -> { boolean nv = !Gallery.fav(f); Gallery.setFav(f, nv); setFav(favB, nv); changed = true; }); setFav(favB, Gallery.fav(f));
+        if (Qwen.beforeFile(getFilesDir(), f).isFile()) act("⇆", () -> showBeforeAfter(f));   // an edit: the original it came from is kept, slide between both
         if (reuse) ico("ic_refresh", () -> { setResult(RESULT_OK, new Intent().putExtra("prompt", m.optString("prompt")).putExtra("seed", m.optString("seed")).putExtra("w", m.optInt("w", 512)).putExtra("h", m.optInt("h", 768))); finish(); });
         ico("ic_delete", () -> { Gallery.trash(this, f); removeCurrent(); });
     }

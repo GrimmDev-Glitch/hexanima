@@ -137,6 +137,12 @@
 - 14 nov 2026 · **Civitai:** los modelos ya descargados muestran «✓ Descargada», y la ficha dice «✓ Esta versión ya está descargada». Se reconoce por el ID de Civitai guardado junto a cada descarga de Anima, MOSS y Qwen; las LoRAs importadas desde el almacenamiento no tienen ID y no se marcan. Se actualizaron los avisos de familia: Qwen se convierte en el teléfono y MOSS admite LoKr.
 - 14 nov 2026 · **Traducciones:** `tools/check_translations.py` comprueba que cada texto `L.s`/`L.f` tenga su línea en `es.tsv`, y `app/build.sh` falla si falta alguna. Se completaron los 11 textos de Mage que faltaban (523 textos en total).
 
+- 14 nov 2026 · **Revisión visual (segunda parte):**
+  - Ajustes, Info, Modelos e Historial ya seguían el tema.
+  - **Visor del Historial:** las ediciones de Qwen muestran un botón «⇆» que abre el deslizador antes/después con la foto original (y «Guardar lado a lado»), igual que en la pantalla principal.
+  - **Info al día:** pasos de MOSS y RealSkin, LoKr de MOSS, edición de Qwen (forma de la foto, área a cambiar, antes/después), una sección nueva «LoRAs de Qwen» y teléfonos probados.
+  - **Traducciones:** descripciones del catálogo que salían en inglés; «Todas las LoRA» en el filtro del Historial.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
