@@ -38,6 +38,17 @@ El manifiesto público de `ayanoby/hexanima-mage-packs` se comprobó de nuevo el
 4. Después de corregirlo, probar los cuatro pasos DiT, VAE, salida RGB y edición; registrar memoria, cancelación y temperaturas.
 5. Mantener Mage fuera del selector hasta completar la primera generación V73 y la edición de una foto. El pack puede permanecer descargado para diagnóstico.
 
+## Diagnóstico del 14 nov 2026 (bloque 6)
+
+- **Causa probable del atasco:** en V73, `mage.sh` copia `libmageskel_v73.so`, que en `tools/stage_jnilibs.sh` es el kernel de Anima (`hexagon/mega/out/libmega_skel_v73.so`). Ese kernel no tiene modos de codificador de texto, de visión ni de DiT de Mage. Un modo desconocido no devuelve error: cae en el camino genérico de bloque y trabaja con una geometría equivocada. Eso encaja con un runner que se queda en «Encoding text on NPU…» sin escribir `te:`.
+- **Qué pide el runner upstream:** `libmagerun.so` lee `te%02d.bin`, `tefinal.bin`, `vit/vit%02d.bin`, `vit/vit_glue.bin`, `dit/blk%02d.bin` y `vaepack.bin`, y su perfil nombra un `mode50(ln1 q k lnv v o ln2 fc1 fc2)`. Ninguna fuente pública de upstream (`hexagon/`, `moss/hexagon/`, `qwen/hexagon/`) implementa el modo 50: el kernel de Mage solo se publicó como binario V69 (`libmageskel.so`).
+- **V69 en V73 no es salida:** el commit ca1bbb6 midió que los kernels V69 corren en V73 pero cada resultado fp16 de HMX sale mal, porque V73 guarda a través de la unidad de conversión.
+- **Siguiente prueba barata:** usar `libqwenskel_v73.so` en `mage.sh`. Ese kernel tiene el modo 22 (capa de texto Qwen3-VL) y el 23 (visión Qwen3-VL). Si el codificador pasa `te:`, el problema queda acotado a los modos propios de Mage (modo 50 y DiT).
+- **Opciones:**
+  1. Pedir a upstream el código o una compilación V73 del kernel de Mage. Es lo más rápido.
+  2. Registrar las llamadas FastRPC del runner (modo y meta de cada `mega_block`) con una librería intermedia e implementar esos modos en el kernel V73. Son días de trabajo, con validación capa por capa.
+  3. Dejar Mage oculto: Qwen ya cubre la edición.
+
 ## Criterios para decidir si se integra
 
 - La salida del tokenizer, encoder y VAE coincide con el pipeline de referencia dentro de tolerancias acordadas.
