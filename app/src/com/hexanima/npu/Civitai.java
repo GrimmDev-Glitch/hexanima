@@ -150,11 +150,11 @@ final class Civitai {
         if (qwen(base)) {
             msg[0] = type.equalsIgnoreCase("Checkpoint")
                 ? L.s("Los checkpoints Qwen de Civitai aún no se pueden convertir a un pack V73.", "Qwen checkpoints from Civitai cannot yet be converted into a V73 pack.")
-                : L.s("Para Qwen V73 solo se guardan archivos Safetensors LoRA para convertirlos en el PC.", "For Qwen V73, only Safetensors LoRA files can be saved for conversion on the PC.");
+                : L.s("Para Qwen V73 solo se pueden descargar LoRAs en Safetensors; se convierten en el teléfono.", "For Qwen V73, only Safetensors LoRAs can be downloaded; they are converted on the phone.");
             return null;
         }
         msg[0] = moss(base)
-            ? L.s("Para MOSS solo se pueden usar LoRA A/B compatibles; los checkpoints y LoKR/LoHa aún no están admitidos.", "For MOSS, only compatible A/B LoRAs can be used; checkpoints and LoKR/LoHa are not supported yet.")
+            ? L.s("Para MOSS se pueden usar LoRAs A/B y LoKr compatibles; los checkpoints y LoHa aún no están admitidos.", "For MOSS, compatible A/B LoRAs and LoKr can be used; checkpoints and LoHa are not supported yet.")
             : L.f("База «%s» не поддерживается: только модели и LoRA для Anima, LoRA A/B для MOSS-Image или LoRA Qwen 2.1 для конвертации V73", "Base model \"%s\" is not supported: only Anima models/LoRAs, MOSS-Image A/B LoRAs or Qwen 2.1 LoRAs for V73 conversion can be used", base); return null;
     }
 
@@ -190,6 +190,16 @@ final class Civitai {
                 .put("preview", preview(version)).put("nsfw", model.optBoolean("nsfw")).put("tags", model.optJSONArray("tags") != null ? model.optJSONArray("tags") : new JSONArray());
             try (FileWriter w = new FileWriter(metaFile(f))) { w.write(m.toString()); }
         } catch (Exception ignored) { }
+    }
+    /** Civitai ids of what is already on the phone (the .json written next to each download): [0] model ids, [1] version ids */
+    static java.util.Set<Long>[] downloaded(File home) {
+        @SuppressWarnings("unchecked") java.util.Set<Long>[] out = new java.util.Set[]{new java.util.HashSet<Long>(), new java.util.HashSet<Long>()};
+        for (File d : new File[]{AnimaLora.dir(home), MossLora.civitaiDir(home), Qwen.srcDir(home), AnimaImport.importDir(home)}) {
+            File[] fs = d.listFiles(); if (fs == null) continue;
+            for (File f : fs) { if (!f.getName().endsWith(".json")) continue;
+                try { JSONObject m = new JSONObject(Models.read(f)); if (m.optLong("model_id") > 0) out[0].add(m.optLong("model_id")); if (m.optLong("version_id") > 0) out[1].add(m.optLong("version_id")); } catch (Exception ignored) { } }
+        }
+        return out;
     }
     static File metaFile(File f) { return new File(f.getParent(), f.getName().replaceAll("\\.safetensors$", "") + ".json"); }
     static JSONObject meta(File f) { try { return new JSONObject(Models.read(metaFile(f))); } catch (Exception e) { return null; } }

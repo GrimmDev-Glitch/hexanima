@@ -646,3 +646,8 @@ Analyzing photo…	Analizando la foto…
 Encoding text on NPU…	Codificando el texto en la NPU…
 Generation error: %s (log files/mage/mage.log)	Error de generación: %s (registro files/mage/mage.log)
 Photo %d×%d. Describe how to transform it. Mage redraws the whole image and may change details and composition.	Foto %d×%d. Describe cómo transformarla. Mage redibuja toda la imagen y puede cambiar detalles y composición.
+Long-press a LoRA for its trigger words or to delete it	Mantén pulsada una LoRA para sus activadores o para eliminarla
+✓ Downloaded	✓ Descargada
+✓ This version is already downloaded	✓ Esta versión ya está descargada
+For Qwen V73, only Safetensors LoRAs can be downloaded; they are converted on the phone.	Para Qwen V73 solo se pueden descargar LoRAs en Safetensors; se convierten en el teléfono.
+For MOSS, compatible A/B LoRAs and LoKr can be used; checkpoints and LoHa are not supported yet.	Para MOSS se pueden usar LoRAs A/B y LoKr compatibles; los checkpoints y LoHa aún no están admitidos.

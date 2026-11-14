@@ -113,6 +113,7 @@ public class CivitaiActivity extends Base {
                 ui.post(() -> {
                     if (isFinishing()) return;
                     cursor = nx; more.setVisibility(nx != null && link == null ? View.VISIBLE : View.GONE);
+                    have = Civitai.downloaded(getFilesDir());
                     for (JSONObject m : items) results.addView(card(m, link != null ? link[1] : 0));
                     status.setText(results.getChildCount() == 0 ? L.s("Ничего не найдено", "Nothing found") : L.f("Найдено: %d", "Found: %d", results.getChildCount()));
                     if (link != null && !items.isEmpty()) open(items.get(0), link[1]);
@@ -121,6 +122,7 @@ public class CivitaiActivity extends Base {
         });
     }
 
+    @SuppressWarnings("unchecked") java.util.Set<Long>[] have = new java.util.Set[]{new java.util.HashSet<Long>(), new java.util.HashSet<Long>()};
     View card(JSONObject m, long wantVersion) {
         LinearLayout c = new LinearLayout(this); c.setBackground(bg(CARD, 18)); c.setPadding(dp(10), dp(10), dp(12), dp(10)); c.setGravity(Gravity.CENTER_VERTICAL);
         ImageView iv = new ImageView(this); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setBackground(bg(FIELD, 12)); iv.setClipToOutline(true);
@@ -128,6 +130,7 @@ public class CivitaiActivity extends Base {
         LinearLayout t = new LinearLayout(this); t.setOrientation(LinearLayout.VERTICAL); t.setPadding(dp(12), 0, 0, 0);
         JSONArray vs = m.optJSONArray("modelVersions"); JSONObject v0 = vs != null && vs.length() > 0 ? vs.optJSONObject(0) : new JSONObject();
         TextView name = text(m.optString("name"), 15, TXT, true); name.setMaxLines(2); t.addView(name);
+        if (have[0].contains(m.optLong("id"))) { TextView ok = text(L.s("✓ Descargada", "✓ Downloaded"), 12, OK, true); t.addView(ok); }
         JSONObject cr = m.optJSONObject("creator"); JSONObject st = m.optJSONObject("stats");
         t.addView(text(m.optString("type") + " · " + v0.optString("baseModel") + (m.optBoolean("nsfw") ? " · 18+" : ""), 12, Civitai.anima(v0.optString("baseModel")) ? ACC : DIM, false));
         t.addView(text((cr != null ? cr.optString("username") : "") + (st != null ? "  ·  ⬇ " + st.optInt("downloadCount") : ""), 12, DIM, false));
@@ -156,7 +159,7 @@ public class CivitaiActivity extends Base {
         Runnable show = () -> {
             JSONObject x = vs.optJSONObject(cur[0]); JSONObject f = Civitai.mainFile(x);
             JSONArray w = x.optJSONArray("trainedWords"); List<String> ws = new ArrayList<>(); if (w != null) for (int i = 0; i < w.length(); i++) ws.add(w.optString(i));
-            info.setText(m.optString("type") + " · " + x.optString("baseModel") + (f != null ? String.format(Locale.US, " · %.0f MB", f.optDouble("sizeKB") / 1024) : "")
+            info.setText((have[1].contains(x.optLong("id")) ? L.s("✓ Esta versión ya está descargada", "✓ This version is already downloaded") + (char) 10 : "") + m.optString("type") + " · " + x.optString("baseModel") + (f != null ? String.format(Locale.US, " · %.0f MB", f.optDouble("sizeKB") / 1024) : "")
                 + (ws.isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + String.join(", ", ws)));
             pick.setText(names[cur[0]] + "  ▾");
         };

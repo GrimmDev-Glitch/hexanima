@@ -130,6 +130,13 @@
 
 - 14 nov 2026 · **Mage en V73:** el atasco en «Encoding text on NPU…» venía de usar el kernel de Anima, que no tiene los modos de Mage. Con el kernel de Qwen V73 el runner falla en unos 20 s con un error claro en el modo 22: el codificador de Mage mide 2560 de ancho y el modo está escrito para 4096. Mage sigue oculto; detalle y opciones en `docs/MAGE_V73_PORT.md`. El aviso «Error de generación» ya indica el registro de la familia en uso (moss.log, qwen.log, mage.log o animad.log), no siempre animad.log.
 
+- 14 nov 2026 · **Revisión visual (bloque 7, primera parte):**
+  - **Diálogos:** usan el tema de la app: tarjeta lavanda con el corchete violeta, Barlow en título, mensaje y listas, botones en minúscula con el color de acento (Cancelar atenuado) y separadores del tema. Antes salían con el cuadro gris de Android y los botones en MAYÚSCULAS.
+  - **Menú «⋯»:** desplegable propio con el mismo estilo (antes era el PopupMenu del sistema).
+  - **Selector de LoRA de Qwen:** mide lo que ocupan sus filas en vez de un bloque fijo con espacio vacío.
+- 14 nov 2026 · **Civitai:** los modelos ya descargados muestran «✓ Descargada», y la ficha dice «✓ Esta versión ya está descargada». Se reconoce por el ID de Civitai guardado junto a cada descarga de Anima, MOSS y Qwen; las LoRAs importadas desde el almacenamiento no tienen ID y no se marcan. Se actualizaron los avisos de familia: Qwen se convierte en el teléfono y MOSS admite LoKr.
+- 14 nov 2026 · **Traducciones:** `tools/check_translations.py` comprueba que cada texto `L.s`/`L.f` tenga su línea en `es.tsv`, y `app/build.sh` falla si falta alguna. Se completaron los 11 textos de Mage que faltaban (523 textos en total).
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

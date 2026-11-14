@@ -80,11 +80,53 @@ abstract class Base extends Activity {
         if (!(L.lang + d).equals(uiKey)) recreate();
     }
 
-    /** dialogs follow the theme */
-    AlertDialog.Builder builder() { return new AlertDialog.Builder(this, dark ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert); }
+    /** dialogs follow the theme: card background with the violet bracket, Barlow everywhere, accent buttons in sentence case (not Android's grey box with CAPITALS) */
+    AlertDialog.Builder builder() { return new Themed(this); }
+    class Themed extends AlertDialog.Builder {
+        Themed(Context c) { super(c, dark ? android.R.style.Theme_Material_Dialog_Alert : android.R.style.Theme_Material_Light_Dialog_Alert); }
+        @Override public AlertDialog create() { AlertDialog d = super.create(); d.setOnShowListener(x -> styleDialog(d)); return d; }
+    }
+    void styleDialog(AlertDialog d) {
+        android.view.Window w = d.getWindow(); if (w == null) return;
+        w.setBackgroundDrawable(new android.graphics.drawable.InsetDrawable(new BracketCard(CARD, 22), dp(14), dp(10), dp(14), dp(10)));
+        int tid = getResources().getIdentifier("alertTitle", "id", "android");
+        TextView title = tid != 0 ? w.findViewById(tid) : null; if (title != null) { title.setTypeface(F_SEMI); title.setTextColor(HEAD); title.setTextSize(20); }
+        TextView msg = w.findViewById(android.R.id.message); if (msg != null) { msg.setTypeface(F_REG); msg.setTextColor(TXT); msg.setTextSize(16); msg.setLineSpacing(0, 1.1f); }
+        int[] ids = {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL};
+        for (int id : ids) { Button bt = d.getButton(id); if (bt == null) continue; bt.setAllCaps(false); bt.setTypeface(F_SEMI); bt.setTextSize(16);
+            bt.setTextColor(id == AlertDialog.BUTTON_POSITIVE ? ACC : id == AlertDialog.BUTTON_NEGATIVE ? DIM : ACC3); }
+        android.widget.ListView lv = d.getListView();
+        if (lv != null) { lv.setDivider(new android.graphics.drawable.ColorDrawable(LINE)); lv.setDividerHeight(1);
+            lv.setOnHierarchyChangeListener(new android.view.ViewGroup.OnHierarchyChangeListener() {
+                public void onChildViewAdded(View parent, View child) { fontTree(child); }
+                public void onChildViewRemoved(View parent, View child) { } });
+            for (int i = 0; i < lv.getChildCount(); i++) fontTree(lv.getChildAt(i)); }
+        fontTree(w.getDecorView());
+    }
+    /** Barlow for every text view of a tree that still has the system face (keeps the weights we set ourselves) */
+    void fontTree(View v) {
+        if (v instanceof TextView) { TextView t = (TextView) v; Typeface f = t.getTypeface();
+            if (f != F_REG && f != F_MED && f != F_SEMI && f != F_BOLD) t.setTypeface(f != null && f.isBold() ? F_SEMI : F_REG);
+            if (v instanceof android.widget.CheckedTextView || t.getId() == android.R.id.text1) { t.setTextColor(TXT); t.setTextSize(17); } }
+        if (v instanceof android.view.ViewGroup) { android.view.ViewGroup g = (android.view.ViewGroup) v; for (int i = 0; i < g.getChildCount(); i++) fontTree(g.getChildAt(i)); }
+    }
+
+    /** themed drop-down menu under `anchor` (replaces PopupMenu, which keeps the system look): card with the bracket, Barlow rows */
+    void popup(View anchor, String[] items, java.util.function.IntConsumer pick) {
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(6), dp(8), dp(6), dp(8));
+        box.setBackground(new BracketCard(CARD, 18));
+        android.widget.PopupWindow pw = new android.widget.PopupWindow(box, dp(250), -2, true);
+        for (int i = 0; i < items.length; i++) {
+            final int k = i; TextView t = text(items[i], 16, TXT, false); t.setPadding(dp(16), dp(13), dp(16), dp(13));
+            android.util.TypedValue tv = new android.util.TypedValue(); getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true); t.setBackgroundResource(tv.resourceId);
+            t.setOnClickListener(x -> { pw.dismiss(); pick.accept(k); }); box.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        }
+        pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); pw.setElevation(dp(10)); pw.setOutsideTouchable(true);
+        pw.showAsDropDown(anchor, anchor.getWidth() - dp(250), dp(4));
+    }
 
     /** a dialog around a custom view, with the card background */
-    AlertDialog dialog(View v) { AlertDialog d = builder().setView(v).create(); d.show(); d.getWindow().setBackgroundDrawable(bg(CARD, 22)); return d; }
+    AlertDialog dialog(View v) { AlertDialog d = builder().setView(v).create(); d.show(); return d; }
 
     int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + .5f); }
 

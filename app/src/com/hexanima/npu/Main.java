@@ -1848,21 +1848,13 @@ public class Main extends Base {
 
     // ---- menu, dialogs ------------------------------------------------------------------------
     void menu(View anchor) {
-        PopupMenu pm = new PopupMenu(this, anchor);
-        pm.getMenu().add(0, 1, 0, L.s("Модели", "Models"));
-        pm.getMenu().add(0, 5, 1, "Civitai");
-        pm.getMenu().add(0, 2, 2, L.s("Открыть настройки из PNG", "Load settings from a PNG"));
-        pm.getMenu().add(0, 3, 3, L.s("Настройки", "Settings"));
-        pm.getMenu().add(0, 4, 4, L.s("Инфо", "Info"));
-        pm.setOnMenuItemClickListener(i -> {
-            if (i.getItemId() == 1) openModels();
-            else if (i.getItemId() == 5) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
-            else if (i.getItemId() == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
-            else if (i.getItemId() == 3) startActivity(new Intent(this, Settings.class));
+        popup(anchor, new String[]{L.s("Модели", "Models"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")}, k -> {
+            if (k == 0) openModels();
+            else if (k == 1) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
+            else if (k == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
+            else if (k == 3) startActivity(new Intent(this, Settings.class));
             else startActivity(new Intent(this, Info.class));
-            return true;
         });
-        pm.show();
     }
 
     void openModels() { if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; } startActivity(new Intent(this, ModelsActivity.class)); }
@@ -2232,7 +2224,7 @@ public class Main extends Base {
             for (File f : dirs) if (Qwen.validOverlay(f)) names.add(f.getName());
         }
         if (names.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle(L.s("LoRAs de Qwen", "Qwen LoRAs"))
+            builder().setTitle(L.s("LoRAs de Qwen", "Qwen LoRAs"))
                 .setMessage(L.s("No hay paquetes LoRA Qwen V73 instalados. Los archivos safetensors de Civitai deben convertirse a overlays compatibles antes de usarlos.", "No Qwen V73 LoRA packs are installed. Civitai safetensors must be converted to compatible overlays before use."))
                 .setPositiveButton("OK", null).show();
             return;
@@ -2241,10 +2233,10 @@ public class Main extends Base {
         ListView list = new ListView(this);
         list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, choices));
         LinearLayout picker = new LinearLayout(this); picker.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = text(L.s("Mantén pulsada una LoRA para copiar sus activadores o eliminarla", "Long-press a LoRA to copy its trigger words or delete it"), 13, DIM, false);
+        TextView hint = text(L.s("Mantén pulsada una LoRA para sus activadores o para eliminarla", "Long-press a LoRA for its trigger words or to delete it"), 13, DIM, false);
         hint.setPadding(dp(20), dp(8), dp(20), dp(4)); picker.addView(hint);
-        picker.addView(list, new LinearLayout.LayoutParams(-1, dp(360)));
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
+        picker.addView(list, new LinearLayout.LayoutParams(-1, Math.min(dp(420), (names.size() + 1) * dp(66))));   // as tall as its rows, not a fixed empty block
+        AlertDialog dialog = builder().setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
             .setView(picker).setNegativeButton(L.s("Cancelar", "Cancel"), null).create();
         list.setOnItemClickListener((parent, view, which, id) -> {
             SharedPreferences.Editor edit = prefs().edit();
