@@ -2,6 +2,8 @@
 
 ## Próximo (V73)
 
+## 1.7.1-v73 · 15 nov 2026
+
 - 15 nov 2026 · Correcciones → **Cara**: ya no está como «pronto». Usa la misma edición con máscara de Qwen que Manos: pintas la cara (o solo ojos o boca) y Qwen la redibuja limpia, con ojos simétricos y el mismo estilo, peinado, tono de piel y expresión; el resto queda igual. Texto opcional (p. ej. «ojos azules»). Probado en el Poco F6 Pro con una imagen de MiaoMiao RealSkin: 56,9 s, ojos nítidos y sonrisa natural sin costura. Se descartó convertir GFPGAN por ahora: solo sirve para caras realistas y Qwen ya cubre anime y fotos. Captura: `docs/screens/v73/40-corrections-face.jpg`.
 - 15 nov 2026 · Barra de la imagen: con los botones Ampliar y Correcciones la ✕ quedaba fuera de la pantalla. Ahora los botones se achican por igual cuando no caben y la ✕ siempre se ve.
 - 14 nov 2026 · Editor de máscara: un trazo empieza solo cuando un dedo se mueve más allá del umbral táctil (o al soltar, como punto). Si un segundo dedo llega después, ese trazo se deshace, así que pellizcar para hacer zoom ya no pinta. Nuevos botones Pincel | Borrador | Mover; en Mover, un dedo desplaza la imagen ampliada sin pintar. Probado en el Poco F6 Pro: trazo, punto con un toque, desplazamiento con zoom 1,6× sin marcar y borrador. El pellizco real con dos dedos no se puede simular por ADB y falta validarlo a mano. Capturas: `docs/screenshots/mask-move-mode-zoom-20261114.png` y `mask-eraser-20261114.png`.
