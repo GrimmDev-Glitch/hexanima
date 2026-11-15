@@ -208,8 +208,10 @@
   - Se activan cuando Qwen-Image está instalado. Se pinta la zona con el mismo editor de máscaras de la app (se movió `MaskView` / `showMaskEditor` de `Main` a `Base`, sin cambiar su funcionamiento) y se escribe el cambio (en Manos es opcional: por defecto pide manos naturales de cinco dedos).
   - `Qwen.runMaskedEdit`: el mismo camino que la edición de la pantalla principal (`prepareEdit`, `qwen.sh`, `png`, `applyDetailMask` / `applyEditMask`), sin tocar `Main.runOneQwen`. Solo cambia la zona pintada, con borde suave; semilla distinta en cada alternativa; Cancelar usa `qwen.sh stop`. Antes de empezar se libera el servidor de Anima para dejar la RAM a Qwen, y la pantalla principal lo muestra como no cargado.
   - Probado en el teléfono con la release de prueba firmada (instalada encima, sin perder datos): la chica de MOSS con la mano junto a la cara, Manos con la mano pintada: alternativa en 67,6 s. Con zoom 3× los dedos salen separados, con nudillos y uñas, frente a la mano borrosa del original; cara, pelo y lazo iguales. Se salió sin guardar para no añadir imágenes de prueba al historial.
-  - Arreglado: deslizar en vertical sobre el comparador movía la línea en vez de desplazar la pantalla; ahora la línea solo se mueve con un gesto horizontal (pendiente de comprobar en el teléfono con la próxima compilación).
+  - Arreglado: deslizar en vertical sobre el comparador movía la línea en vez de desplazar la pantalla; ahora la línea solo se mueve con un gesto horizontal (comprobado en el teléfono con 1.7.0-v73).
   - Cara sigue como «pronto»: necesita un restaurador facial convertido a la NPU.
+
+- 15 nov 2026 · **Release 1.7.0-v73 (versionCode 24):** firmada con la clave de 1.6.0, se instala encima sin perder datos (comprobado en el teléfono). Capturas nuevas en inglés: diálogo de ampliar, editor de zona de Correcciones, panel de Manos con la alternativa y la comparación con zoom 3× (Manos en 52,5 s). Se quitó la captura del menú del README y se añadió la de antes/después de Qwen. Notas: `docs/release-notes-1.7.0-v73.md`.
 
 ## MOSS en V73 (experimental)
 

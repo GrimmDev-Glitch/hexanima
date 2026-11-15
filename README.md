@@ -6,7 +6,7 @@ A fork of <a href="https://github.com/ayanoby/hexanima"><b>HexAnima by ayanoby</
   <img src="docs/screens/v73/01-generate.jpg" width="200" alt="A finished Anima picture">
   <img src="docs/screens/v73/02-preview.jpg" width="200" alt="Anima live preview while generating">
   <img src="docs/screens/v73/23-qwen-refs-result.jpg" width="200" alt="Qwen: two reference pictures in one new scene">
-  <img src="docs/screens/v73/26-before-after.jpg" width="200" alt="Qwen photo edit, before and after">
+  <img src="docs/screens/v73/38-corrections-zoom.jpg" width="200" alt="Corrections: a hand redrawn by Qwen, before and after">
 </p>
 
 > **All credit for HexAnima goes to [ayanoby](https://github.com/ayanoby).** The NPU kernels, the on-device server, the app and the NPU model packs are their work.
@@ -72,22 +72,28 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 <td align="center" width="33%"><img src="docs/screens/v73/22-qwen-refs.jpg" width="220"><br><b>Qwen: reference pictures</b></td>
 </tr>
 <tr>
+<td align="center" width="33%"><img src="docs/screens/v73/32-upscale-dialog.jpg" width="220"><br><b>Enlarge ×2 / ×4 on the NPU</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/36-corrections-mask.jpg" width="220"><br><b>Corrections: paint the area</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/38-corrections-zoom.jpg" width="220"><br><b>Corrections: hands redrawn, 3× zoom</b></td>
+</tr>
+<tr>
+<td align="center" width="33%"><img src="docs/screens/v73/37-corrections-hands-panel.jpg" width="220"><br><b>Corrections: alternatives, undo / redo</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/27-qwen-lora.jpg" width="220"><br><b>Qwen LoRA with strength</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/28-moss.jpg" width="220"><br><b>MOSS RealSkin</b></td>
-<td align="center" width="33%"><img src="docs/screens/v73/10-history.jpg" width="220"><br><b>History with filters</b></td>
 </tr>
 <tr>
+<td align="center" width="33%"><img src="docs/screens/v73/10-history.jpg" width="220"><br><b>History with filters</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/18-viewer.jpg" width="220"><br><b>Picture details</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/11-civitai.jpg" width="220"><br><b>Civitai</b></td>
-<td align="center" width="33%"><img src="docs/screens/v73/12-settings.jpg" width="220"><br><b>Settings</b></td>
 </tr>
 <tr>
+<td align="center" width="33%"><img src="docs/screens/v73/12-settings.jpg" width="220"><br><b>Settings</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/20-wallpaper.jpg" width="220"><br><b>Your own wallpaper</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/13-light.jpg" width="220"><br><b>Light theme</b></td>
-<td align="center" width="33%"><img src="docs/screens/v73/15-cool-mode.jpg" width="220"><br><b>Cool mode</b></td>
 </tr>
 <tr>
-<td align="center" width="33%"><img src="docs/screens/v73/31-menu.jpg" width="220"><br><b>Menu</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/15-cool-mode.jpg" width="220"><br><b>Cool mode</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/26-before-after.jpg" width="220"><br><b>Qwen edit: before / after slider</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/14b-info-credits.jpg" width="220"><br><b>Info · credits to ayanoby</b></td>
 </tr>
 </table>
