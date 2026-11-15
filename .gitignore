@@ -84,3 +84,6 @@ upscale/dl/
 upscale/out_*/
 upscale/*.dlc
 upscale/test/
+mage/hexagon/mega/out/
+mage/hexagon/mega/syslib/
+mage/magerun/out/
