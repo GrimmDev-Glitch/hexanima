@@ -49,14 +49,60 @@ Tokens por clip: 480×832 y 49 fotogramas son 13 fotogramas latentes de 15×26, 
 3. **RAM (12 GB):** DiT 3 GB + umT5 3,7 GB. Se cargan por turnos: primero el texto, que se libera, y luego el DiT. 5 s a 480p necesitaba unos 4,3 GB solo para las activaciones en el 8 Gen 3.
 4. **Convivencia en la app:** ggml-hexagon usa su propio kernel en el DSP (`libggml-htp-v73.so`), así que no choca con QNN 2.28 ni con nuestros kernels. Hay que confirmarlo.
 
-## Plan propuesto
+## Resultados del prototipo (ADB, `wan/`)
 
-1. **Prototipo por ADB (1–2 días):**
-   - Compilar `sd-cli` con `GGML_HEXAGON=ON` para v73 (NDK + SDK de Hexagon, que ya tenemos).
-   - Bajar el DiT Turbo Q4_0, umT5 Q4_K_M y TAEHV (~6,7 GB).
-   - Generar en el teléfono texto a vídeo e imagen a vídeo de 2 s a 512×320 y a 480p, y medir tiempo, RAM, temperatura y calidad.
-2. Si la calidad y el tiempo convencen: cambiar el motor de la pantalla **Vídeo** de LTX a Wan, con la misma pantalla, descarga desde Modelos y elección de calidad y duración. LTX quedaría como opción rápida o se retiraría.
-3. Después: más duración (5 s a 480p si cabe en memoria, o encadenar clips con el último fotograma), VAE completo para más nitidez y ampliar con Real-ESRGAN.
+`sd-cli` de stable-diffusion.cpp con ggml-hexagon (`wan/build_sd_hexagon.sh`), DiT Turbo Q4_0 en la NPU, umT5 Q4_K_M y TAEHV en el procesador (`wan/run_phone.sh`). umT5 solo codifica los tokens reales (`wan/patches/umt5_real_tokens.py`): 18 s en lugar de unos 130 s.
+
+| Prueba | Pasos | Muestreo | Decodificación | Total | Resultado |
+|---|---|---|---|---|---|
+| 512×320, 9 cuadros | 4 | — | — | — | Limpio, sigue el prompt |
+| 512×320, 25 cuadros (NPU) | 4 | 134 s | 16 s (TAE) | ~3 min | **Bloques** |
+| 512×320, 25 cuadros (CPU del teléfono) | 4 | 589 s | 16 s | ~10 min | Mismos bloques: no es la NPU |
+| 512×320, 25 cuadros (CPU de la PC) | 4 | 656 s | 15 s | ~11 min | Mismos bloques |
+| 512×320, 25 cuadros, VAE completo sin teselas | 4 | 131 s | — | — | Llenó la RAM (11 GB + 7,7 GB de swap) y Android reinició la interfaz |
+| **832×480, 25 cuadros (NPU)** | 4 | 294 s (73 s/paso) | 135 s (TAE en CPU) | 7,5 min | **Limpio**: los bloques venían de la resolución |
+| **Imagen a vídeo 832×480, 25 cuadros (NPU)** | 4 | 293 s | 144 s (TAE en CPU) | 7,7 min | Mantiene el personaje y **hace la acción del prompt** (levanta la mano y saluda). Textura algo "vidriosa" en pelo y fondo (TAE + Q4_0) |
+
+Conclusiones:
+- **Resolución:** TI2V-5B (y su Turbo) se entrenó a 1280×704; por debajo de 480p el vídeo largo se rompe. Solo usar 832×480 / 480×832 (y 1280×704 más adelante), con cuadros 4n+1.
+- **Velocidad:** 73 s por paso a 480p y 25 cuadros con ggml-hexagon. La decodificación con TAE en el procesador ya pesa casi la mitad.
+- **Memoria:** el VAE completo de Wan no cabe entero en el teléfono; hace falta decodificar por cuadros o por teselas.
+
+## Enfoque: solo imagen a vídeo + prompt
+
+La pantalla Vídeo partiría siempre de una imagen generada en la app y una descripción de lo que hace. Ventajas:
+- **Coherencia:** el primer cuadro es la imagen exacta, así que el personaje, el estilo y la composición no cambian; el modelo solo inventa el movimiento.
+- **Calidad:** la imagen ya viene de nuestros modelos (Anima, Qwen), con más detalle que lo que Wan dibujaría solo.
+- **Más simple:** un solo modo, siempre a 832×480 o 480×832 (recortando la imagen al centro), con el prompt sugerido a partir de las etiquetas de la imagen.
+- **Fluidez (fps):** Wan 2.2 genera a 24 fps. Para ahorrar tiempo se puede generar a 12 fps (la mitad de cuadros, la mitad de tiempo) y duplicar los cuadros con **interpolación RIFE**; la interpolación de RIFE ya se ha medido en tiempo real en Snapdragon (8 Gen 3, QNN).
+
+Modelos solo de imagen a vídeo revisados: Wan2.1-Fun-1.3B-InP (Apache 2.0, 16 fps, 4× más ligero que el 5B, pero sin destilado de pocos pasos confirmado y de menor calidad), Wan 2.2 I2V-A14B (demasiado grande para 12 GB a nuestra velocidad), MobileI2V y Mobile Video Diffusion (sin prompt). **Wan 2.2 TI2V-5B sigue siendo el mejor**: ya hace imagen a vídeo nativa con prompt. FastWan2.2-TI2V-5B (3 pasos) es una alternativa al Turbo para comparar.
+
+## Camino propuesto
+
+**Fase 1 — Calidad (prototipo por ADB)**
+1. Imagen a vídeo a 480p con `-i` (Wan TI2V fija el primer latente con la imagen).
+2. Decodificador: probar **Turbo-VAED para Wan 2.2** (hustvl, 2× más rápido que el VAE de Wan con igual o mejor PSNR) y los **grafos QNN v73 del VAE de PulseX** (decodifican cuadro a cuadro, w8a8, Apache 2.0). Elegir el más nítido que quepa en memoria; TAE queda como modo rápido.
+3. Cuantización: comparar Q4_0 con Q4_0 + `ffn.2` en Q8_0 (lo que usa PulseX) en nitidez y detalle.
+4. Movimiento y prompt: probar 4, 6 y 8 pasos y frases de acción; si Turbo se mueve poco, probar el modelo base con un LoRA de pocos pasos.
+
+**Fase 2 — Velocidad**
+5. Decodificador en la NPU (QNN, como LTX).
+6. Llevar los bloques del DiT de Wan a nuestros kernels mega de Hexagon (como Qwen y MOSS): estimado ~10× más rápido que ggml-hexagon. Es el paso grande y el que hace práctico 2–5 s.
+
+**Fase 3 — App**
+7. Cambiar el motor de la pantalla **Vídeo** de LTX a Wan: descarga desde Modelos (~7 GB), 480p horizontal o vertical, 1–5 s, imagen a vídeo, cancelar, MP4 a la galería.
+8. Duración larga encadenando clips con el último cuadro; "Ampliar el vídeo" a 720p/1080p con Real-ESRGAN.
+
+**Fase 4 — LoRAs**
+9. stable-diffusion.cpp aplica LoRAs de Wan al cargar. Hay pocos LoRAs para el 5B (la mayoría de Civitai son para 14B y no sirven); probar uno del 5B.
+
+## Otras vías revisadas
+
+- **MobileI2V** (hustvl, 0,27B, Apache 2.0): 17 cuadros a 720p en 2 s, pero en iPhone (Core ML), **sin prompt de texto** (solo imagen y cantidad de movimiento) y entrenado con caras y paisajes. No sirve para describir acciones.
+- **Mobile Video Diffusion** (Qualcomm, basado en SVD): tampoco usa texto.
+- **SnapGen-V, CineMobile, MobileWan, Neodragon:** artículos sin pesos utilizables.
+- **Wan 2.2 14B + LoRA de 4 pasos:** funciona en nightmare-mobile solo desde el 8 Gen 3 y no cabe bien en 12 GB a nuestra velocidad.
 
 ## Fuentes
 
@@ -66,3 +112,7 @@ Tokens por clip: 480×832 y 49 fotogramas son 13 fotogramas latentes de 15×26, 
 - nightmare-mobile: https://github.com/AbrahamPaulJ/nightmare-mobile (tiempos en el issue #23)
 - PulseX Wan: https://github.com/Erik-matrix/pulsex-wan y https://huggingface.co/Pexqman/Wan2.2-TI2V-5B-hexpack
 - MobileWan: https://qualcomm-ai-research.github.io/MobileWan/
+- Turbo-VAED: https://github.com/hustvl/Turbo-VAED (checkpoint Wan 2.2: https://huggingface.co/zy12123/Turbo-VAED-Wan2.2-TI2V-5B)
+- MobileI2V: https://github.com/hustvl/MobileI2V y https://arxiv.org/abs/2511.21475
+- GGUF de Wan 2.2 para la NPU (v81): https://huggingface.co/JiangFeng12/wan22-npu-models
+- Resolución 720p del checkpoint: https://huggingface.co/unsloth/Wan2.2-TI2V-5B-GGUF
