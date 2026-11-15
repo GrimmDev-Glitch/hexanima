@@ -754,3 +754,5 @@ Qwen-Image is not installed: get it from Models	Qwen-Image no está instalado: d
 The area is too large: paint a smaller one	La zona es demasiado grande: pinta un área menor
 Step %d/4	Paso %d/4
 Qwen did not finish (log files/qwen/qwen.log)	Qwen no terminó (registro files/qwen/qwen.log)
+Paint the face (or only the eyes or the mouth). Qwen redraws it clean, with symmetric eyes and the same style, hair and expression; the rest stays the same. Make a few alternatives and keep the best. Each one takes about a minute.	Pinta la cara (o solo los ojos o la boca). Qwen la redibuja limpia, con ojos simétricos y el mismo estilo, peinado y expresión; el resto queda igual. Genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.
+Optional: e.g. blue eyes, a soft smile	Opcional: p. ej. ojos azules, sonrisa suave

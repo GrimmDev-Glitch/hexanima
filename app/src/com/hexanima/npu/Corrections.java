@@ -43,7 +43,7 @@ public class Corrections extends Base {
     /** Corrections stopped the Anima server to give Qwen the NPU and the RAM: the main screen shows the model as unloaded */
     static volatile boolean freedAnima;
     File maskFile() { return new File(work, "mask.png"); }
-    boolean qwenCat(String c) { return c.equals("hands") || c.equals("details") || c.equals("other"); }
+    boolean qwenCat(String c) { return c.equals("face") || c.equals("hands") || c.equals("details") || c.equals("other"); }
     final Handler ui = new Handler(Looper.getMainLooper());
 
     static void open(Activity a, File f) { a.startActivityForResult(new Intent(a, Corrections.class).putExtra("f", f.getPath()), REQ); }
@@ -94,7 +94,7 @@ public class Corrections extends Base {
     // ---- categories: only the ones with a processor that ran on V73 can be used ----
     String[][] CATS() { return new String[][]{
         {"noise", L.s("Ruido", "Noise"), "1"}, {"resolution", L.s("Resolución", "Resolution"), "1"},
-        {"face", L.s("Cara", "Face"), "0"}, {"hands", L.s("Manos", "Hands"), q}, {"details", L.s("Detalles", "Details"), q}, {"other", L.s("Otros", "Other"), q}}; }
+        {"face", L.s("Cara", "Face"), q}, {"hands", L.s("Manos", "Hands"), q}, {"details", L.s("Detalles", "Details"), q}, {"other", L.s("Otros", "Other"), q}}; }
     String q = "0";   // "1" once Qwen-Image is installed (set in onCreate)
     void buildCats() {
         cats.removeAllViews();
@@ -135,7 +135,9 @@ public class Corrections extends Base {
             panel.addView(r);
         }
         else if (qwenCat(cat)) {
-            String hint = cat.equals("hands") ? L.s("Pinta las manos que quieras rehacer. Qwen redibuja solo esa zona y el resto queda igual. No garantiza una anatomía perfecta: genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.",
+            String hint = cat.equals("face") ? L.s("Pinta la cara (o solo los ojos o la boca). Qwen la redibuja limpia, con ojos simétricos y el mismo estilo, peinado y expresión; el resto queda igual. Genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.",
+                    "Paint the face (or only the eyes or the mouth). Qwen redraws it clean, with symmetric eyes and the same style, hair and expression; the rest stays the same. Make a few alternatives and keep the best. Each one takes about a minute.")
+                : cat.equals("hands") ? L.s("Pinta las manos que quieras rehacer. Qwen redibuja solo esa zona y el resto queda igual. No garantiza una anatomía perfecta: genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.",
                     "Paint the hands to redo. Qwen redraws only that area and the rest stays the same. Perfect anatomy is not guaranteed: make a few alternatives and keep the best. Each one takes about a minute.")
                 : cat.equals("details") ? L.s("Pinta una zona pequeña (ojos, joyas, un objeto) y escribe cómo debe quedar. Solo cambia lo pintado. Alrededor de un minuto por alternativa.",
                     "Paint a small area (eyes, jewellery, an object) and write how it should look. Only the painted area changes. About a minute per alternative.")
@@ -146,7 +148,7 @@ public class Corrections extends Base {
             Button paint = button(has ? L.s("✎ Zona pintada · editar", "✎ Painted area · edit") : L.s("✎ Pintar la zona", "✎ Paint the area"), has ? CARD : ACC, has ? ACC : ON_ACC);
             paint.setOnClickListener(v -> paintArea());
             LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(-1, dp(44)); pl.topMargin = dp(8); panel.addView(paint, pl);
-            final EditText pe = field(cat.equals("hands") ? L.s("Opcional: p. ej. manos naturales con cinco dedos", "Optional: e.g. natural hands with five fingers") : L.s("Qué debe cambiar en la zona pintada", "What should change in the painted area"));
+            final EditText pe = field(cat.equals("face") ? L.s("Opcional: p. ej. ojos azules, sonrisa suave", "Optional: e.g. blue eyes, a soft smile") : cat.equals("hands") ? L.s("Opcional: p. ej. manos naturales con cinco dedos", "Optional: e.g. natural hands with five fingers") : L.s("Qué debe cambiar en la zona pintada", "What should change in the painted area"));
             pe.setText(qPrompt); pe.setTextSize(14); pe.setMinLines(2); pe.addTextChangedListener(new android.text.TextWatcher() {
                 public void beforeTextChanged(CharSequence a, int b, int c, int d) { } public void onTextChanged(CharSequence a, int b, int c, int d) { }
                 public void afterTextChanged(android.text.Editable e) { qPrompt = e.toString(); } });
@@ -187,7 +189,8 @@ public class Corrections extends Base {
                 Upscaler.Progress pr = (k, n) -> ui.post(() -> { bar.setProgress(1000 * k / n); tv.setText(L.f("Trozo %d de %d", "Tile %d of %d", k, n)); });
                 Bitmap out; JSONObject step = new JSONObject().put("type", c);
                 if (qwenCat(c)) {
-                    String prompt = c.equals("hands") ? (qp.isEmpty() ? "Fix the hands: natural, well-formed hands with five fingers each, correct anatomy. Keep everything else exactly the same." : qp + ". Keep everything else exactly the same.")
+                    String prompt = c.equals("face") ? "Fix the face: a clean, well-drawn face with symmetric, detailed eyes and natural proportions, keeping the same art style, hair, skin tone and expression" + (qp.isEmpty() ? "" : ", " + qp) + ". Keep everything else exactly the same."
+                        : c.equals("hands") ? (qp.isEmpty() ? "Fix the hands: natural, well-formed hands with five fingers each, correct anatomy. Keep everything else exactly the same." : qp + ". Keep everything else exactly the same.")
                         : qp + ". Keep everything outside this change exactly the same.";
                     File ad = new File(getFilesDir(), "anima");
                     new ProcessBuilder("/system/bin/sh", "-c", "sh " + ad + "/anima.sh stop < /dev/null > /dev/null 2>&1").directory(ad).start().waitFor();   // Qwen needs the RAM
@@ -237,7 +240,7 @@ public class Corrections extends Base {
         String t = s.optString("type");
         String pr = s.optString("prompt"); if (pr.length() > 28) pr = pr.substring(0, 28) + "…";
         String d = t.equals("noise") ? L.f("Ruido %d %%", "Noise %d %%", Math.round(s.optDouble("strength") * 100)) : t.equals("resolution") ? L.f("Resolución ×%d", "Resolution ×%d", s.optInt("factor"))
-            : (t.equals("hands") ? L.s("Manos", "Hands") : t.equals("details") ? L.s("Detalles", "Details") : L.s("Otros", "Other")) + (pr.isEmpty() ? "" : " «" + pr + "»");
+            : (t.equals("face") ? L.s("Cara", "Face") : t.equals("hands") ? L.s("Manos", "Hands") : t.equals("details") ? L.s("Detalles", "Details") : L.s("Otros", "Other")) + (pr.isEmpty() ? "" : " «" + pr + "»");
         return s.has("sec") ? d + L.f(" · %.1f s", " · %.1f s", s.optDouble("sec")) : d;
     }
     static int[] size(File f) { BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true; BitmapFactory.decodeFile(f.getPath(), o); return new int[]{o.outWidth, o.outHeight}; }
