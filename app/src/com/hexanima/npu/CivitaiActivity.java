@@ -95,8 +95,10 @@ public class CivitaiActivity extends Base {
             .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
     }
 
+    int searchGen;   // a newer search makes the answers of older ones stale (two searches in flight used to add their cards twice)
     void search(boolean fresh) {
-        if (fresh) { cursor = null; results.removeAllViews(); }
+        if (fresh) { cursor = null; results.removeAllViews(); searchGen++; }
+        final int gen = searchGen;
         final String q = query.getText().toString().trim(); final long[] link = Civitai.parseLink(q);
         status.setText(L.s("Ищу…", "Searching…")); more.setVisibility(View.GONE);
         final String fType = type, fBase = base, fSort = sort, fCursor = cursor, fTag = tag; final boolean fNsfw = nsfw;
@@ -111,14 +113,15 @@ public class CivitaiActivity extends Base {
                 }
                 final String nx = next;
                 ui.post(() -> {
-                    if (isFinishing()) return;
+                    if (isFinishing() || gen != searchGen) return;
+                    if (fresh) results.removeAllViews();
                     cursor = nx; more.setVisibility(nx != null && link == null ? View.VISIBLE : View.GONE);
                     have = Civitai.downloaded(getFilesDir());
                     for (JSONObject m : items) results.addView(card(m, link != null ? link[1] : 0));
                     status.setText(results.getChildCount() == 0 ? L.s("Ничего не найдено", "Nothing found") : L.f("Найдено: %d", "Found: %d", results.getChildCount()));
                     if (link != null && !items.isEmpty()) open(items.get(0), link[1]);
                 });
-            } catch (Exception e) { ui.post(() -> status.setText(L.f("Ошибка: %s", "Error: %s", e.getMessage()))); }
+            } catch (Exception e) { ui.post(() -> { if (gen == searchGen) status.setText(L.f("Ошибка: %s", "Error: %s", e.getMessage())); }); }
         });
     }
 

@@ -180,6 +180,13 @@
   - Fuera de la migración: Mage (8,5 GB, no funciona en V73; sigue en Dev hasta desinstalarlo), un `.part` de descarga a medias y restos de pruebas de Qwen (`diag`, `gtest`, `vae_v73.backup` de 1,2 GB, `test_prompt.ids`).
   - Comprobado en la release: abre con los ajustes y el modelo de antes, todos los modelos en el selector, y genera con Qwen (44,3 s), MOSS RealSkin (45,0 s) y Anima LH3D (12,2 s).
 
+- 14 nov 2026 · **Capturas nuevas para el README (interfaz actual, en inglés):**
+  - 27 capturas en `docs/screens/v73/` con el tema de la chica anime de pelo blanco y cerezos: resultado, vista previa, selector y catálogo, Bienvenida, prompt con negativo y muestreo, etiquetas, biblioteca de LoRA con categorías, extras, máscara, cuadrícula, Qwen (editar una foto, referencias, resultado con dos referencias, invierno, antes/después, LoRA con fuerza), MOSS RealSkin, Historial filtrado, visor, Civitai, Ajustes, fondo propio, tema claro, modo fresco, menú y créditos. Se retiraron `14-info`, `16-lora-text-encoder` y `17-lora-cache` (interfaz vieja).
+  - El README se reescribió en su parte de arriba: tres familias con tiempos, edición de fotos y referencias de Qwen, panel único de LoRA, Civitai con ✓, fondo propio; los requisitos dejan fuera el diario de pruebas.
+  - No se publicaron Plantillas (muestra los prompts guardados y recientes del usuario) ni la captura del control de LoRA de MOSS (texto en español dentro de la interfaz en inglés).
+  - Errores encontrados: la búsqueda de Civitai podía mostrar los resultados dos veces cuando dos búsquedas se cruzaban (corregido: las respuestas viejas se ignoran; falta verlo en el teléfono con la próxima compilación). El texto «Compatible: rango…» de las LoRAs de MOSS se guarda al importar en el idioma de ese momento y no cambia con el idioma (pendiente).
+  - Al terminar se dejó la app como estaba: español, Qwen seleccionado, sin foto para editar ni fondo, «Mostrar +18» activado y «Guardar comparación» desactivado.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
