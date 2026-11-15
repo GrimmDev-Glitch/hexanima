@@ -280,12 +280,23 @@ public class Main extends Base {
         });
         img.setOnTouchListener((v, e) -> batchGestures.onTouchEvent(e));
         // toolbar between the model state and the picture: ‹ 1/3 › on the left (batches only), favourite / download / share / ✕ on the right
-        imgTools = new LinearLayout(this); imgTools.setGravity(Gravity.CENTER_VERTICAL); imgTools.setPadding(0, 0, 0, dp(8)); imgTools.setVisibility(View.GONE);
+        imgTools = new LinearLayout(this) {   // the icon buttons shrink together when they do not fit, so the ✕ at the end never leaves the screen
+            @Override protected void onMeasure(int ws, int hs) {
+                int avail = MeasureSpec.getSize(ws) - getPaddingLeft() - getPaddingRight(), n = 0, fixed = 0;
+                for (int i = 0; i < getChildCount(); i++) { View c = getChildAt(i); if (c.getVisibility() == View.GONE) continue;
+                    if (c == pageBar) { c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED), MeasureSpec.makeMeasureSpec(dp(40), MeasureSpec.EXACTLY)); fixed += c.getMeasuredWidth(); }
+                    else if (c instanceof ImageButton || c == clearX) n++; }
+                if (n > 0) { int w = Math.max(dp(30), Math.min(dp(46), (avail - fixed - n * dp(6)) / n)), gap = Math.max(dp(3), Math.min(dp(6), (avail - fixed - n * w) / n));
+                    for (int i = 0; i < getChildCount(); i++) { View c = getChildAt(i); if (c instanceof ImageButton || c == clearX) { LayoutParams lp = (LayoutParams) c.getLayoutParams(); lp.width = w; lp.leftMargin = gap; } } }
+                super.onMeasure(ws, hs);
+            }
+        };
+        imgTools.setGravity(Gravity.CENTER_VERTICAL); imgTools.setPadding(0, 0, 0, dp(8)); imgTools.setVisibility(View.GONE);
         pageBar = new LinearLayout(this); pageBar.setGravity(Gravity.CENTER_VERTICAL); pageBar.setBackground(bg(CARD, 14)); pageBar.setVisibility(View.GONE);
         TextView prevB = text("‹", 22, ACC, true), nextB = text("›", 22, ACC, true);
-        for (TextView pb : new TextView[]{prevB, nextB}) { pb.setGravity(Gravity.CENTER); pb.setPadding(dp(14), 0, dp(14), dp(3)); }
+        for (TextView pb : new TextView[]{prevB, nextB}) { pb.setGravity(Gravity.CENTER); pb.setPadding(dp(11), 0, dp(11), dp(3)); }
         prevB.setOnClickListener(v -> showBatchPage(batchDisplayIndex - 1)); nextB.setOnClickListener(v -> showBatchPage(batchDisplayIndex + 1));
-        pageTag = text("", 13, TXT, true); pageTag.setGravity(Gravity.CENTER); pageTag.setMinWidth(dp(92)); pageTag.setSingleLine(true);   // fixed width: the arrows stay put while the text changes
+        pageTag = text("", 13, TXT, true); pageTag.setGravity(Gravity.CENTER); pageTag.setMinWidth(dp(64)); pageTag.setSingleLine(true);   // fixed width: the arrows stay put while the text changes
         pageBar.addView(prevB, new LinearLayout.LayoutParams(-2, dp(40))); pageBar.addView(pageTag); pageBar.addView(nextB, new LinearLayout.LayoutParams(-2, dp(40)));
         imgTools.addView(pageBar, new LinearLayout.LayoutParams(-2, dp(40)));
         imgTools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
