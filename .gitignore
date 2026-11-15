@@ -78,3 +78,8 @@ mage/native/*.so
 # local notes for the assistant (not published)
 docs/CLAUDE_HANDOFF.md
 docs/CLAUDE_IMAGE_CORRECTIONS_PROMPT.md
+
+# downloaded upscaler model (Qualcomm AI Hub zip) and build outputs
+upscale/dl/
+upscale/out_*/
+upscale/*.dlc

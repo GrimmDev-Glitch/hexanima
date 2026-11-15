@@ -189,6 +189,13 @@
 
 - 14 nov 2026 · **Release 1.6.0-v73 (versionCode 23):** APK firmado con la clave nueva (SHA-256 del certificado `16200ab6…76af`), no depurable; instalado encima de la compilación de migración en el teléfono sin perder datos (modelos, galería y ajustes siguen ahí). Las releases 1.3.0–1.5.2-v73 se firmaron con otra clave (`20659f30…e283`) que no está en este PC, así que 1.6.0 no se instala encima de ellas: las notas lo dicen al principio (guardar imágenes con Historial → ZIP, desinstalar, instalar y volver a bajar los modelos). Notas: `docs/release-notes-1.6.0-v73.md`. Publicada en GitHub (https://github.com/GrimmDev-Glitch/hexanima/releases/tag/v1.6.0-v73) como última versión, con `HexAnima-1.6.0-v73.apk` (96 469 778 bytes; GitHub informa el mismo SHA-256 `850a97fa…575f`). Se publicó con GitHub CLI 2.104.0, instalado con winget y autorizado por el usuario. `docs/CLAUDE_HANDOFF.md` deja de publicarse (sigue en local).
 
+- 15 nov 2026 · **Escalador en la NPU (Real-ESRGAN General x4v3):**
+  - Modelo de Qualcomm AI Hub (ONNX float, licencia BSD-3, 1,21 M parámetros) convertido con `upscale/build.sh` a contextos fp16 de 256×256 → 1024×1024 para V69, V73 y V79 (`libesrgan_<arch>.so`, unos 3 MB cada uno, copiados por `tools/stage_jnilibs.sh`). Lo ejecuta `libvaerun.so`, el mismo runner del VAE.
+  - Prueba por ADB en el Poco F6 Pro: 26–28 ms por trozo de 256×256. Comparado con un reescalado Lanczos, las líneas del pelo y los ojos salen nítidas en vez de borrosas.
+  - En la app (`Upscaler.java`, `Base.upscaleDialog`): botón ⤢ junto a descargar y compartir, en la imagen y en el visor del Historial. Diálogo ×2 / ×4 con el tamaño final y el aviso de que puede inventar detalles pequeños; barra de progreso por trozos con Cancelar; el resultado se guarda como imagen nueva con el prompt y el modelo del original (`upscaled`, `upscaled_from`). Los trozos se solapan 24 px y cada uno aporta su parte hasta la mitad del solape; ×2 promedia 2×2 la salida ×4. Límite de 24 MP de salida. No se puede ampliar mientras se genera.
+  - Probado con HexAnima Dev instalada un rato (desinstalada después; la release con los datos no se tocó): 512×768 → ×2 1024×1536 en 1,9 s y ×4 2048×3072 en 4,8 s, sin costuras visibles en las uniones (el salto entre columnas en la unión es igual que alrededor).
+  - Licencia BSD-3 en `app/assets/licenses/real_esrgan_bsd3.txt`, en Info y en `THIRD_PARTY.md`. Falta: capturas en inglés para el README y comparar con UltraSharp.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

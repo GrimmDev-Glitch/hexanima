@@ -191,6 +191,49 @@ abstract class Base extends Activity {
             return true;
         }
     }
+    /** "Enlarge": x2 or x4 on the NPU (Upscaler), saved as a new picture in the History; done gets the new file on the UI thread */
+    void upscaleDialog(final java.io.File src, final java.util.function.Consumer<java.io.File> done) {
+        if (!Upscaler.available(this)) { Toast.makeText(this, L.s("Este chip no tiene el escalador", "This chip has no upscaler"), Toast.LENGTH_LONG).show(); return; }
+        if (Upscaler.npuBusy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_LONG).show(); return; }
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inJustDecodeBounds = true; android.graphics.BitmapFactory.decodeFile(src.getPath(), o);
+        final int w = o.outWidth, h = o.outHeight; if (w <= 0) return;
+        final boolean x4ok = Upscaler.fits(w, h, 4), x2ok = Upscaler.fits(w, h, 2);
+        if (!x2ok) { Toast.makeText(this, L.s("La imagen ya es demasiado grande para ampliarla", "The picture is already too large to enlarge"), Toast.LENGTH_LONG).show(); return; }
+        String[] items = {L.f("×2  ·  %d×%d", "×2  ·  %d×%d", w * 2, h * 2), x4ok ? L.f("×4  ·  %d×%d", "×4  ·  %d×%d", w * 4, h * 4) : L.s("×4  ·  demasiado grande", "×4  ·  too large")};
+        builder().setTitle(L.s("Ampliar en la NPU", "Enlarge on the NPU"))
+            .setMessage(L.s("Real-ESRGAN aumenta la resolución y la nitidez en unos segundos. Puede inventar detalles pequeños (pelo, texto, texturas); la imagen original no se toca.",
+                "Real-ESRGAN raises the resolution and sharpness in a few seconds. It may invent small details (hair, text, textures); the original picture is kept."))
+            .setPositiveButton(items[0], (d, i) -> runUpscale(src, 2, done))
+            .setNeutralButton(items[1], (d, i) -> { if (x4ok) runUpscale(src, 4, done); else Toast.makeText(this, L.s("Usa ×2 para esta imagen", "Use ×2 for this picture"), Toast.LENGTH_LONG).show(); })
+            .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+    }
+    void runUpscale(final java.io.File src, final int factor, final java.util.function.Consumer<java.io.File> done) {
+        final boolean[] stop = {false};
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(22), dp(8), dp(22), 0);
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(1000); bar.setProgressTintList(ColorStateList.valueOf(ACC)); box.addView(bar);
+        final TextView tv = text(L.s("Preparando…", "Preparing…"), 13, DIM, false); tv.setPadding(0, dp(6), 0, 0); box.addView(tv);
+        final AlertDialog dlg = builder().setTitle(L.f("Ampliando ×%d", "Enlarging ×%d", factor)).setView(box).setCancelable(false)
+            .setNegativeButton(L.s("Отмена", "Cancel"), (d, i) -> stop[0] = true).show();
+        final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper()); final long t0 = System.currentTimeMillis();
+        new Thread(() -> {
+            try {
+                android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(src.getPath()); if (b == null) throw new java.io.IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
+                android.graphics.Bitmap up = Upscaler.run(this, b, factor, (k, n) -> ui.post(() -> { bar.setProgress(1000 * k / n); tv.setText(L.f("Trozo %d de %d", "Tile %d of %d", k, n)); }), () -> stop[0]);
+                b.recycle();
+                ui.post(() -> tv.setText(L.s("Guardando…", "Saving…")));
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream(); up.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bo); up.recycle();
+                org.json.JSONObject m = new org.json.JSONObject(Gallery.meta(src).toString());
+                m.put("w", w(src) * factor).put("h", h(src) * factor).put("upscaled", factor).put("upscaled_from", src.getName()).put("upscaler", "Real-ESRGAN General x4v3")
+                 .put("sec", (System.currentTimeMillis() - t0) / 1000.0); m.remove("grid"); m.remove("compare");
+                final java.io.File out = Gallery.save(this, bo.toByteArray(), m);
+                ui.post(() -> { dlg.dismiss(); Toast.makeText(this, L.f("Ampliada ×%d en %.1f s · guardada en el Historial", "Enlarged ×%d in %.1f s · saved in the History", factor, (System.currentTimeMillis() - t0) / 1000.0), Toast.LENGTH_LONG).show(); if (done != null) done.accept(out); });
+            } catch (InterruptedException e) { ui.post(dlg::dismiss);
+            } catch (Throwable e) { ui.post(() -> { dlg.dismiss(); builder().setMessage(L.f("No se pudo ampliar: %s", "Could not enlarge: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
+        }).start();
+    }
+    private static int w(java.io.File f) { android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inJustDecodeBounds = true; android.graphics.BitmapFactory.decodeFile(f.getPath(), o); return o.outWidth; }
+    private static int h(java.io.File f) { android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inJustDecodeBounds = true; android.graphics.BitmapFactory.decodeFile(f.getPath(), o); return o.outHeight; }
+
     void showBeforeAfter(final java.io.File after) {
         if (after == null) return;
         final java.io.File bf = Qwen.beforeFile(getFilesDir(), after); if (!bf.isFile()) return;

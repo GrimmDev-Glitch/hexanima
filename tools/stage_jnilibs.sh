@@ -39,4 +39,6 @@ if [ -f "$MAGE/native/libmagerun.so" ]; then
   cp "$MAGE/native/libmagerun.so" "$J/libmagerun_mage.so"
   cp hexagon/mega/out/libmega_skel_v73.so "$J/libmageskel_v73.so"
 fi
+# picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
+for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
 ls -la $J

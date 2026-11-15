@@ -71,7 +71,7 @@ public class Main extends Base {
     TextView chipName, chipDot, state, status, saved, placeholder, ramTxt, warnTxt, sizeText;
     LinearLayout customRow, imgBox;
     Button loadBtn, genBtn, countBtn;
-    ImageButton dlBtn, shareBtn, favBtn, againBtn; Button editGeneratedBtn;
+    ImageButton dlBtn, shareBtn, favBtn, againBtn, upBtn; Button editGeneratedBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
@@ -316,9 +316,13 @@ public class Main extends Base {
         favBtn.setOnClickListener(v -> { if (lastFile == null) return; boolean nv = !Gallery.fav(lastFile); Gallery.setFav(lastFile, nv); setFavIcon(nv); });
         dlBtn = icon("ic_download", CARD);
         dlBtn.setOnClickListener(v -> { if (lastFile == null) return; try { Gallery.export(this, lastFile); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
+        upBtn = icon("ic_upscale", CARD); upBtn.setContentDescription(L.s("Ampliar en la NPU", "Enlarge on the NPU")); upBtn.setImageTintList(ColorStateList.valueOf(TXT));
+        upBtn.setOnClickListener(v -> { if (lastFile == null) return; if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_LONG).show(); return; }
+            upscaleDialog(lastFile, out -> { prefs().edit().remove("hidden_last").apply(); lastFile = null; restoreLatestGenerated(); }); });
+        upBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Ampliar en la NPU", "Enlarge on the NPU"), Toast.LENGTH_SHORT).show(); return true; });
         shareBtn = icon("ic_share", CARD);
         shareBtn.setOnClickListener(v -> { if (lastFile != null) Gallery.share(this, lastFile); });
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) {
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) {
             x.setVisibility(View.GONE);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
             if (x == againBtn) resRow.addView(x, lp); else imgTools.addView(x, lp);   // "again" stays by the seed; the file actions go to the toolbar
@@ -655,7 +659,7 @@ public class Main extends Base {
         lastFile = f; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
         img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE);
         setFavIcon(Gallery.fav(f));
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.VISIBLE);
         refreshGeneratedEditAction();
         JSONObject m = Gallery.meta(f);
         saved.setText(m.has("grid") ? L.f("Última cuadrícula · %d imágenes", "Last grid · %d pictures", m.optInt("count", 0)) : m.optBoolean("compare") ? L.s("Última comparación", "Last comparison") : L.f("Última imagen · seed %s", "Last image · seed %s", m.optString("seed", "?")));
@@ -800,7 +804,7 @@ public class Main extends Base {
         prefs().edit().putString("hidden_last", recent.length > 0 ? recent[0].getName() : "").apply();
         lastFile = null; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
         img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE);
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.GONE);
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.GONE);
         saved.setText(""); refreshGeneratedEditAction();
     }
     void refreshGeneratedEditAction() {
@@ -2393,7 +2397,7 @@ public class Main extends Base {
         final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
         final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
         batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; pendingCompare = null; refreshGeneratedEditAction();
-        busy = true; cancelled = false; curIdx = 0; curN = n; batchAdjustable = gk == 0;
+        busy = true; Upscaler.npuBusy = true; cancelled = false; curIdx = 0; curN = n; batchAdjustable = gk == 0;
         setModelUi(loaded, false, "");
         View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
         bar.setProgress(0);
@@ -2435,7 +2439,7 @@ public class Main extends Base {
                     lastFile = f; img.setImageBitmap(bm); showImg(true); placeholder.setVisibility(View.GONE);
                     refreshGeneratedEditAction();
                     setFavIcon(false);
-                    for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+                    for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.VISIBLE);
                     final ScrollView svv = (ScrollView) imgBox.getParent().getParent(); svv.post(() -> svv.smoothScrollTo(0, 0));   // after the image has been laid out
                     saved.setText("seed " + seedS);
                 });
@@ -2457,7 +2461,7 @@ public class Main extends Base {
             hotStop = false;
             final int total = made;
             if (wasCancelled) loaded = false;   // Stop shut the server down
-            synchronized (batchLock) { busy = false; cancelled = false; batchAdjustable = false; }
+            synchronized (batchLock) { busy = false; Upscaler.npuBusy = false; cancelled = false; batchAdjustable = false; }
             app.stopService(new Intent(app, DownloadService.class));
             final Bitmap nb = lastBm;
             ui.post(() -> {

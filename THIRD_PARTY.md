@@ -13,6 +13,7 @@ This repository contains only HexAnima's own source code (MIT, see `LICENSE`). N
 | Qwen3-VL-8B-Instruct (Qwen team) with Unsloth GGUF quantisation (text encoder and vision tower of the Qwen-Image pack) | same pack | Apache 2.0 |
 | stable-diffusion.cpp | sampler and CPU parts (`patches/` are applied to it) | MIT |
 | TAEHV (`taew2_1`) | preview decoder | see github.com/madebyollin/taehv |
+| Real-ESRGAN General x4v3 (xinntao; Qualcomm AI Hub export) | picture upscaler on the NPU (`upscale/build.sh` converts it to HTP contexts shipped as `libesrgan_<arch>.so`) | BSD-3-Clause |
 | Danbooru tag list (DominikDoom/a1111-sd-webui-tagcomplete) | prompt suggestions | see that repository |
 | Qualcomm AI Engine Direct (QNN) runtime libraries | bundled in the APK | Qualcomm AI Stack License |
 | Qualcomm Hexagon SDK / QHL (HMX matrix library) | building the DSP kernels | Qualcomm license, not redistributed here |

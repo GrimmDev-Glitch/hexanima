@@ -689,3 +689,18 @@ Block transparency	Transparencia de los bloques
 Wallpaper dimming	Oscurecimiento del fondo
 Could not open the picture: %s	No se pudo abrir la imagen: %s
 Pinch to zoom, drag to move	Pellizca para ampliar, arrastra para mover
+This chip has no upscaler	Este chip no tiene el escalador
+The picture is already too large to enlarge	La imagen ya es demasiado grande para ampliarla
+×2  ·  %d×%d	×2  ·  %d×%d
+×4  ·  %d×%d	×4  ·  %d×%d
+×4  ·  too large	×4  ·  demasiado grande
+Enlarge on the NPU	Ampliar en la NPU
+Real-ESRGAN raises the resolution and sharpness in a few seconds. It may invent small details (hair, text, textures); the original picture is kept.	Real-ESRGAN aumenta la resolución y la nitidez en unos segundos. Puede inventar detalles pequeños (pelo, texto, texturas); la imagen original no se toca.
+Use ×2 for this picture	Usa ×2 para esta imagen
+Preparing…	Preparando…
+Enlarging ×%d	Ampliando ×%d
+Could not open the picture	No se pudo abrir la imagen
+Tile %d of %d	Trozo %d de %d
+Enlarged ×%d in %.1f s · saved in the History	Ampliada ×%d en %.1f s · guardada en el Historial
+Could not enlarge: %s	No se pudo ampliar: %s
+The picture is too large for that factor	La imagen es demasiado grande para ese aumento

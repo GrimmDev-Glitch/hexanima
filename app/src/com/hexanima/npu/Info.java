@@ -121,11 +121,12 @@ public class Info extends Base {
             {"Qwen-Image-2.1-Turbo, its VAE and the Lightning v2-RL adapter (LightX2V) — Qwen RESEARCH LICENSE AGREEMENT, non-commercial use only; Qwen3-VL-8B-Instruct and its vision tower, Unsloth GGUF quantisations — Apache License 2.0. The Qwen-Image pack holds converted copies (re-packed for the NPU, the adapter kept unmerged)", ""},
             {"stable-diffusion.cpp — MIT", ""},
             {"TAEHV preview decoder — see github.com/madebyollin/taehv", ""},
+            {"Real-ESRGAN General x4v3 upscaler (xinntao, converted for the NPU) — BSD-3-Clause", ""},
             {"Qualcomm AI Engine Direct (QNN) runtime libraries — Qualcomm AI Stack License (redistributed only inside this app)", ""},
             {"Tag suggestions — Danbooru tag list from DominikDoom/a1111-sd-webui-tagcomplete", ""},
         };
         for (String[] l : lic) { TextView t = text("•  " + l[0], 12, DIM, false); t.setPadding(0, dp(6), 0, 0); c.addView(t); }
-        for (String[] q : new String[][]{{"Qualcomm AI Stack License", "licenses/qualcomm_ai_stack_license.txt"}, {L.s("Уведомления QNN (сторонние компоненты)", "QNN notices (third-party components)"), "licenses/qnn_notice.txt"}, {"Apache License 2.0", "licenses/apache-2.0.txt"}, {"Qwen RESEARCH LICENSE AGREEMENT", "licenses/qwen_research_license.txt"}, {L.s("Уведомления Qwen-Image (изменения)", "Qwen-Image notices (changes made)"), "licenses/qwen_notice.txt"}, {L.s("Уведомления MOSS-Image (изменения)", "MOSS-Image notices (changes made)"), "licenses/moss_notice.txt"}, {L.s("Шрифт Barlow Semi Condensed (SIL OFL 1.1)", "Barlow Semi Condensed font (SIL OFL 1.1)"), "licenses/barlow_ofl.txt"}}) {
+        for (String[] q : new String[][]{{"Qualcomm AI Stack License", "licenses/qualcomm_ai_stack_license.txt"}, {L.s("Уведомления QNN (сторонние компоненты)", "QNN notices (third-party components)"), "licenses/qnn_notice.txt"}, {"Apache License 2.0", "licenses/apache-2.0.txt"}, {"Real-ESRGAN (BSD-3-Clause)", "licenses/real_esrgan_bsd3.txt"}, {"Qwen RESEARCH LICENSE AGREEMENT", "licenses/qwen_research_license.txt"}, {L.s("Уведомления Qwen-Image (изменения)", "Qwen-Image notices (changes made)"), "licenses/qwen_notice.txt"}, {L.s("Уведомления MOSS-Image (изменения)", "MOSS-Image notices (changes made)"), "licenses/moss_notice.txt"}, {L.s("Шрифт Barlow Semi Condensed (SIL OFL 1.1)", "Barlow Semi Condensed font (SIL OFL 1.1)"), "licenses/barlow_ofl.txt"}}) {
             TextView t = text(q[0], 13, ACC, false); t.setPadding(0, dp(8), 0, 0);
             t.setOnClickListener(x -> showAsset(q[0], q[1]));
             c.addView(t);
