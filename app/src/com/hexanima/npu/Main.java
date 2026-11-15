@@ -1734,7 +1734,11 @@ public class Main extends Base {
 
     // ---- menu, dialogs ------------------------------------------------------------------------
     void menu(View anchor) {
-        popup(anchor, new String[]{L.s("Модели", "Models"), L.s("Видео (экспериментально)", "Video (experimental)"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")}, k -> {
+        final boolean video = Ltx.SHOWN;   // the Video screen is hidden while the engine is reworked (LTX quality too low, Wan in progress)
+        String[] items = {L.s("Модели", "Models"), L.s("Видео (экспериментально)", "Video (experimental)"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")};
+        if (!video) { String[] t = new String[items.length - 1]; t[0] = items[0]; System.arraycopy(items, 2, t, 1, items.length - 2); items = t; }
+        popup(anchor, items, i -> {
+            final int k = video || i == 0 ? i : i + 1;
             if (k == 0) openModels();
             else if (k == 1) { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }
             else if (k == 2) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);

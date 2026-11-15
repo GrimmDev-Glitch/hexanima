@@ -63,7 +63,7 @@ final class Models {
 
     /** Keep Mage available when the selected Anima pack catalog predates that model family. */
     static void ensureMage(List<Item> items) {
-        if (Ltx.supported()) { boolean has = false; for (Item it : items) if (Ltx.is(it.id)) has = true; if (!has) items.add(Ltx.item()); }   // video model: listed by the app itself, not by the pack catalog
+        if (Ltx.SHOWN && Ltx.supported()) { boolean has = false; for (Item it : items) if (Ltx.is(it.id)) has = true; if (!has) items.add(Ltx.item()); }   // video model: listed by the app itself, not by the pack catalog
         for (Item it : items) if (Mage.is(it.id)) return;
         Item it = new Item(); it.id = "mage-flow-edit-turbo"; it.name = "Mage-Flow-Edit-Turbo";
         it.desc = "Generación y edición de imágenes con Mage-Flow; runner experimental para Hexagon V73.";

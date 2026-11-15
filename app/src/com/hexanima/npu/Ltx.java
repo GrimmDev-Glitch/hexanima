@@ -21,6 +21,8 @@ import org.json.JSONObject;
  *  the APK ships it renamed (libqnn250*.so) next to the 2.28 runtime of the other models, and files/ltx/lib links the original names to it. */
 final class Ltx {
     static final String ID = "ltxv-2b-v73";
+    /** false: the Video screen and the video model in Models are hidden (LTX quality too low; the Wan 2.2 engine is still a prototype, see docs/WAN22_STUDY.md) */
+    static final boolean SHOWN = false;
     static boolean is(String id) { return id != null && id.startsWith("ltxv"); }
     /** contexts for this shape exist only for V73 here (512x320x25); other Hexagon generations would need their own folder */
     static boolean supported() { return Compat.dspArch().equals("v73"); }
