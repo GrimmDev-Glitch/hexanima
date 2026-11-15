@@ -60,10 +60,28 @@ Tiempos publicados (no verificados por nosotros):
 - **Imagen a vídeo:** con el codificador en CPU tardaría más de un minuto; habría que pasarlo a la NPU.
 - **Temperatura:** cada clip son ~36 s de NPU + CPU; medir varios seguidos.
 
+## Prototipo en el Poco F6 Pro (15 nov 2026)
+
+**Funciona.** Con los contextos `v73/` y dos programas propios (`ltx/t5enc` en CPU y `ltx/ltxrun` en la NPU) salen vídeos de 512×320 y 25 fotogramas coherentes con el prompt: la chica gira la cabeza o saluda con la mano entre los cerezos.
+
+| Parte | Tiempo |
+|---|---|
+| T5 en CPU, 6 hilos (incluye leer 2,9 GB) | 11,1 s |
+| Cargar los 4 contextos del DiT | 3,8 s |
+| 8 pasos en la NPU | 9,2 s (1,15 s por paso) |
+| VAE en la NPU (carga 1,9 s + ejecución) | 4,0 s |
+| **Clip completo en frío** | **30,6 s** |
+
+- Batería a 35,1 °C después de dos clips.
+- Las librerías QAIRT 2.50 conviven con el resto: se cargan desde su propia carpeta (`ADSP_LIBRARY_PATH`) en su propio proceso.
+- Calidad: estilo de dibujo sencillo y manos algo borrosas en movimiento; es un modelo de 2B a baja resolución.
+- Con los procesos ya cargados (T5 y DiT en memoria) un segundo clip bajaría a unos 20 s; con T5 en la NPU, a unos 15 s.
+- Muestras: `ltx/samples/`.
+
 ## Plan propuesto
 
-1. Descargar solo `v73/`, el stub y el T5 q4_0 (pedir permiso antes; ~5 GB).
-2. Runner de prueba en el teléfono por ADB: medir tiempos, RAM y temperatura, y sacar el primer MP4.
+1. ~~Descargar `v73/` y el T5 q4_0~~ (hecho).
+2. ~~Runner de prueba por ADB y primer MP4~~ (hecho, ver arriba).
 3. Si la calidad convence: integrarlo en Dev con pantalla de vídeo, guardar MP4 e Historial.
 4. Después: T5 en la NPU, ampliación ×2 por fotograma, imagen a vídeo.
 
