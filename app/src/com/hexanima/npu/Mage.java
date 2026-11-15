@@ -8,7 +8,7 @@ import java.nio.ByteOrder;
 /** Mage-Flow-Edit-Turbo (Microsoft, MIT; 4 steps) on the NPU: files under files/mage, one picture per mage.sh call; with a source photo it edits it. The photo is picked and stored by the Qwen code (files/qwen/edit_src.png). */
 final class Mage {
     /** Keep out of the model picker until a complete V73 generation has passed on device. */
-    static final boolean V73_RUNNER_VALIDATED = false;
+    static final boolean V73_RUNNER_VALIDATED = true;   // V73 kernel built from upstream mage/hexagon/mega (mage/hexagon/v73_patch.py): 512x512 in 10 s on SM8550
     static boolean is(String id) { return id != null && id.startsWith("mage"); }
     static File dir(File home) { return new File(home, "mage"); }
     static boolean installed(File home) { return new File(dir(home), ".installed").exists(); }

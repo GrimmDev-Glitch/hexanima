@@ -33,11 +33,12 @@ if [ -f "$QW/qwenrun/out/qwenrun" ]; then
   if [ -f "$QW/hexagon/mega/out/libmega_skel.so" ]; then cp "$QW/hexagon/mega/out/libmega_skel.so" "$J/libqwenskel.so"; fi
 fi
 [ -f $QW/hexagon/mega/out/libmega_skel_v73.so ] && cp $QW/hexagon/mega/out/libmega_skel_v73.so $J/libqwenskel_v73.so
-# Mage's Android host runner is shipped in the MIT-licensed upstream release; its v69 DSP binary is deliberately not staged.
-MAGE=${MAGE_DIR:-mage}
-if [ -f "$MAGE/native/libmagerun.so" ]; then
-  cp "$MAGE/native/libmagerun.so" "$J/libmagerun_mage.so"
-  cp hexagon/mega/out/libmega_skel_v73.so "$J/libmageskel_v73.so"
+# Mage-Flow: runner (mage/magerun/build.sh) and V73 DSP kernel (mage/hexagon/v73_patch.py, then ARCH=v73 mage/hexagon/mega/build.sh), both from upstream's MIT sources.
+# Built in ${MAGE_BUILD:-~/Hexanima-dev/mage-build} (a copy of mage/hexagon and mage/magerun with LF line endings). Upstream's v69 DSP binary is never staged for V73.
+MB=${MAGE_BUILD:-$HOME/Hexanima-dev/mage-build}
+if [ -f "$MB/magerun/out/magerun" ] && [ -f "$MB/hexagon/mega/out/libmega_skel_v73.so" ]; then
+  cp "$MB/magerun/out/magerun" "$J/libmagerun_mage.so"
+  cp "$MB/hexagon/mega/out/libmega_skel_v73.so" "$J/libmageskel_v73.so"
 fi
 # picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
