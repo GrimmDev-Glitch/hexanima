@@ -83,3 +83,4 @@ docs/CLAUDE_IMAGE_CORRECTIONS_PROMPT.md
 upscale/dl/
 upscale/out_*/
 upscale/*.dlc
+upscale/test/
