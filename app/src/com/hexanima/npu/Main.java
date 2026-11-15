@@ -632,6 +632,7 @@ public class Main extends Base {
     @Override protected void onResume() {
         PngMeta.keep = Settings.keepMeta(this);
         super.onResume();
+        if (Corrections.freedAnima) { Corrections.freedAnima = false; if (loaded) { loaded = false; setModelUi(false, false, ""); } }   // Corrections stopped the Anima server for Qwen
         visible = true;
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(2);
         String del = ModelsActivity.deleted; ModelsActivity.deleted = "";
@@ -1428,166 +1429,19 @@ public class Main extends Base {
         maskSrc().delete(); refreshExtras();
     }
 
-    /** finger painting on the init image: brush / eraser, size, clear; the mask is saved at the init image's size (at most 1024 px on the long side) */
-    class MaskView extends View {
-        Bitmap base, mask; android.graphics.Canvas mc; final android.graphics.Paint br = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG), ov = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
-        final android.graphics.RectF dst = new android.graphics.RectF(); float lx, ly, size = .02f, zoom = 1f, panX, panY, prevSpan, prevMidX, prevMidY, downX, downY, lastX, lastY; boolean multiTouch, drawing, pending;
-        static final int BRUSH = 0, ERASER = 1, MOVE = 2; int tool = BRUSH;
-        final float slop = android.view.ViewConfiguration.get(Main.this).getScaledTouchSlop();
-        final ArrayDeque<Bitmap> undo = new ArrayDeque<>(), redo = new ArrayDeque<>(); final int historyLimit = 8; Runnable historyChanged, zoomChanged;
-        MaskView(Bitmap base, Bitmap old) {
-            super(Main.this); this.base = base;
-            mask = Bitmap.createBitmap(base.getWidth(), base.getHeight(), Bitmap.Config.ARGB_8888); mc = new android.graphics.Canvas(mask);
-            if (old != null) {   // stored as white on black: back to white on transparent
-                Bitmap o = Bitmap.createScaledBitmap(old, base.getWidth(), base.getHeight(), true); int[] px = new int[o.getWidth() * o.getHeight()];
-                o.getPixels(px, 0, o.getWidth(), 0, 0, o.getWidth(), o.getHeight()); for (int i = 0; i < px.length; i++) px[i] = (px[i] & 0xFF) > 127 ? 0xFFFFFFFF : 0;
-                mask.setPixels(px, 0, o.getWidth(), 0, 0, o.getWidth(), o.getHeight());
-            }
-            br.setStyle(android.graphics.Paint.Style.STROKE); br.setStrokeCap(android.graphics.Paint.Cap.ROUND); br.setStrokeJoin(android.graphics.Paint.Join.ROUND); br.setColor(0xFFFFFFFF);
-            ov.setColorFilter(new android.graphics.PorterDuffColorFilter(ACC2, android.graphics.PorterDuff.Mode.SRC_IN)); ov.setAlpha(140);
-        }
-        @Override protected void onDraw(android.graphics.Canvas c) {
-            float s = Math.min(getWidth() / (float) base.getWidth(), getHeight() / (float) base.getHeight()) * zoom;
-            float w = base.getWidth() * s, h = base.getHeight() * s;
-            clampPan(); float cx = getWidth() / 2f + panX, cy = getHeight() / 2f + panY;
-            dst.set(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
-            c.drawBitmap(base, null, dst, null); c.drawBitmap(mask, null, dst, ov);
-        }
-        @Override public boolean onTouchEvent(android.view.MotionEvent e) {
-            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-            // A stroke only starts once one finger has moved past the touch slop (or lifts as a tap), so the first finger of a
-            // pinch never paints; if a second finger still lands after a stroke started, that stroke is rolled back.
-            int action = e.getActionMasked();
-            if (action == MotionEvent.ACTION_POINTER_DOWN) {
-                if (drawing) rollbackStroke();
-                multiTouch = true; drawing = false; pending = false; prevSpan = span(e); prevMidX = midX(e); prevMidY = midY(e); return true;
-            }
-            if (multiTouch && action == MotionEvent.ACTION_MOVE && e.getPointerCount() >= 2) {
-                float ns = span(e), mx = midX(e), my = midY(e);
-                if (prevSpan > 0) zoom = Math.max(1f, Math.min(4f, zoom * ns / prevSpan));
-                panX += mx - prevMidX; panY += my - prevMidY; prevSpan = ns; prevMidX = mx; prevMidY = my; clampPan(); invalidate(); if (zoomChanged != null) zoomChanged.run(); return true;
-            }
-            if (action == MotionEvent.ACTION_POINTER_UP) { multiTouch = true; return true; }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                if (action == MotionEvent.ACTION_UP && pending && !multiTouch && tool != MOVE) { startStroke(downX, downY); strokeTo(e.getX(), e.getY()); }   // a tap leaves a dot
-                drawing = false; pending = false; multiTouch = false; if (historyChanged != null) historyChanged.run(); return true;
-            }
-            if (multiTouch) return true;
-            if (action == MotionEvent.ACTION_DOWN) {
-                downX = lastX = e.getX(); downY = lastY = e.getY(); drawing = false;
-                pending = tool == MOVE || dst.contains(downX, downY); return true;
-            }
-            if (action != MotionEvent.ACTION_MOVE || !pending && !drawing) return true;
-            if (tool == MOVE) {   // one finger pans the zoomed picture
-                panX += e.getX() - lastX; panY += e.getY() - lastY; lastX = e.getX(); lastY = e.getY(); clampPan(); invalidate(); return true;
-            }
-            if (pending) {
-                if (Math.hypot(e.getX() - downX, e.getY() - downY) < slop) return true;
-                pending = false; startStroke(downX, downY);
-            }
-            strokeTo(e.getX(), e.getY());
-            return true;
-        }
-        float bx(float x) { return Math.max(0, Math.min(base.getWidth() - 1, (x - dst.left) / dst.width() * base.getWidth())); }
-        float by(float y) { return Math.max(0, Math.min(base.getHeight() - 1, (y - dst.top) / dst.height() * base.getHeight())); }
-        void startStroke(float x, float y) {
-            push(undo, mask); clearStack(redo); lx = bx(x); ly = by(y); drawing = true;
-            br.setStrokeWidth(size * Math.max(base.getWidth(), base.getHeight()));
-            br.setXfermode(tool == ERASER ? new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) : null);
-        }
-        void strokeTo(float x, float y) { float nx = bx(x), ny = by(y); mc.drawLine(lx, ly, nx + .01f, ny, br); lx = nx; ly = ny; invalidate(); }
-        /** undo the stroke this gesture started, without leaving a redo entry */
-        void rollbackStroke() {
-            if (undo.isEmpty()) return; Bitmap old = undo.removeLast();
-            mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(old, 0, 0, null); old.recycle(); invalidate();
-        }
-        float span(MotionEvent e) { float x = e.getX(0) - e.getX(1), y = e.getY(0) - e.getY(1); return (float)Math.hypot(x, y); }
-        float midX(MotionEvent e) { return (e.getX(0) + e.getX(1)) * .5f; }
-        float midY(MotionEvent e) { return (e.getY(0) + e.getY(1)) * .5f; }
-        void clampPan() { float fw = Math.min(getWidth() / (float)base.getWidth(), getHeight() / (float)base.getHeight()) * zoom * base.getWidth(), fh = Math.min(getWidth() / (float)base.getWidth(), getHeight() / (float)base.getHeight()) * zoom * base.getHeight(); panX = fw <= getWidth() ? 0 : Math.max((getWidth() - fw) / 2, Math.min((fw - getWidth()) / 2, panX)); panY = fh <= getHeight() ? 0 : Math.max((getHeight() - fh) / 2, Math.min((fh - getHeight()) / 2, panY)); }
-        void push(ArrayDeque<Bitmap> stack, Bitmap current) { stack.addLast(current.copy(Bitmap.Config.ARGB_8888, false)); while (stack.size() > historyLimit) stack.removeFirst().recycle(); }
-        void clearStack(ArrayDeque<Bitmap> stack) { while (!stack.isEmpty()) stack.removeLast().recycle(); }
-        void undo() { if (undo.isEmpty()) return; push(redo, mask); Bitmap old = undo.removeLast(); mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(old, 0, 0, null); old.recycle(); invalidate(); }
-        void redo() { if (redo.isEmpty()) return; push(undo, mask); Bitmap next = redo.removeLast(); mc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR); mc.drawBitmap(next, 0, 0, null); next.recycle(); invalidate(); }
-        void setZoom(float z) { zoom = Math.max(1f, Math.min(4f, z)); clampPan(); invalidate(); }
-        void clear() { push(undo, mask); clearStack(redo); mask.eraseColor(Color.TRANSPARENT); invalidate(); }
-        void dispose() { clearStack(undo); clearStack(redo); if (mask != null && !mask.isRecycled()) mask.recycle(); }
-        boolean empty() { int[] px = new int[mask.getWidth()]; for (int y = 0; y < mask.getHeight(); y += 4) { mask.getPixels(px, 0, mask.getWidth(), 0, y, mask.getWidth(), 1); for (int p : px) if ((p >>> 24) > 0) return false; } return true; }
-        void save(File f) throws IOException {
-            Bitmap out = Bitmap.createBitmap(mask.getWidth(), mask.getHeight(), Bitmap.Config.ARGB_8888); android.graphics.Canvas c = new android.graphics.Canvas(out);
-            c.drawColor(0xFF000000); c.drawBitmap(mask, 0, 0, null);
-            try (FileOutputStream o = new FileOutputStream(f)) { out.compress(Bitmap.CompressFormat.PNG, 100, o); } finally { out.recycle(); }
-        }
-    }
     void paintMask() {
         if (!initSrc().exists()) { Toast.makeText(this, L.s("Сначала выберите исходную картинку", "Choose an init image first"), Toast.LENGTH_SHORT).show(); return; }
         Bitmap b0 = BitmapFactory.decodeFile(initSrc().getPath()); if (b0 == null) return;
         float s = Math.min(1f, 1024f / Math.max(b0.getWidth(), b0.getHeight()));
         Bitmap base = s < 1 ? Bitmap.createScaledBitmap(b0, Math.round(b0.getWidth() * s), Math.round(b0.getHeight() * s), true) : b0;
-        showMaskEditor(base, maskSrc(), L.s("Маска (inpainting)", "Mask (inpainting)"), L.s("Закрасьте то, что нужно перерисовать", "Paint over what should be redrawn"), this::refreshExtras);
+        showMaskEditor(base, maskSrc(), L.s("Маска (inpainting)", "Mask (inpainting)"), L.s("Закрасьте то, что нужно перерисовать", "Paint over what should be redrawn"), this::refreshExtras, editBm);
     }
     void paintQwenMask() {
         if (editBm == null) { Toast.makeText(this, L.s("Сначала выберите исходную картинку", "Choose a source photo first"), Toast.LENGTH_SHORT).show(); return; }
         float s = Math.min(1f, 1024f / Math.max(editBm.getWidth(), editBm.getHeight()));
         Bitmap base = s < 1 ? Bitmap.createScaledBitmap(editBm, Math.round(editBm.getWidth() * s), Math.round(editBm.getHeight() * s), true) : editBm;
         showMaskEditor(base, Qwen.editMask(getFilesDir()), L.s("Маска Qwen", "Qwen edit mask"),
-            L.s("Закрасьте только ту область, которую хотите изменить. Остальная фотография останется исходной.", "Paint only the area you want to change. The rest of the photo will stay original."), this::refreshEdit);
-    }
-    void showMaskEditor(Bitmap base, File file, String title, String hintText, Runnable afterSave) {
-        Bitmap old = file.exists() ? BitmapFactory.decodeFile(file.getPath()) : null;
-        final MaskView mv = new MaskView(base, old);
-        if (old != null) old.recycle();
-        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
-        v.addView(text(title, 20, TXT, true));
-        TextView hint = text(hintText, 12, DIM, false); hint.setPadding(0, dp(2), 0, dp(8)); v.addView(hint);
-        v.addView(mv, new LinearLayout.LayoutParams(-1, dp(400)));
-        LinearLayout modes = new LinearLayout(this); modes.setPadding(0, dp(8), 0, 0);
-        final Button[] tb = { button(L.s("Кисть", "Brush"), FIELD, TXT), button(L.s("Ластик", "Eraser"), FIELD, TXT), button(L.s("Двигать", "Move"), FIELD, TXT) };
-        final Runnable paintTools = () -> { for (int i = 0; i < tb.length; i++) { boolean on = mv.tool == i; tb[i].setBackground(bg(on ? SEL : FIELD, 14)); tb[i].setTextColor(on ? ACC : TXT); } };
-        for (int i = 0; i < tb.length; i++) {
-            final int t = i; tb[i].setTextSize(13); tb[i].setOnClickListener(x -> { mv.tool = t; paintTools.run(); });
-            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, dp(38), 1); if (i > 0) ml.leftMargin = dp(4); modes.addView(tb[i], ml);
-        }
-        paintTools.run(); v.addView(modes);
-        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL); tools.setPadding(0, dp(6), 0, 0);
-        SeekBar sz = new SeekBar(this); sz.setMax(40); sz.setProgress(3); sz.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar b, int p, boolean u) { mv.size = .005f + p * .005f; }
-            public void onStartTrackingTouch(SeekBar b) { } public void onStopTrackingTouch(SeekBar b) { } });
-        tools.addView(sz, new LinearLayout.LayoutParams(0, -2, 1));
-        Button clr = button(L.s("Очистить", "Clear"), FIELD, TXT); clr.setTextSize(13); clr.setOnClickListener(x -> mv.clear());
-        tools.addView(clr, new LinearLayout.LayoutParams(-2, dp(38)));
-        v.addView(tools);
-        LinearLayout editTools = new LinearLayout(this); editTools.setGravity(Gravity.CENTER_VERTICAL); editTools.setPadding(0, dp(6), 0, 0);
-        Button undo = button(L.s("Deshacer", "Undo"), FIELD, TXT); undo.setTextSize(12); undo.setEnabled(false);
-        Button redo = button(L.s("Rehacer", "Redo"), FIELD, TXT); redo.setTextSize(12); redo.setEnabled(false);
-        TextView zoomLabel = text("1×", 12, TXT, true); zoomLabel.setGravity(Gravity.CENTER);
-        Button zoomLess = button("−", FIELD, TXT); zoomLess.setTextSize(18);
-        Button zoomMore = button("+", FIELD, TXT); zoomMore.setTextSize(18);
-        LinearLayout.LayoutParams ctl = new LinearLayout.LayoutParams(0, dp(38), 1); editTools.addView(undo, ctl);
-        LinearLayout.LayoutParams ctl2 = new LinearLayout.LayoutParams(0, dp(38), 1); ctl2.leftMargin = dp(4); editTools.addView(redo, ctl2);
-        LinearLayout.LayoutParams ctl3 = new LinearLayout.LayoutParams(dp(38), dp(38)); ctl3.leftMargin = dp(4); editTools.addView(zoomLess, ctl3);
-        LinearLayout.LayoutParams ctl4 = new LinearLayout.LayoutParams(dp(42), dp(38)); editTools.addView(zoomLabel, ctl4);
-        LinearLayout.LayoutParams ctl5 = new LinearLayout.LayoutParams(dp(38), dp(38)); editTools.addView(zoomMore, ctl5);
-        undo.setOnClickListener(x -> { mv.undo(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
-        redo.setOnClickListener(x -> { mv.redo(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
-        clr.setOnClickListener(x -> { mv.clear(); undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); });
-        mv.historyChanged = () -> { undo.setEnabled(!mv.undo.isEmpty()); redo.setEnabled(!mv.redo.isEmpty()); };
-        mv.zoomChanged = () -> zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom));
-        zoomLess.setOnClickListener(x -> { mv.setZoom(mv.zoom / 1.25f); zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom)); });
-        zoomMore.setOnClickListener(x -> { mv.setZoom(mv.zoom * 1.25f); zoomLabel.setText(String.format(java.util.Locale.US, "%.1f×", mv.zoom)); });
-        zoomLabel.setOnClickListener(x -> { mv.setZoom(1f); zoomLabel.setText("1×"); });
-        v.addView(editTools);
-        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
-        Button cancel = button(L.s("Отмена", "Cancel"), FIELD, TXT); bot.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1));
-        Button save = button(L.s("Сохранить", "Save"), ACC, ON_ACC); LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(0, dp(44), 1); sl.leftMargin = dp(8); bot.addView(save, sl);
-        v.addView(bot);
-        AlertDialog d = dialog(v);
-        d.setOnDismissListener(x -> { mv.dispose(); if (base != editBm && !base.isRecycled()) base.recycle(); });
-        cancel.setOnClickListener(x -> d.dismiss());
-        save.setOnClickListener(x -> {
-            try { if (mv.empty()) file.delete(); else mv.save(file); } catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
-            d.dismiss(); afterSave.run();
-        });
+            L.s("Закрасьте только ту область, которую хотите изменить. Остальная фотография останется исходной.", "Paint only the area you want to change. The rest of the photo will stay original."), this::refreshEdit, editBm);
     }
     /** writes the init image fitted (scale + center crop) to w x h; null if none */
     File initFor(int w, int h) {

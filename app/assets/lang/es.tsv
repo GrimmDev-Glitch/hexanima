@@ -738,3 +738,19 @@ Alt. %d	Alt. %d
 Saved to the History	Guardada en el Historial
 Leave without saving? The corrections of this session are lost.	¿Salir sin guardar? Se pierden las correcciones de esta sesión.
 Leave	Salir
+Needs Qwen-Image installed (Models)	Necesita Qwen-Image instalado (Modelos)
+Paint the hands to redo. Qwen redraws only that area and the rest stays the same. Perfect anatomy is not guaranteed: make a few alternatives and keep the best. Each one takes about a minute.	Pinta las manos que quieras rehacer. Qwen redibuja solo esa zona y el resto queda igual. No garantiza una anatomía perfecta: genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.
+Paint a small area (eyes, jewellery, an object) and write how it should look. Only the painted area changes. About a minute per alternative.	Pinta una zona pequeña (ojos, joyas, un objeto) y escribe cómo debe quedar. Solo cambia lo pintado. Alrededor de un minuto por alternativa.
+Any change in one area: paint it and describe the change (for example: turn the flower into a blue rose). About a minute per alternative.	Cualquier cambio en una zona: píntala y describe el cambio (por ejemplo: cambia la flor por una rosa azul). Alrededor de un minuto por alternativa.
+✎ Painted area · edit	✎ Zona pintada · editar
+✎ Paint the area	✎ Pintar la zona
+Optional: e.g. natural hands with five fingers	Opcional: p. ej. manos naturales con cinco dedos
+What should change in the painted area	Qué debe cambiar en la zona pintada
+Area to correct	Zona a corregir
+Paint only what you want to change; the rest of the picture stays exactly the same.	Pinta solo lo que quieres cambiar; el resto de la imagen se queda exactamente igual.
+Paint the area to change first	Pinta primero la zona a cambiar
+Write what should change	Escribe qué debe cambiar
+Qwen-Image is not installed: get it from Models	Qwen-Image no está instalado: descárgalo desde Modelos
+The area is too large: paint a smaller one	La zona es demasiado grande: pinta un área menor
+Step %d/4	Paso %d/4
+Qwen did not finish (log files/qwen/qwen.log)	Qwen no terminó (registro files/qwen/qwen.log)

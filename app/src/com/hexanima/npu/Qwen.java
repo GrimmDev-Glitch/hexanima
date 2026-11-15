@@ -499,6 +499,44 @@ final class Qwen {
 
     static final class Edit { int drop, cw, ch, nc, nm, tokens; }
 
+    /** One masked Qwen edit outside the main screen (Corrections): the painted area is redrawn from the prompt and blended back with a soft edge;
+     *  every pixel outside the mask stays from src. Same pipeline as Main.runOneQwen (prepareEdit, qwen.sh, png, applyDetailMask / applyEditMask).
+     *  phase gets "step N" / short status texts; returns the finished PNG at src's size. */
+    static byte[] runMaskedEdit(android.content.Context c, Bitmap src, File mask, String prompt, String seed, java.util.function.BooleanSupplier cancel, java.util.function.Consumer<String> phase) throws Exception {
+        final File home = c.getFilesDir(), Q = dir(home), ids = new File(Q, "ids.i32"), raw = new File(Q, "img.f32"), log = new File(Q, "qwen.log");
+        final String A = new File(home, "anima").getPath(), BIN = c.getApplicationInfo().nativeLibraryDir;
+        if (!installed(home)) throw new IOException(L.s("Qwen-Image no está instalado: descárgalo desde Modelos", "Qwen-Image is not installed: get it from Models"));
+        if (!mask.isFile()) throw new IOException(L.s("Pinta primero la zona a cambiar", "Paint the area to change first"));
+        final DetailCrop detail = detailCrop(src, mask);
+        try {
+            final Bitmap cond = detail != null ? detail.image : src;
+            final int[] dims = detail != null ? detailSize(detail.width(), detail.height()) : editSize(src.getWidth(), src.getHeight(), 512, 768);
+            final int runW = dims[0], runH = dims[1];
+            phase.accept(L.s("Preparando la foto…", "Preparing the photo…"));
+            Edit e = prepareEdit(home, cond, prompt, runW, runH, ids, COND_AREA);
+            if ((runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm) > MAX_KEYS) throw new IOException(L.s("La zona es demasiado grande: pinta un área menor", "The area is too large: paint a smaller one"));
+            final String cmd = "rm -f '" + raw + "' '" + log + "'; Q='" + Q + "' VAE=" + vaeCtx(home, runW, runH) + " sh " + A + "/qwen.sh '" + ids + "' " + e.drop + " " + runW + " " + runH + " " + seed + " 4 '" + raw + "' '" + editDir(home) + "' < /dev/null >> " + A + "/gen.log 2>&1";
+            ProcessBuilder pb = new ProcessBuilder("/system/bin/sh", "-c", cmd).directory(new File(A));
+            pb.environment().put("A", A); pb.environment().put("S", new File(home, "sd").getPath()); pb.environment().put("BIN", BIN);
+            Process p = pb.start();
+            int last = -1; boolean stopped = false;
+            while (true) {
+                try { if (p.waitFor(700, java.util.concurrent.TimeUnit.MILLISECONDS)) break; } catch (InterruptedException ie) { break; }
+                if (cancel.getAsBoolean() && !stopped) {   // the same stop as the main screen's Stop button
+                    stopped = true; new ProcessBuilder("/system/bin/sh", "-c", "sh " + A + "/qwen.sh stop < /dev/null > /dev/null 2>&1").directory(new File(A)).start().waitFor();
+                }
+                int st = 0, dn = 0, te = 0;
+                try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(log))) { for (String l; (l = r.readLine()) != null; ) { if (l.startsWith("step")) st++; else if (l.startsWith("done")) dn++; else if (l.startsWith("te:")) te++; } } catch (IOException ignored) { }
+                int code = dn >= 2 ? 100 : st > 0 ? 10 + st : te > 0 ? 5 : 1;
+                if (code != last) { last = code; phase.accept(dn >= 2 ? L.s("Decodificando…", "Decoding…") : st > 0 ? L.f("Paso %d/4", "Step %d/4", Math.min(st, 4)) : te > 0 ? L.s("Preparando el texto…", "Preparing the text…") : L.s("Analizando la foto en la NPU…", "Analysing the photo on the NPU…")); }
+            }
+            if (cancel.getAsBoolean()) throw new InterruptedException();
+            if (!raw.isFile()) throw new IOException(L.s("Qwen no terminó (registro files/qwen/qwen.log)", "Qwen did not finish (log files/qwen/qwen.log)"));
+            byte[] png = png(raw, runW, runH); raw.delete();
+            return detail != null ? applyDetailMask(png, src, mask, detail, runW, runH, src.getWidth(), src.getHeight()) : applyEditMask(png, src, mask, runW, runH);
+        } finally { if (detail != null) detail.recycle(); }
+    }
+
     static final double COND_AREA = 393216.0, COND_AREA_HI = 1048576.0;   // ~0.4 Mpx by default; "high fidelity" lets the reference follow the output size up to 1 Mpx
     /** condition size: the photo's aspect at about min(target area, cap), sides multiples of 32 (what the ViT and the VAE both need) */
     static int[] condSize(int srcW, int srcH, int tw, int th) { return condSize(srcW, srcH, tw, th, COND_AREA); }
