@@ -164,6 +164,13 @@
     - Dos referencias, «el pescador de la imagen 1 sostiene al zorro de la imagen 2», 1024×768: una sola escena nueva en 133 s, con ViT de 3 s por imagen. El zorro y el pescador conservan su aspecto; ya no sale el collage de la primera versión.
     - Tres referencias (pescador, hombre de la bufanda azul y zorro), «los dos hombres se abrazan y saltan en una playa soleada y el zorro salta a su lado»: escena completamente nueva en 135 s, con ViT de unos 2 s por imagen. Los dos hombres conservan su ropa y rasgos (cambia algo la cara del segundo) y el zorro salta junto a ellos.
 
+- 14 nov 2026 · **Release firmado y prueba limpia en XSpace (bloque 7):**
+  - Primer APK release firmado con la clave propia del fork (`~/.hexanima-signing/release.keystore`, fuera del repositorio). Se instaló solo en XSpace (`com.hexanima.npu`, no depurable); HexAnima Dev del perfil principal no se tocó.
+  - Bienvenida: ahora presenta las tres familias (Anima, MOSS, Qwen) y aclara que la velocidad de 7 / 12 s es de Anima; MOSS y Qwen tardan de 30 s a 2 min.
+  - Catálogo: los modelos «(base)» decían «Rápido» y tardan ~100 s; en los modelos de 60 s o más se quita «Rápido» y se añade «Modelo completo: 20+ pasos…». Mage ya no se ofrece para descargar mientras no funcione en V73 (si está instalado sigue en la lista para poder borrarlo). La descripción de Qwen del catálogo se tradujo.
+  - Pantalla principal sin modelos: decía «Descargada · se carga al generar». «Unloaded» estaba traducido como «Descargada»; ahora es «No está en memoria», y sin modelo muestra «Todavía no hay modelo: consigue uno con el botón de abajo». Las demás cadenas de descargar de memoria pasan a «Liberar» para que «Descargar» solo signifique bajar archivos.
+  - **Fondo de pantalla propio (de upstream 1.6.0):** Ajustes → Fondo de pantalla → Elegir imagen, Posición y tamaño (pellizcar y arrastrar) y Quitar; deslizadores de transparencia de los bloques y oscurecimiento. Valores por defecto 25 % y 55 % (con 35 % el texto gris sobre un fondo claro no se leía). Diálogos y menú ⋯ siguen opacos. Probado en el teléfono en la pantalla principal, Ajustes y el editor; el fondo de prueba se quitó después.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

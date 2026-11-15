@@ -93,6 +93,7 @@ public class ModelsActivity extends Base {
             final boolean needCommon = needCommonAnima && !it.moss && !it.qwen && !it.mage;
             final boolean have = store.modelInstalled(it.id);
             final boolean busyThis = downloading && it.id.equals(dlId);
+            if (Mage.is(it.id) && !Mage.V73_RUNNER_VALIDATED && !have && !busyThis) continue;   // doesn't run on V73 yet: no 8.7 GB download; an installed pack stays listed so it can be deleted
             LinearLayout c = card(list);
             LinearLayout top = new LinearLayout(this); top.setGravity(android.view.Gravity.CENTER_VERTICAL);
             if (have) { TextView ok = text("✓", 18, OK, true); ok.setPadding(0, 0, dp(8), 0); top.addView(ok); }
@@ -101,6 +102,11 @@ public class ModelsActivity extends Base {
             String meta = (it.params.isEmpty() ? "" : it.params + (it.quant.isEmpty() ? "" : " " + it.quant) + "  ·  ") + (it.speed > 0 ? L.f("~%d с на 512×768", "~%d s at 512×768", it.speed) + "  ·  " : "") + L.f("%s ГБ", "%s GB", gb(it.size));
             TextView m = text(meta, 13, ACC, false); m.setPadding(0, dp(4), 0, 0); c.addView(m);
             String d = L.s(it.desc, it.descEn);
+            if (it.speed >= 60) {   // the catalog copies "Fast, ..." from the turbo sibling onto the full (base) model
+                d = d.replaceFirst("^(Fast|Rápido|Rápida|Быстро|Быстрая|Быстрый),\\s*", "");
+                if (!d.isEmpty()) d = Character.toUpperCase(d.charAt(0)) + d.substring(1);
+                d = (d.isEmpty() ? "" : d + ". ") + L.s("Полная модель: 20+ шагов, медленнее, но точнее следует промпту.", "Full model: 20+ steps, slower but follows the prompt more closely.");
+            }
             if (!d.isEmpty()) { TextView dv = text(d, 13, DIM, false); dv.setPadding(0, dp(4), 0, 0); c.addView(dv); }
             if (!it.author.isEmpty()) { TextView a = text(L.f("Автор: %s", "By %s", it.author), 12, DIM, false); a.setPadding(0, dp(4), 0, 0); c.addView(a); }
             if (it.qwen && !it.runtimeAvailable && !have) c.addView(text(L.s("Los contextos V73 de Qwen todavía no están publicados o no se pudieron consultar.", "The Qwen V73 contexts are not published yet or could not be checked."), 12, WARN, false));

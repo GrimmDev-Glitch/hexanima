@@ -28,7 +28,8 @@ public class Welcome extends Base {
         LinearLayout c2 = card(col);
         c2.addView(text(L.s("Что важно знать", "Good to know"), 16, TXT, true));
         String[] tips = {
-            L.s("Скорость: около 7 секунд на картинку 512×768 (модель 2B) и 12 секунд (2.9B).", "Speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B)."),
+            L.s("Три семейства моделей: Anima (аниме и иллюстрации, самое быстрое), MOSS (реалистичные фото) и Qwen (редактирование ваших фото по тексту, до 3 картинок-примеров).", "Three model families: Anima (anime and illustration, the fastest), MOSS (realistic photos) and Qwen (edit your own photos with words, up to 3 reference pictures)."),
+            L.s("Скорость Anima: около 7 секунд на картинку 512×768 (модель 2B) и 12 секунд (2.9B). MOSS и Qwen медленнее: от 30 секунд до 2 минут.", "Anima speed: about 7 seconds per 512×768 picture (2B model) and 12 seconds (2.9B). MOSS and Qwen are slower: 30 seconds to 2 minutes."),
             L.s("Turbo-модели: 4 шага и CFG 1. Обычные модели: 20+ шагов и негативный промпт (Сэмплинг).", "Turbo models: 4 steps and CFG 1. Other models: 20+ steps and a negative prompt (Sampling)."),
             L.s("Картинки хранятся только в приложении, в галерею они попадают после «Скачать».", "Pictures stay inside the app and reach the gallery only after Download."),
         };

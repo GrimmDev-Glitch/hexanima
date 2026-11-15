@@ -68,6 +68,38 @@ public class Settings extends Base {
 
     EditText prefixEdit, keyEdit;
 
+    @Override protected void onActivityResult(int req, int res, android.content.Intent d) {
+        super.onActivityResult(req, res, d);
+        if (req == 32 && res == RESULT_OK && d != null && d.getData() != null) {
+            try {   // scaled to at most 1600 px on the long side, kept as files/wallpaper.jpg (the picture itself is not touched)
+                android.graphics.Bitmap bm = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(getContentResolver(), d.getData()), (dec, info, src) -> {
+                    int mx = Math.max(info.getSize().getWidth(), info.getSize().getHeight()); if (mx > 1600) dec.setTargetSize(info.getSize().getWidth() * 1600 / mx, info.getSize().getHeight() * 1600 / mx);
+                    dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE);
+                });
+                try (java.io.FileOutputStream o = new java.io.FileOutputStream(wallFile(this))) { bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, o); }
+                wallBm = null; prefs(this).edit().putFloat("wall_zoom", 1f).putFloat("wall_x", .5f).putFloat("wall_y", .5f).putLong("wall_ts", System.currentTimeMillis()).apply();
+                startActivity(new android.content.Intent(this, WallEdit.class));   // straight to placing it; this screen is rebuilt on return
+                return;
+            } catch (Exception e) { Toast.makeText(this, L.f("Не удалось открыть картинку: %s", "Could not open the picture: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show(); }
+            recreate();
+        }
+    }
+
+    /** title and the value in %, a bar under them; saved (and the screen rebuilt) when the finger lifts */
+    View slider(String title, int val, int max, java.util.function.IntConsumer cb, java.util.function.IntConsumer live) {
+        LinearLayout r = new LinearLayout(this); r.setOrientation(LinearLayout.VERTICAL); r.setPadding(dp(2), dp(10), dp(2), dp(6));
+        LinearLayout t = new LinearLayout(this); t.setGravity(Gravity.CENTER_VERTICAL); t.addView(text(title, 15, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
+        final TextView vt = text(val + " %", 14, DIM, false); t.addView(vt); r.addView(t);
+        SeekBar sb = new SeekBar(this); sb.setMax(max); sb.setProgress(val); sb.setProgressTintList(ColorStateList.valueOf(ACC)); sb.setThumbTintList(ColorStateList.valueOf(ACC));
+        sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar b, int v, boolean user) { vt.setText(v + " %"); if (user && live != null) live.accept(v); }
+            public void onStartTrackingTouch(SeekBar b) { }
+            public void onStopTrackingTouch(SeekBar b) { cb.accept(b.getProgress()); recreate(); }
+        });
+        r.addView(sb, new LinearLayout.LayoutParams(-1, dp(36)));
+        return r;
+    }
+
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         LinearLayout col = screen(L.s("Настройки", "Settings"), null);
@@ -82,6 +114,19 @@ public class Settings extends Base {
         c1.addView(choice(L.s("Тема", "Theme"), tn[Math.max(ti, 0)], v -> {
             builder().setTitle(L.s("Тема", "Theme")).setSingleChoiceItems(tn, Math.max(ti, 0), (d, i) -> { d.dismiss(); p.edit().putString("theme", tv[i]).apply(); recreate(); }).show();
         }));
+        // own wallpaper behind every screen; the blocks turn see-through so it shows
+        c1.addView(choice(L.s("Обои", "Wallpaper"), hasWall(this) ? L.s("Свои", "Own") : L.s("Нет", "None"), v -> {
+            final boolean has = hasWall(this);
+            builder().setTitle(L.s("Обои", "Wallpaper")).setItems(has ? new String[]{L.s("Выбрать картинку…", "Choose a picture…"), L.s("Положение и масштаб", "Position and scale"), L.s("Убрать обои", "Remove the wallpaper")} : new String[]{L.s("Выбрать картинку…", "Choose a picture…")}, (d, i) -> {
+                if (i == 0) startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(android.content.Intent.CATEGORY_OPENABLE), 32);
+                else if (i == 1) startActivity(new android.content.Intent(this, WallEdit.class));
+                else { wallFile(this).delete(); wallBm = null; p.edit().putLong("wall_ts", 0).apply(); recreate(); }
+            }).show();
+        }));
+        if (hasWall(this)) {
+            c1.addView(slider(L.s("Прозрачность блоков", "Block transparency"), cardTrans(this), 90, v -> p.edit().putInt("card_trans", v).apply(), null));
+            c1.addView(slider(L.s("Затемнение обоев", "Wallpaper dimming"), wallDim(this), 80, v -> p.edit().putInt("wall_dim", v).apply(), v -> { dimNow = v; ((android.view.ViewGroup) findViewById(android.R.id.content)).getChildAt(0).invalidate(); }));
+        }
 
         LinearLayout c2 = card(col);
         c2.addView(toggle(L.s("Загружать модель при запуске", "Load the model at start"), L.s("Первая картинка появится быстрее, но модель занимает ОЗУ", "The first picture is faster, but the model holds RAM"), autoload(this), on -> p.edit().putBoolean("autoload", on).apply()));

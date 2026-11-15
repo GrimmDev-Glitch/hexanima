@@ -150,7 +150,7 @@ public class Main extends Base {
 
         LinearLayout frame = new LinearLayout(this);
         frame.setOrientation(LinearLayout.VERTICAL);
-        frame.setBackgroundColor(BG);
+        pageBg(frame);
         frame.setFitsSystemWindows(true);
         ScrollView sv = new ScrollView(this);
         sv.setFillViewport(true);
@@ -2117,6 +2117,7 @@ public class Main extends Base {
             refreshExtras();
             refreshSampling();
             state.setText(working ? msg : isQwen() ? L.s("Qwen-Image на NPU · веса с накопителя", "Qwen-Image on the NPU · weights streamed from storage") : isMage() ? L.s("Mage-Flow en NPU · pesos desde almacenamiento", "Mage-Flow on the NPU · weights streamed from storage") : isMoss() ? L.s("MOSS-Image на NPU", "MOSS-Image on the NPU") : isLoaded ? L.s("В NPU · готово", "On the NPU · ready")
+                : model.isEmpty() ? L.s("Нет моделей: скачайте одну кнопкой ниже", "No model yet: get one with the button below")
                 : L.s("Выгружена · загрузится при генерации", "Unloaded · loads when you generate"));
             loadBtn.setText(isLoaded ? L.s("Liberar modelo", "Free model") : L.s("Cargar modelo", "Load model"));
             loadBtn.setEnabled(!working && !busy && !model.isEmpty() && !isMoss() && !isQwen() && !isMage());

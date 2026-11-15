@@ -22,6 +22,46 @@ abstract class Base extends Activity {
     static Typeface F_REG, F_MED, F_SEMI, F_BOLD;
     String uiKey = "";
 
+    // ---- own wallpaper (from upstream 1.6.0): files/wallpaper.jpg behind every screen; the blocks (CARD / FIELD) get an alpha so it shows through ----
+    static java.io.File wallFile(Context c) { return new java.io.File(c.getFilesDir(), "wallpaper.jpg"); }
+    static boolean hasWall(Context c) { return wallFile(c).exists(); }
+    static int cardTrans(Context c) { return c.getSharedPreferences("anima", 0).getInt("card_trans", 25); }   // 0..90 % see-through
+    static int wallDim(Context c) { return c.getSharedPreferences("anima", 0).getInt("wall_dim", 55); }      // 0..80 % towards the page colour
+    static android.graphics.Bitmap wallBm; static long wallBmTs = -1;
+    static float wZoom = 1f, wX = .5f, wY = .5f;   // scale (1 = just covers the screen) and the picture point at the screen centre (0..1)
+    static int dimNow = -1;                        // dimming previewed while its slider moves (-1: the saved one)
+    static void loadWallParams(Context c) { android.content.SharedPreferences p = c.getSharedPreferences("anima", 0); wZoom = p.getFloat("wall_zoom", 1f); wX = p.getFloat("wall_x", .5f); wY = p.getFloat("wall_y", .5f); }
+    static void saveWallParams(Context c) { c.getSharedPreferences("anima", 0).edit().putFloat("wall_zoom", wZoom).putFloat("wall_x", wX).putFloat("wall_y", wY).apply(); }
+    static float wallScale(int bw, int bh) { return Math.max((float) bw / wallBm.getWidth(), (float) bh / wallBm.getHeight()) * wZoom; }
+    static void wallClamp(int bw, int bh) {
+        if (wallBm == null) return; float sc = wallScale(bw, bh), hx = bw / sc / 2 / wallBm.getWidth(), hy = bh / sc / 2 / wallBm.getHeight();
+        wX = Math.max(hx, Math.min(1 - hx, wX)); wY = Math.max(hy, Math.min(1 - hy, wY));
+    }
+    /** the wallpaper at the chosen scale and position, with the dimming layer on top */
+    static final class WallDrawable extends android.graphics.drawable.Drawable {
+        final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG); final int dimPref, bg;
+        WallDrawable(Context c, int bg) {
+            this.bg = bg; long ts = c.getSharedPreferences("anima", 0).getLong("wall_ts", 0);
+            if (wallBm == null || wallBmTs != ts) { wallBm = android.graphics.BitmapFactory.decodeFile(wallFile(c).getPath()); wallBmTs = ts; }
+            loadWallParams(c); dimPref = wallDim(c);
+        }
+        @Override public void draw(android.graphics.Canvas cv) {
+            android.graphics.Rect b = getBounds(); if (b.isEmpty()) return;
+            cv.drawColor(bg | 0xFF000000);
+            if (wallBm != null) {
+                wallClamp(b.width(), b.height()); float sc = wallScale(b.width(), b.height()), vw = b.width() / sc, vh = b.height() / sc, cx = wX * wallBm.getWidth(), cy = wY * wallBm.getHeight();
+                cv.drawBitmap(wallBm, new android.graphics.Rect((int) (cx - vw / 2), (int) (cy - vh / 2), (int) (cx + vw / 2), (int) (cy + vh / 2)), b, pt);
+            }
+            cv.drawColor(((int) (255 * (dimNow >= 0 ? dimNow : dimPref) / 100f) << 24) | (bg & 0xFFFFFF));   // dim towards the theme's page colour
+        }
+        @Override public void setAlpha(int a) { } @Override public void setColorFilter(android.graphics.ColorFilter f) { }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
+    }
+    /** the page background: the wallpaper when one is set, else the plain page colour */
+    void pageBg(View v) { if (hasWall(this) && !isFinishing()) v.setBackground(new WallDrawable(this, BG)); else v.setBackgroundColor(BG); }
+    /** what decides whether an open screen must be rebuilt: language, theme and the wallpaper settings */
+    String themeKey() { android.content.SharedPreferences p = getSharedPreferences("anima", 0); return L.lang + isDark(this) + "w" + hasWall(this) + p.getLong("wall_ts", 0) + "," + cardTrans(this) + "," + wallDim(this) + "," + p.getFloat("wall_zoom", 1f) + "," + p.getFloat("wall_x", .5f) + "," + p.getFloat("wall_y", .5f); }
+
     static boolean isDark(Context c) {
         String m = c.getSharedPreferences("anima", 0).getString("theme", "system");
         return m.equals("dark") || (m.equals("system") && (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
@@ -33,6 +73,8 @@ abstract class Base extends Activity {
                     ON_ACC = 0xFFFFFFFF; TXT = 0xFFE9E6F5; DIM = 0xFF928DB2; OK = 0xFF7EE0B0; BAD = 0xFFF58AA8; WARN = 0xFFF5C77E; }
         else { BG = 0xFFE9E5F1; CARD = 0xFFFCFBFE; FIELD = 0xFFF1EEF7; ACC = 0xFF8672ED; ACC2 = 0xFFD593D7; ACC3 = 0xFF9DC1F0; SEL = 0xFFECE7F6; LINE = 0xFFE2DCEE; HEAD = 0xFF2E2A45;
                ON_ACC = 0xFFFFFFFF; TXT = 0xFF2E2A45; DIM = 0xFF8C899C; OK = 0xFF2E9E6E; BAD = 0xFFD6487A; WARN = 0xFFB7791F; }
+        dimNow = -1;
+        if (hasWall(c)) { int a = (255 - 255 * cardTrans(c) / 100) << 24; CARD = (CARD & 0xFFFFFF) | a; FIELD = (FIELD & 0xFFFFFF) | a; SEL = (SEL & 0xFFFFFF) | a; }   // see-through blocks over the wallpaper
         if (F_REG == null) {
             try {
                 F_REG = Typeface.createFromAsset(c.getAssets(), "fonts/BarlowSemiCondensed-Regular.ttf");
@@ -67,7 +109,7 @@ abstract class Base extends Activity {
         super.onCreate(b);
         L.init(this);
         applyTheme(this);
-        uiKey = L.lang + dark;
+        uiKey = themeKey();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         if (!dark) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
@@ -76,8 +118,8 @@ abstract class Base extends Activity {
     /** language or theme changed on another screen: rebuild this one */
     @Override protected void onResume() {
         super.onResume();
-        L.init(this); boolean d = isDark(this);
-        if (!(L.lang + d).equals(uiKey)) recreate();
+        L.init(this);
+        if (!themeKey().equals(uiKey)) recreate();
     }
 
     /** dialogs follow the theme: card background with the violet bracket, Barlow everywhere, accent buttons in sentence case (not Android's grey box with CAPITALS) */
@@ -88,7 +130,7 @@ abstract class Base extends Activity {
     }
     void styleDialog(AlertDialog d) {
         android.view.Window w = d.getWindow(); if (w == null) return;
-        w.setBackgroundDrawable(new android.graphics.drawable.InsetDrawable(new BracketCard(CARD, 22), dp(14), dp(10), dp(14), dp(10)));
+        w.setBackgroundDrawable(new android.graphics.drawable.InsetDrawable(new BracketCard(CARD | 0xFF000000, 22), dp(14), dp(10), dp(14), dp(10)));
         int tid = getResources().getIdentifier("alertTitle", "id", "android");
         TextView title = tid != 0 ? w.findViewById(tid) : null; if (title != null) { title.setTypeface(F_SEMI); title.setTextColor(HEAD); title.setTextSize(20); }
         TextView msg = w.findViewById(android.R.id.message); if (msg != null) { msg.setTypeface(F_REG); msg.setTextColor(TXT); msg.setTextSize(16); msg.setLineSpacing(0, 1.1f); }
@@ -114,7 +156,7 @@ abstract class Base extends Activity {
     /** themed drop-down menu under `anchor` (replaces PopupMenu, which keeps the system look): card with the bracket, Barlow rows */
     void popup(View anchor, String[] items, java.util.function.IntConsumer pick) {
         LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(6), dp(8), dp(6), dp(8));
-        box.setBackground(new BracketCard(CARD, 18));
+        box.setBackground(new BracketCard(CARD | 0xFF000000, 18));
         android.widget.PopupWindow pw = new android.widget.PopupWindow(box, dp(250), -2, true);
         for (int i = 0; i < items.length; i++) {
             final int k = i; TextView t = text(items[i], 16, TXT, false); t.setPadding(dp(16), dp(13), dp(16), dp(13));
@@ -233,7 +275,7 @@ abstract class Base extends Activity {
 
     /** screen skeleton: [←] title [extra view] on top, a scrolling column below; returns the column */
     LinearLayout screen(String title, android.view.View extra) {
-        LinearLayout frame = new LinearLayout(this); frame.setOrientation(LinearLayout.VERTICAL); frame.setBackgroundColor(BG); frame.setFitsSystemWindows(true);
+        LinearLayout frame = new LinearLayout(this); frame.setOrientation(LinearLayout.VERTICAL); pageBg(frame); frame.setFitsSystemWindows(true);
         LinearLayout head = new LinearLayout(this); head.setGravity(Gravity.CENTER_VERTICAL); head.setPadding(dp(16), dp(12), dp(16), dp(8));
         Button back = button("←", CARD, TXT); back.setTextSize(18); back.setOnClickListener(v -> onBackPressed());
         head.addView(back, new LinearLayout.LayoutParams(dp(48), dp(42)));
