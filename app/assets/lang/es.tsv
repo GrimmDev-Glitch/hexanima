@@ -801,3 +801,7 @@ The clip starts from this picture (cropped to 512×320 around the middle) and th
 Length	Duración
 %d s	%d s
 Short videos from text or from a picture: 512×320, 1 to 15 s, about 30 s per second of video on the NPU. Experimental.	Vídeos cortos a partir de texto o de una imagen: 512×320, de 1 a 15 s, unos 30 s por cada segundo de vídeo en la NPU. Experimental.
+Photo %d×%d. Describe how to transform it.	Foto %d×%d. Describe cómo transformarla.
+\nMask: Mage changes only the painted area; the rest of the photo and its resolution are preserved.	\nMáscara: Mage cambia solo la zona pintada; el resto de la foto y su resolución se conservan.
+\nWithout a mask, Mage redraws the whole picture and may alter text, hands or clothes. Use Area to edit to keep the rest.	\nSin máscara, Mage redibuja la imagen completa y puede alterar textos, manos o ropa. Usa «Área a cambiar» para conservar el resto.
+Mage edit mask	Máscara de Mage

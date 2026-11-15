@@ -392,6 +392,27 @@ final class Qwen {
         }
     }
 
+    /** Like applyEditMask, for runners that stretch the whole photo to the generated size (Mage): the result covers the whole photo,
+     *  so it is scaled back to the photo's size and only the painted area is taken from it. */
+    static byte[] applyStretchedMask(byte[] generatedPng, Bitmap source, File maskFile) throws IOException {
+        Bitmap generated = BitmapFactory.decodeByteArray(generatedPng, 0, generatedPng.length), mask = BitmapFactory.decodeFile(maskFile.getPath());
+        Bitmap result = null, editFit = null, maskFit = null;
+        try {
+            if (generated == null || mask == null) throw new IOException("cannot decode the edit or its mask");
+            int sw = source.getWidth(), sh = source.getHeight();
+            editFit = generated.getWidth() == sw && generated.getHeight() == sh ? generated : Bitmap.createScaledBitmap(generated, sw, sh, true);
+            maskFit = mask.getWidth() == sw && mask.getHeight() == sh ? mask : Bitmap.createScaledBitmap(mask, sw, sh, true);
+            result = compositeMask(source, maskFit, editFit, 0, 0);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream(); result.compress(Bitmap.CompressFormat.PNG, 100, bytes); return bytes.toByteArray();
+        } finally {
+            if (generated != null && !generated.isRecycled()) generated.recycle();
+            if (editFit != null && editFit != generated && !editFit.isRecycled()) editFit.recycle();
+            if (maskFit != null && maskFit != mask && !maskFit.isRecycled()) maskFit.recycle();
+            if (mask != null && !mask.isRecycled()) mask.recycle();
+            if (result != null && !result.isRecycled()) result.recycle();
+        }
+    }
+
     /** Composite the painted area with a soft edge: the brush is grown slightly and blurred so no hard seam shows, and the edit's
      *  colour is matched to the photo along the border (the VAE round trip can shift tone a little). Pixels outside the feathered
      *  brush stay byte-for-byte from source. */

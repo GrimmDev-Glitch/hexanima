@@ -22,6 +22,17 @@ final class Mage {
         return l;
     }
     static final int MAX_EDIT_PATCHES = 3200;   // target + reference tokens (2x) must fit the 8 MB VTCM attention together with the text
+    /** edit size with the shape of the photo (prepareEdit stretches the photo to the target, so a different shape would deform it),
+     *  close to the picked area and within the edit limit; aspect ratio counts three times as much as area */
+    static int[] editSize(int srcW, int srcH, int w, int h) {
+        double ratio = srcW / (double) srcH, area = (double) w * h, best = Double.POSITIVE_INFINITY; int[] pick = null;
+        for (int[] s : presets(true)) {
+            double a = (double) s[0] * s[1];
+            double score = Math.abs(Math.log((s[0] / (double) s[1]) / ratio)) * 3 + Math.abs(Math.log(a / area));
+            if (score < best) { best = score; pick = s; }
+        }
+        return pick != null ? new int[]{pick[0], pick[1]} : new int[]{w, h};
+    }
     static final int MAX_PATCHES = 6144, MAX_KEYS = 6500;   // MAX_KEYS: the attention of one DiT step holds all target + reference + text tokens in the 8 MB VTCM (measured: 6244 and 6144+text work)
     static String sizeError(int w, int h) {
         if (w < 256 || h < 256) return L.s("Размер: минимум 256 по каждой стороне", "Size: at least 256 on each side");

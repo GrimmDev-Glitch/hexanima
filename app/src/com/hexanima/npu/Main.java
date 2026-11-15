@@ -781,12 +781,12 @@ public class Main extends Base {
         final Bitmap b = editBm;
         editThumb.setImageBitmap(b); editThumb.setVisibility(b != null ? View.VISIBLE : View.GONE);
         boolean masked = Qwen.editMask(getFilesDir()).isFile();
-        editInfo.setText(b != null ? isMage() ? L.f("Foto %d×%d. Describe cómo transformarla. Mage reconstruye la imagen completa y puede cambiar detalles y composición.", "Photo %d×%d. Describe how to transform it. Mage redraws the whole image and may change details and composition.", b.getWidth(), b.getHeight()) : L.f("Фото %d×%d. Describe qué cambiar, por ejemplo «haz que el cielo parezca de atardecer». Pinta solo la zona que quieras editar.", "Photo %d×%d. The prompt says what to change, e.g. \"make the sky a sunset\". Paint only the area to edit.", b.getWidth(), b.getHeight()) + (masked ? L.s("\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.", "\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.") : L.s("\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.", "\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest."))
+        editInfo.setText(b != null ? isMage() ? L.f("Foto %d×%d. Describe cómo transformarla.", "Photo %d×%d. Describe how to transform it.", b.getWidth(), b.getHeight()) + (masked ? L.s("\nMáscara: Mage cambia solo la zona pintada; el resto de la foto y su resolución se conservan.", "\nMask: Mage changes only the painted area; the rest of the photo and its resolution are preserved.") : L.s("\nSin máscara, Mage redibuja la imagen completa y puede alterar textos, manos o ropa. Usa «Área a cambiar» para conservar el resto.", "\nWithout a mask, Mage redraws the whole picture and may alter text, hands or clothes. Use Area to edit to keep the rest.")) : L.f("Фото %d×%d. Describe qué cambiar, por ejemplo «haz que el cielo parezca de atardecer». Pinta solo la zona que quieras editar.", "Photo %d×%d. The prompt says what to change, e.g. \"make the sky a sunset\". Paint only the area to edit.", b.getWidth(), b.getHeight()) + (masked ? L.s("\nMáscara: Qwen cambia la zona pintada; el resto de la foto y su resolución se conservan.", "\nMask: Qwen changes the painted area; the rest of the photo and its resolution are preserved.") : L.s("\nSin máscara, Qwen puede redibujar toda la foto y alterar detalles finos. Usa «Máscara» para conservar el resto.", "\nWithout a mask, Qwen can redraw the whole photo and alter fine details. Use Mask to preserve the rest."))
             : L.s("Выберите фото, чтобы изменить его по описанию. Без фото модель просто рисует картинку.", "Pick a photo to change it by the prompt. Without one the model just draws a picture."));
         editDrop.setVisibility(b != null ? View.VISIBLE : View.GONE);
         final java.util.List<File> refs = b != null && isQwen() ? Qwen.extraRefs(getFilesDir()) : new ArrayList<>();
-        editMaskBtn.setVisibility(b != null && !isMage() && refs.isEmpty() ? View.VISIBLE : View.GONE);   // the painted area belongs to a single photo
-        editMaskClear.setVisibility(b != null && masked && !isMage() && refs.isEmpty() ? View.VISIBLE : View.GONE);
+        editMaskBtn.setVisibility(b != null && refs.isEmpty() ? View.VISIBLE : View.GONE);   // the painted area belongs to a single photo
+        editMaskClear.setVisibility(b != null && masked && refs.isEmpty() ? View.VISIBLE : View.GONE);
         if (refsRow != null) {
             refsRow.removeAllViews(); refsRow.setVisibility(refs.isEmpty() ? View.GONE : View.VISIBLE);
             if (!refs.isEmpty()) { TextView one = text(L.s("1 = esta foto", "1 = this photo"), 12, DIM, false); one.setPadding(dp(2), 0, dp(8), 0); refsRow.addView(one); }
@@ -1451,7 +1451,7 @@ public class Main extends Base {
         if (editBm == null) { Toast.makeText(this, L.s("Сначала выберите исходную картинку", "Choose a source photo first"), Toast.LENGTH_SHORT).show(); return; }
         float s = Math.min(1f, 1024f / Math.max(editBm.getWidth(), editBm.getHeight()));
         Bitmap base = s < 1 ? Bitmap.createScaledBitmap(editBm, Math.round(editBm.getWidth() * s), Math.round(editBm.getHeight() * s), true) : editBm;
-        showMaskEditor(base, Qwen.editMask(getFilesDir()), L.s("Маска Qwen", "Qwen edit mask"),
+        showMaskEditor(base, Qwen.editMask(getFilesDir()), isMage() ? L.s("Máscara de Mage", "Mage edit mask") : L.s("Маска Qwen", "Qwen edit mask"),
             L.s("Закрасьте только ту область, которую хотите изменить. Остальная фотография останется исходной.", "Paint only the area you want to change. The rest of the photo will stay original."), this::refreshEdit, editBm);
     }
     /** writes the init image fitted (scale + center crop) to w x h; null if none */
@@ -2456,16 +2456,24 @@ public class Main extends Base {
     File runOneMage(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), m = Mage.dir(home), ids = new File(m, "ids.i32"), raw = new File(m, "img.rgb");
         final int mageSteps = 4; final Bitmap src = editBm; final boolean edit = src != null;
+        // masked edit (same tools as Qwen): only the painted area changes, the rest of the photo keeps its exact pixels and resolution.
+        // A small painted area is edited as a crop with context around it (more pixels for the detail), then pasted back with a soft edge.
+        final File maskFile = Qwen.editMask(home);
+        final boolean masked = edit && maskFile.isFile();
+        final Qwen.DetailCrop detail = masked ? Qwen.detailCrop(src, maskFile) : null;
+        final Bitmap condition = detail != null ? detail.image : src;
+        final int[] runDims = !edit ? new int[]{w, h} : detail != null ? Qwen.detailSize(detail.width(), detail.height()) : Mage.editSize(src.getWidth(), src.getHeight(), w, h);
+        final int runW = runDims[0], runH = runDims[1];
         setProgressUi(2, edit ? L.s("Preparando foto…", "Preparing photo…") : L.s("Tokenizando…", "Tokenising…"), t0);
         int drop, keys; String editArg = "";
         try {
             if (edit) {
-                if ((w / 16) * (h / 16) > Mage.MAX_EDIT_PATCHES) { ui.post(() -> Toast.makeText(this, L.s("Para editar, usa un tamaño de hasta 1024×768", "For editing, use a size up to 1024×768"), Toast.LENGTH_LONG).show()); return null; }
-                Mage.Edit e = Mage.prepareEdit(home, src, pr, w, h, new File(Mage.editDir(home), "ids.i32"));
-                drop = e.drop; editArg = " " + q(Mage.editDir(home).getPath()); keys = 2 * (w / 16) * (h / 16) + e.tokens - e.drop;
+                if ((runW / 16) * (runH / 16) > Mage.MAX_EDIT_PATCHES) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, L.s("Para editar, usa un tamaño de hasta 1024×768", "For editing, use a size up to 1024×768"), Toast.LENGTH_LONG).show()); return null; }
+                Mage.Edit e = Mage.prepareEdit(home, condition, pr, runW, runH, new File(Mage.editDir(home), "ids.i32"));
+                drop = e.drop; editArg = " " + q(Mage.editDir(home).getPath()); keys = 2 * (runW / 16) * (runH / 16) + e.tokens - e.drop;
             } else { drop = Mage.writeIds(home, pr, ids); keys = (w / 16) * (h / 16) + (int) (ids.length() / 4) - drop; }
-            if (keys > Mage.MAX_KEYS) { ui.post(() -> Toast.makeText(this, L.s("El texto es demasiado largo para este tamaño; acórtalo o reduce la imagen", "The prompt is too long for this size; shorten it or reduce the image size"), Toast.LENGTH_LONG).show()); return null; }
-        } catch (Exception e) { ui.post(() -> Toast.makeText(this, "Mage: " + e, Toast.LENGTH_LONG).show()); return null; }
+            if (keys > Mage.MAX_KEYS) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, L.s("El texto es demasiado largo para este tamaño; acórtalo o reduce la imagen", "The prompt is too long for this size; shorten it or reduce the image size"), Toast.LENGTH_LONG).show()); return null; }
+        } catch (Exception e) { if (detail != null) detail.recycle(); ui.post(() -> Toast.makeText(this, "Mage: " + e, Toast.LENGTH_LONG).show()); return null; }
         final boolean[] done = {false};
         Thread poll = new Thread(() -> {
             while (!done[0]) {
@@ -2482,13 +2490,16 @@ public class Main extends Base {
             }
         });
         poll.start();
-        su("rm -f " + q(raw.getPath()) + "; M=" + q(m.getPath()) + " sh " + D + "/mage.sh " + q(ids.getPath()) + " " + drop + " " + w + " " + h + " " + seedS + " " + mageSteps + " " + q(raw.getPath()) + editArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
+        su("rm -f " + q(raw.getPath()) + "; M=" + q(m.getPath()) + " sh " + D + "/mage.sh " + q(ids.getPath()) + " " + drop + " " + runW + " " + runH + " " + seedS + " " + mageSteps + " " + q(raw.getPath()) + editArg + " < /dev/null >> " + D + "/gen.log 2>&1", false);
         done[0] = true; try { poll.join(); } catch (InterruptedException ignored) { }
-        if (cancelled) return null;
+        if (cancelled) { if (detail != null) detail.recycle(); return null; }
         try {
-            byte[] png = Mage.png(raw, w, h); raw.delete();
-            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
-            if (edit) meta.put("edit", true);
+            byte[] png = Mage.png(raw, runW, runH); raw.delete();
+            if (masked) png = detail != null ? Qwen.applyDetailMask(png, src, maskFile, detail, runW, runH, w, h) : Qwen.applyStretchedMask(png, src, maskFile);
+            if (detail != null) detail.recycle();
+            final int outW = masked ? src.getWidth() : runW, outH = masked ? src.getHeight() : runH;
+            JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", outW).put("h", outH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
+            if (edit) meta.put("edit", true).put("masked_edit", masked).put("detail_crop", detail != null);
             File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
             if (edit && out != null) {   // same as Qwen: keep the photo it came from, for the before/after slider in the viewer and the ⇆ button
                 Qwen.saveBefore(home, src, out);
