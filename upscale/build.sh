@@ -2,6 +2,7 @@
 # Real-ESRGAN General x4v3 (Qualcomm AI Hub ONNX, BSD-3) -> fp16 HTP context for one fixed tile size.
 # Input image [1,3,T,T] in 0..1 (NCHW, RGB) -> upscaled_image [1,3,4T,4T].
 # Usage: ./build.sh 256 v73   -> out_v73/esrgan_256.bin
+#        MODEL=ultrasharp ./build.sh 256 v73 -> out_v73/ultrasharp_256.bin (4x-UltraSharp, CC BY-NC-SA 4.0; ONNX from export_ultrasharp.py, US_ONNX=path)
 # The ONNX comes from real_esrgan_general_x4v3-onnx-float.zip, unpacked into dl/ (not in Git).
 set -e
 ARG1=${1:-256}; ARG2=${2:-v73}   # saved first: sourcing envsetup.sh replaces the positional arguments
@@ -13,10 +14,10 @@ QNN_PYTHON=${QNN_PYTHON:-../moss/.venv-qairt/bin/python}
 PYLIB=$("$QNN_PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')   # the converter needs libc++, libc++abi and libunwind for the host (same setup as qwen/vae_q/build_vae.sh)
 export LD_LIBRARY_PATH="$PYLIB:$HOME/Hexanima-dev/qairt-runtime:$HOME/anima-npu/sdk/android/build-tools/34.0.0/lib64:$HOME/anima-npu/sdk/Hexagon_SDK/6.7.0.0/tools/HEXAGON_Tools/21.0.04/Tools/lib:$LD_LIBRARY_PATH"
 [ "$ARG1" = help ] && { "$QNN_PYTHON" "$QNN_SDK_ROOT/bin/x86_64-linux-clang/qairt-converter" -h; exit 0; }
-T=$ARG1; N=esrgan_$T
+T=$ARG1; MODEL=${MODEL:-esrgan}; N=${MODEL}_$T
 ARCH=$ARG2
 case "$ARCH" in v69) SOC=36 ;; v73) SOC=43 ;; v75) SOC=57 ;; v79) SOC=69 ;; *) echo "unsupported ARCH $ARCH" >&2; exit 2 ;; esac
-SRC=dl/real_esrgan_general_x4v3-onnx-float/real_esrgan_general_x4v3.onnx
+SRC=dl/real_esrgan_general_x4v3-onnx-float/real_esrgan_general_x4v3.onnx; [ "$MODEL" = ultrasharp ] && SRC=${US_ONNX:-$HOME/Hexanima-dev/ultrasharp/dl/ultrasharp.onnx}
 OUT=out_$ARCH; mkdir -p "$OUT"
 echo "{\"graphs\":[{\"vtcm_mb\":8,\"graph_names\":[\"$N\"],\"O\":3.0,\"fp16_relaxed_precision\":1}],\"devices\":[{\"dsp_arch\":\"$ARCH\",\"soc_model\":$SOC,\"cores\":[{\"perf_profile\":\"burst\",\"rpc_control_latency\":100}]}]}" > "$OUT/htp_config_$N.json"
 echo "{\"backend_extensions\":{\"shared_library_path\":\"libQnnHtpNetRunExtensions.so\",\"config_file_path\":\"$PWD/$OUT/htp_config_$N.json\"}}" > "$OUT/htp_backend_$N.json"
