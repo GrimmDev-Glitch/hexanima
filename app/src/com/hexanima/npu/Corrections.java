@@ -200,7 +200,7 @@ public class Corrections extends Base {
                     out = BitmapFactory.decodeByteArray(png, 0, png.length); if (out == null) throw new java.io.IOException("decode");
                     step.put("prompt", qp).put("seed", seed);
                 } else if (c.equals("noise")) {
-                    Bitmap den = Upscaler.run(this, in, 1, pr, () -> stop[0]);
+                    Bitmap den = Upscaler.run(this, in, 1, Upscaler.ESRGAN, pr, () -> stop[0]);   // denoise: the fast model, it smooths noise best
                     out = blend(in, den, str / 100f); den.recycle(); step.put("strength", str / 100.0);
                 } else { out = Upscaler.run(this, in, fac, pr, () -> stop[0]); step.put("factor", fac); }
                 in.recycle();

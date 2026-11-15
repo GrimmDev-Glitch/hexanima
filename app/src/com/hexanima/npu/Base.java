@@ -209,14 +209,29 @@ abstract class Base extends Activity {
         final boolean x4ok = Upscaler.fits(w, h, 4), x2ok = Upscaler.fits(w, h, 2);
         if (!x2ok) { Toast.makeText(this, L.s("La imagen ya es demasiado grande para ampliarla", "The picture is already too large to enlarge"), Toast.LENGTH_LONG).show(); return; }
         String[] items = {L.f("×2  ·  %d×%d", "×2  ·  %d×%d", w * 2, h * 2), x4ok ? L.f("×4  ·  %d×%d", "×4  ·  %d×%d", w * 4, h * 4) : L.s("×4  ·  demasiado grande", "×4  ·  too large")};
-        builder().setTitle(L.s("Ampliar en la NPU", "Enlarge on the NPU"))
-            .setMessage(L.s("Real-ESRGAN aumenta la resolución y la nitidez en unos segundos. Puede inventar detalles pequeños (pelo, texto, texturas); la imagen original no se toca.",
-                "Real-ESRGAN raises the resolution and sharpness in a few seconds. It may invent small details (hair, text, textures); the original picture is kept."))
-            .setPositiveButton(items[0], (d, i) -> runUpscale(src, 2, done))
-            .setNeutralButton(items[1], (d, i) -> { if (x4ok) runUpscale(src, 4, done); else Toast.makeText(this, L.s("Usa ×2 para esta imagen", "Use ×2 for this picture"), Toast.LENGTH_LONG).show(); })
+        // model choice (remembered; Corrections > Resolution uses the same): Fast = Real-ESRGAN, Detailed = 4x-UltraSharp, shown only when its context ships for this chip
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(22), dp(6), dp(22), 0);
+        final String[] model = {Upscaler.model(this)};
+        if (Upscaler.available(this, Upscaler.ULTRASHARP)) {
+            android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+            String[][] opts = {{Upscaler.ESRGAN, L.s("Rápido · Real-ESRGAN", "Fast · Real-ESRGAN"), L.s("Unos segundos. Más nítido, pero puede alisar texturas y engrosar líneas.", "A few seconds. Sharper, but it may smooth textures and thicken lines.")},
+                               {Upscaler.ULTRASHARP, L.s("Detallado · UltraSharp", "Detailed · UltraSharp"), L.s("Unas 10 veces más lento. Más fiel al original: conserva texturas, ojos y líneas finas.", "About 10 times slower. More faithful: keeps textures, eyes and thin lines.")}};
+            for (String[] op : opts) {
+                android.widget.RadioButton rb = new android.widget.RadioButton(this); rb.setText(op[1]); rb.setTextColor(TXT); rb.setButtonTintList(ColorStateList.valueOf(ACC)); rb.setId(View.generateViewId());
+                rb.setChecked(op[0].equals(model[0])); rb.setOnClickListener(v -> { model[0] = op[0]; Upscaler.setModel(this, op[0]); });
+                rg.addView(rb); TextView sub = text(op[2], 12, DIM, false); sub.setPadding(dp(32), 0, 0, dp(6)); rg.addView(sub);
+            }
+            box.addView(rg);
+        }
+        TextView msg = text(L.s("Aumenta la resolución y la nitidez en la NPU. Puede inventar detalles pequeños (pelo, texto, texturas); la imagen original no se toca.",
+            "Raises the resolution and sharpness on the NPU. It may invent small details (hair, text, textures); the original picture is kept."), 13, DIM, false);
+        msg.setPadding(0, dp(4), 0, 0); box.addView(msg);
+        builder().setTitle(L.s("Ampliar en la NPU", "Enlarge on the NPU")).setView(box)
+            .setPositiveButton(items[0], (d, i) -> runUpscale(src, 2, model[0], done))
+            .setNeutralButton(items[1], (d, i) -> { if (x4ok) runUpscale(src, 4, model[0], done); else Toast.makeText(this, L.s("Usa ×2 para esta imagen", "Use ×2 for this picture"), Toast.LENGTH_LONG).show(); })
             .setNegativeButton(L.s("Отмена", "Cancel"), null).show();
     }
-    void runUpscale(final java.io.File src, final int factor, final java.util.function.Consumer<java.io.File> done) {
+    void runUpscale(final java.io.File src, final int factor, final String model, final java.util.function.Consumer<java.io.File> done) {
         final boolean[] stop = {false};
         LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(22), dp(8), dp(22), 0);
         final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(1000); bar.setProgressTintList(ColorStateList.valueOf(ACC)); box.addView(bar);
@@ -227,12 +242,12 @@ abstract class Base extends Activity {
         new Thread(() -> {
             try {
                 android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(src.getPath()); if (b == null) throw new java.io.IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
-                android.graphics.Bitmap up = Upscaler.run(this, b, factor, (k, n) -> ui.post(() -> { bar.setProgress(1000 * k / n); tv.setText(L.f("Trozo %d de %d", "Tile %d of %d", k, n)); }), () -> stop[0]);
+                android.graphics.Bitmap up = Upscaler.run(this, b, factor, model, (k, n) -> ui.post(() -> { bar.setProgress(1000 * k / n); tv.setText(L.f("Trozo %d de %d", "Tile %d of %d", k, n)); }), () -> stop[0]);
                 b.recycle();
                 ui.post(() -> tv.setText(L.s("Guardando…", "Saving…")));
                 java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream(); up.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bo); up.recycle();
                 org.json.JSONObject m = new org.json.JSONObject(Gallery.meta(src).toString());
-                m.put("w", w(src) * factor).put("h", h(src) * factor).put("upscaled", factor).put("upscaled_from", src.getName()).put("upscaler", "Real-ESRGAN General x4v3")
+                m.put("w", w(src) * factor).put("h", h(src) * factor).put("upscaled", factor).put("upscaled_from", src.getName()).put("upscaler", Upscaler.name(model))
                  .put("sec", (System.currentTimeMillis() - t0) / 1000.0); m.remove("grid"); m.remove("compare");
                 final java.io.File out = Gallery.save(this, bo.toByteArray(), m);
                 ui.post(() -> { dlg.dismiss(); Toast.makeText(this, L.f("Ampliada ×%d en %.1f s · guardada en el Historial", "Enlarged ×%d in %.1f s · saved in the History", factor, (System.currentTimeMillis() - t0) / 1000.0), Toast.LENGTH_LONG).show(); if (done != null) done.accept(out); });

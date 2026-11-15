@@ -1,0 +1,15 @@
+4x-UltraSharp
+=============
+
+Model: 4x-UltraSharp by Kim2091
+Source: https://huggingface.co/Kim2091/UltraSharp
+License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+         https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Changes made for HexAnima: the original weights (4x-UltraSharp.safetensors, ESRGAN RRDBNet architecture) were
+exported to ONNX (upscale/export_ultrasharp.py) and compiled, unchanged in content, into a 16-bit floating point
+Qualcomm HTP context for a 256x256 input tile (upscale/build.sh, MODEL=ultrasharp). No retraining or fine-tuning.
+
+Under the NonCommercial term, this model and its converted form may not be used for commercial purposes.
+Under the ShareAlike term, the converted model file is distributed under the same CC BY-NC-SA 4.0 license.
+Pictures you enlarge with it are your own; the license applies to the model, not to your pictures.

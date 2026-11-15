@@ -28,12 +28,21 @@ final class Upscaler {
     /** set by the main screen while it generates: the NPU and the RAM belong to that run */
     static volatile boolean npuBusy;
 
-    static File context(Context c) {
+    /** "esrgan": Real-ESRGAN General x4v3, fast (BSD-3). "ultrasharp": 4x-UltraSharp by Kim2091 (ESRGAN RRDB, CC BY-NC-SA 4.0), ~10x slower, more faithful
+     *  detail (upscale/export_ultrasharp.py + MODEL=ultrasharp upscale/build.sh, shipped as lib/libultrasharp_<arch>.so). Same tile interface. */
+    static final String ESRGAN = "esrgan", ULTRASHARP = "ultrasharp";
+    static File context(Context c, String model) {
         String a = Compat.dspArch(); if (a.isEmpty()) return null;
-        File f = new File(c.getApplicationInfo().nativeLibraryDir, "libesrgan_" + a + ".so");
+        File f = new File(c.getApplicationInfo().nativeLibraryDir, "lib" + model + "_" + a + ".so");
         return f.isFile() ? f : null;
     }
+    static File context(Context c) { return context(c, ESRGAN); }
     static boolean available(Context c) { return context(c) != null; }
+    static boolean available(Context c, String model) { return context(c, model) != null; }
+    /** the model picked in the Enlarge dialog (also used by Corrections > Resolution); falls back to Real-ESRGAN when the other is missing */
+    static String model(Context c) { String m = c.getSharedPreferences("anima", 0).getString("upscale_model", ESRGAN); return available(c, m) ? m : ESRGAN; }
+    static void setModel(Context c, String m) { c.getSharedPreferences("anima", 0).edit().putString("upscale_model", m).apply(); }
+    static String name(String model) { return ULTRASHARP.equals(model) ? "4x-UltraSharp" : "Real-ESRGAN General x4v3"; }
     static boolean fits(int w, int h, int factor) { return (long) w * factor * h * factor <= MAX_OUT_PIXELS; }
 
     interface Progress { void at(int done, int total); }
@@ -51,8 +60,9 @@ final class Upscaler {
         return sm;
     }
 
-    static Bitmap run(Context c, Bitmap src, int factor, Progress pr, BooleanSupplier cancel) throws Exception {
-        File ctx = context(c); if (ctx == null) throw new IOException(L.s("Este chip no tiene el escalador", "This chip has no upscaler"));
+    static Bitmap run(Context c, Bitmap src, int factor, Progress pr, BooleanSupplier cancel) throws Exception { return run(c, src, factor, model(c), pr, cancel); }
+    static Bitmap run(Context c, Bitmap src, int factor, String model, Progress pr, BooleanSupplier cancel) throws Exception {
+        File ctx = context(c, model); if (ctx == null) throw new IOException(L.s("Este chip no tiene el escalador", "This chip has no upscaler"));
         final int w = src.getWidth(), h = src.getHeight(), W = Math.max(w, T), H = Math.max(h, T);   // smaller pictures are padded with their edge pixels
         if (!fits(w, h, factor)) throw new IOException(L.s("La imagen es demasiado grande para ese aumento", "The picture is too large for that factor"));
         int[] px = new int[w * h]; src.getPixels(px, 0, w, 0, 0, w, h);

@@ -42,6 +42,8 @@ if [ -f "$MB/magerun/out/magerun" ] && [ -f "$MB/hexagon/mega/out/libmega_skel_v
 fi
 # picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
+# "Detailed" upscaler: 4x-UltraSharp (Kim2091, CC BY-NC-SA 4.0; MODEL=ultrasharp upscale/build.sh 256 ARCH), same runner; offered only where its context exists
+for a in v69 v73 v79; do [ -f upscale/out_$a/ultrasharp_256.bin ] && cp upscale/out_$a/ultrasharp_256.bin $J/libultrasharp_$a.so; done
 # LTX-Video (video, experimental): the T5 text runner, the NPU runner and the QAIRT 2.50 runtime its contexts need, renamed so they do not clash with the 2.28 runtime above
 # (Ltx.prepare links files/ltx/lib/libQnnHtp.so etc. to these). Built in ~/Hexanima-dev/ltx (ltx/t5enc/build.sh, ltx/ltxrun/build.sh; runtime from com.qualcomm.qti:qnn-runtime:2.50.0)
 LTX=${LTX_DIR:-$HOME/Hexanima-dev/ltx}; R=$LTX/qnn250/jni/arm64-v8a
