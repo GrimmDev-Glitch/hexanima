@@ -330,11 +330,21 @@ public class Corrections extends Base {
             if (split < 1f) { tp.setTextAlign(Paint.Align.RIGHT); c.drawText(la, l + w - dp(8), t + dp(18), tp); }
             if (zoom > 1) { tp.setTextAlign(Paint.Align.LEFT); c.drawText("3×", l + dp(8), t + h - dp(10), tp); }
         }
+        float downX, downY; boolean sliding;
+        /** a sideways drag moves the line; a vertical one is left to the page so it still scrolls */
         @Override public boolean onTouchEvent(MotionEvent e) {
-            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
             gd.onTouchEvent(e);
-            if (before != after && dst.width() > 0 && e.getActionMasked() == MotionEvent.ACTION_MOVE) { split = Math.max(0f, Math.min(1f, (e.getX() - dst.left) / dst.width())); invalidate(); }
-            return true;
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN: downX = e.getX(); downY = e.getY(); sliding = false; return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (!sliding) {
+                        float dx = Math.abs(e.getX() - downX), dy = Math.abs(e.getY() - downY), slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                        if (dx > slop && dx > dy) { sliding = true; if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true); }
+                    }
+                    if (sliding && before != after && dst.width() > 0) { split = Math.max(0f, Math.min(1f, (e.getX() - dst.left) / dst.width())); invalidate(); }
+                    return true;
+                default: sliding = false; return true;
+            }
         }
     }
 }

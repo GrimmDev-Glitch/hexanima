@@ -204,6 +204,13 @@
   - Probado con HexAnima Dev instalada un rato (desinstalada después): Ruido 60 % en 1,4 s, aceptar, Resolución ×2 desde esa base en 1,8 s (1024×1536), aceptar, deshacer (vuelve a Ruido), rehacer, guardar: la imagen nueva lleva el prompt original y los dos pasos; el original y la carpeta de trabajo quedan como deben.
   - Pendiente (segunda parte): Manos/Detalles/Otros con la edición de Qwen con máscara, Cara con un restaurador facial convertido a la NPU, y capturas en inglés para el README.
 
+- 15 nov 2026 · **Correcciones, segunda parte: Manos, Detalles y Otros con Qwen.**
+  - Se activan cuando Qwen-Image está instalado. Se pinta la zona con el mismo editor de máscaras de la app (se movió `MaskView` / `showMaskEditor` de `Main` a `Base`, sin cambiar su funcionamiento) y se escribe el cambio (en Manos es opcional: por defecto pide manos naturales de cinco dedos).
+  - `Qwen.runMaskedEdit`: el mismo camino que la edición de la pantalla principal (`prepareEdit`, `qwen.sh`, `png`, `applyDetailMask` / `applyEditMask`), sin tocar `Main.runOneQwen`. Solo cambia la zona pintada, con borde suave; semilla distinta en cada alternativa; Cancelar usa `qwen.sh stop`. Antes de empezar se libera el servidor de Anima para dejar la RAM a Qwen, y la pantalla principal lo muestra como no cargado.
+  - Probado en el teléfono con la release de prueba firmada (instalada encima, sin perder datos): la chica de MOSS con la mano junto a la cara, Manos con la mano pintada: alternativa en 67,6 s. Con zoom 3× los dedos salen separados, con nudillos y uñas, frente a la mano borrosa del original; cara, pelo y lazo iguales. Se salió sin guardar para no añadir imágenes de prueba al historial.
+  - Arreglado: deslizar en vertical sobre el comparador movía la línea en vez de desplazar la pantalla; ahora la línea solo se mueve con un gesto horizontal (pendiente de comprobar en el teléfono con la próxima compilación).
+  - Cara sigue como «pronto»: necesita un restaurador facial convertido a la NPU.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
