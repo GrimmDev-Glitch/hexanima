@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 BUILD_TYPE=${BUILD_TYPE:-debug}
 case "$BUILD_TYPE" in
   debug) APK_NAME=hexanima.apk; DEBUG_FLAG=--debug-mode ;;
-  release) APK_NAME=hexanima-release.apk; DEBUG_FLAG= ;;
+  release) APK_NAME=hexanima-release.apk; DEBUG_FLAG= ; if [[ "${MIGRATION_DEBUGGABLE:-0}" == 1 ]]; then APK_NAME=hexanima-release-migrate.apk; DEBUG_FLAG=--debug-mode; fi ;;   # migration build: release key but debuggable, only to copy data from Dev over adb run-as; the final release replaces it
   *) echo "BUILD_TYPE must be debug or release" >&2; exit 2 ;;
 esac
 if [[ "${BUILD_DEV:-0}" == 1 ]]; then APK_NAME=hexanima-dev.apk; fi

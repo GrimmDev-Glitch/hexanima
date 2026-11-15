@@ -172,6 +172,14 @@
   - **Fondo de pantalla propio (de upstream 1.6.0):** Ajustes → Fondo de pantalla → Elegir imagen, Posición y tamaño (pellizcar y arrastrar) y Quitar; deslizadores de transparencia de los bloques y oscurecimiento. Valores por defecto 25 % y 55 % (con 35 % el texto gris sobre un fondo claro no se leía). Diálogos y menú ⋯ siguen opacos. Probado en el teléfono en la pantalla principal, Ajustes y el editor; el fondo de prueba se quitó después.
   - Segunda compilación release, instalada desde cero en XSpace: la Bienvenida muestra las tres familias, la pantalla sin modelo dice «Todavía no hay modelo…», los modelos «(base)» llevan el texto nuevo y Mage no aparece. La regla de «Modelo completo» se aplicaba también a «Qwen-Image 2.1 Turbo 8 step» (80 s) con un punto doble; ahora es solo para Anima (comprobado en Dev).
 
+- 14 nov 2026 · **Migración del teléfono de Dev a la release (sin perder datos):**
+  - Se instaló en el perfil principal una compilación de migración: firmada con la clave del release pero depurable (`MIGRATION_DEBUGGABLE=1` en `app/build.sh`), para copiar con `run-as` de una app a la otra. La release final, no depurable y con la misma clave, se instala encima sin borrar datos.
+  - Copia dentro del teléfono con `tar` de Dev a la release, por familia, comparando número de archivos y bytes antes de borrar cada familia de Dev. Ajustes (`shared_prefs/anima.xml`, md5 igual), galería (130 archivos), `sd`, Anima (134 archivos, 11,4 GB), MOSS (170 archivos y 31 enlaces), Qwen (250 archivos, 25,2 GB).
+  - Tres `.safetensors` de `sd` son archivos dispersos (4 GB de tamaño, 84 KB reales); `tar` los llenaba de ceros. Se rehicieron como dispersos (cabecera + `truncate`) con el mismo md5.
+  - El MOSS base de Dev eran enlaces a `/data/local/tmp/moss_v73/model` (copia de desarrollo). En la release son archivos reales (92 archivos, 14,1 GB, mismos bytes) y los enlaces de RealSkin y Harem apuntan al paquete nuevo (22 enlaces, ninguno roto). Después se borró `/data/local/tmp/moss_v73`.
+  - Fuera de la migración: Mage (8,5 GB, no funciona en V73; sigue en Dev hasta desinstalarlo), un `.part` de descarga a medias y restos de pruebas de Qwen (`diag`, `gtest`, `vae_v73.backup` de 1,2 GB, `test_prompt.ids`).
+  - Comprobado en la release: abre con los ajustes y el modelo de antes, todos los modelos en el selector, y genera con Qwen (44,3 s), MOSS RealSkin (45,0 s) y Anima LH3D (12,2 s).
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.
