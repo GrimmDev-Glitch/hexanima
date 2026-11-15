@@ -756,3 +756,32 @@ Step %d/4	Paso %d/4
 Qwen did not finish (log files/qwen/qwen.log)	Qwen no terminó (registro files/qwen/qwen.log)
 Paint the face (or only the eyes or the mouth). Qwen redraws it clean, with symmetric eyes and the same style, hair and expression; the rest stays the same. Make a few alternatives and keep the best. Each one takes about a minute.	Pinta la cara (o solo los ojos o la boca). Qwen la redibuja limpia, con ojos simétricos y el mismo estilo, peinado y expresión; el resto queda igual. Genera varias alternativas y quédate con la mejor. Cada una tarda alrededor de un minuto.
 Optional: e.g. blue eyes, a soft smile	Opcional: p. ej. ojos azules, sonrisa suave
+LTX-Video notices	Avisos de LTX-Video
+T5 did not finish	T5 no terminó
+Loading the model on the NPU…	Cargando el modelo en la NPU…
+Step %d/8	Paso %d/8
+Decoding the frames…	Decodificando los fotogramas…
+The NPU did not finish the video	La NPU no terminó el vídeo
+Saving the MP4…	Guardando el MP4…
+video	vídeo
+Video (experimental)	Vídeo (experimental)
+~30 s per 512×320 clip	~30 s por clip de 512×320
+No clips yet	Todavía no hay clips
+Write a prompt	Escribe una descripción
+Cancel the video first	Primero cancela el vídeo
+Video	Vídeo
+The LTX-Video 2B model is not downloaded yet (about 5.5 GB).	El modelo LTX-Video 2B todavía no está descargado (unos 5,5 GB).
+Open Models	Abrir Modelos
+Experimental: LTX-Video 2B, 512×320, 25 frames (~1 s). About 30 seconds per clip: the text on the CPU, the frames on the NPU.	Experimental: LTX-Video 2B, 512×320, 25 fotogramas (~1 s). Unos 30 segundos por clip: el texto en el procesador y los fotogramas en la NPU.
+Save to gallery	Guardar en galería
+Saved: Movies/HexAnima	Guardado: Movies/HexAnima
+Prompt	Descripción
+What happens in the clip: who, what they do, the camera movement…	Qué pasa en el clip: quién, qué hace, el movimiento de cámara…
+Tip: describe the motion in plain English sentences, for example "A girl with white hair smiles and waves, cherry blossom petals falling, soft daylight".	Consejo: describe el movimiento con frases sencillas en inglés, por ejemplo «A girl with white hair smiles and waves, cherry blossom petals falling, soft daylight».
+random	aleatoria
+Make a video	Crear vídeo
+Clips	Clips
+LTX-Video © Lightricks, LTXV Open Weights License (Info → Licenses). NPU contexts: timmyboy26.	LTX-Video © Lightricks, licencia LTXV Open Weights (Info → Licencias). Contextos de la NPU: timmyboy26.
+Your video will appear here	Tu vídeo aparecerá aquí
+seed %d · %.1f s	semilla %d · %.1f s
+Short videos from text: 512×320, 25 frames (~1 s), about 30 s per clip on the NPU. Experimental.	Vídeos cortos a partir de texto: 512×320, 25 fotogramas (~1 s), unos 30 s por clip en la NPU. Experimental.

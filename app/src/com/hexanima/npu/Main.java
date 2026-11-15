@@ -1734,11 +1734,12 @@ public class Main extends Base {
 
     // ---- menu, dialogs ------------------------------------------------------------------------
     void menu(View anchor) {
-        popup(anchor, new String[]{L.s("Модели", "Models"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")}, k -> {
+        popup(anchor, new String[]{L.s("Модели", "Models"), L.s("Видео (экспериментально)", "Video (experimental)"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")}, k -> {
             if (k == 0) openModels();
-            else if (k == 1) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
-            else if (k == 2) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
-            else if (k == 3) startActivity(new Intent(this, Settings.class));
+            else if (k == 1) { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }
+            else if (k == 2) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
+            else if (k == 3) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
+            else if (k == 4) startActivity(new Intent(this, Settings.class));
             else startActivity(new Intent(this, Info.class));
         });
     }

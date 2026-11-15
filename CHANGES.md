@@ -2,6 +2,12 @@
 
 ## Próximo (V73)
 
+- 15 nov 2026 · **Vídeo (experimental)** con LTX-Video 2B 0.9.8 distilled: menú ⋯ → «Vídeo (experimental)». Escribes qué pasa y sale un clip de 512×320 y 25 fotogramas (~1 s) en MP4, con lista de clips, «Guardar en galería» (Movies/HexAnima) y Eliminar. El modelo se descarga en Modelos (5,5 GB, solo en V73).
+  - Texto: T5-XXL q4_0 en el procesador (`libltxt5.so`, sobre stable-diffusion.cpp). Pasos y VAE: en la NPU con contextos QAIRT 2.50 de timmyboy26 (`libltxrun.so`, código propio en `ltx/`).
+  - Las librerías QAIRT 2.50 van en el APK con otro nombre (`libqnn250*.so`) y `files/ltx/lib` enlaza los nombres originales. El backend se carga desde memoria (memfd): junto a su archivo encontraría el stub 2.28 de los demás modelos («Stub lib id mismatch»).
+  - Probado en el Poco F6 Pro dentro de la app Dev: clip en 41,5 s (texto 22,9 s en frío), MP4 reproducido en bucle y guardado en la galería. Captura: `docs/screens/v73/41-video.jpg`; muestras en `ltx/samples/`.
+  - Sin probar: la descarga de 5,5 GB desde Modelos (en Dev se copiaron los archivos por ADB).
+  - Comprobado de paso: un contexto compilado con QAIRT 2.28 (Real-ESRGAN) da el mismo resultado bit a bit con el runtime 2.50.
 ## 1.7.1-v73 · 15 nov 2026
 
 - 15 nov 2026 · Correcciones → **Cara**: ya no está como «pronto». Usa la misma edición con máscara de Qwen que Manos: pintas la cara (o solo ojos o boca) y Qwen la redibuja limpia, con ojos simétricos y el mismo estilo, peinado, tono de piel y expresión; el resto queda igual. Texto opcional (p. ej. «ojos azules»). Probado en el Poco F6 Pro con una imagen de MiaoMiao RealSkin: 56,9 s, ojos nítidos y sonrisa natural sin costura. Se descartó convertir GFPGAN por ahora: solo sirve para caras realistas y Qwen ya cubre anime y fotos. Captura: `docs/screens/v73/40-corrections-face.jpg`.

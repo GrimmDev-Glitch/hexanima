@@ -30,3 +30,10 @@ ffmpeg -f rawvideo -pix_fmt rgb24 -s 512x320 -r 24 -i out.rgb -c:v libx264 -pix_
 | **Whole clip, cold** | **30.6 s** |
 
 Battery 35.1 °C after two clips. Samples in `samples/`.
+
+## In the app
+
+Menu ⋯ → Video (experimental) (`VideoActivity`, `Ltx.java`). The model downloads from Models (5.5 GB, V73 only).
+The APK carries the QAIRT 2.50 runtime renamed (`libqnn250htp.so`, `libqnn250system.so`, `libqnn250v73stub.so`, `libqnn250v73skel.so`);
+`Ltx.prepare` links the original names in `files/ltx/lib`. `libltxrun.so` loads the backend from a memfd (`LTX_MEMFD=1`): the HTP backend
+looks for `libQnnHtpV73Stub.so` next to its own file, and in the native lib dir that is the 2.28 stub of the other models.

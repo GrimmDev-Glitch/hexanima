@@ -19,7 +19,7 @@ import org.json.JSONObject;
 final class Models {
     private static final String MAGE_PACK = "https://huggingface.co/ayanoby/hexanima-mage-packs/resolve/1937989fd5327472322d273366aa9ee8d944729d/";
     private static final long MAGE_PACK_SIZE = 8710533044L;
-    static class Item { String id, name, desc, descEn, params = "", quant = "", author = "", manifest, runtimeManifest = "", mossVariant = ""; long size, runtimeSize; int speed; boolean moss, qwen, mage, runtimeAvailable = true; }   // speed: seconds per picture at 512x768
+    static class Item { String id, name, desc, descEn, params = "", quant = "", author = "", manifest, runtimeManifest = "", mossVariant = ""; long size, runtimeSize; int speed; boolean moss, qwen, mage, video, runtimeAvailable = true; }   // speed: seconds per picture at 512x768
     interface Progress { void on(long done, long total, String what); }
 
     final File anima, sd, home;
@@ -63,6 +63,7 @@ final class Models {
 
     /** Keep Mage available when the selected Anima pack catalog predates that model family. */
     static void ensureMage(List<Item> items) {
+        if (Ltx.supported()) { boolean has = false; for (Item it : items) if (Ltx.is(it.id)) has = true; if (!has) items.add(Ltx.item()); }   // video model: listed by the app itself, not by the pack catalog
         for (Item it : items) if (Mage.is(it.id)) return;
         Item it = new Item(); it.id = "mage-flow-edit-turbo"; it.name = "Mage-Flow-Edit-Turbo";
         it.desc = "Generación y edición de imágenes con Mage-Flow; runner experimental para Hexagon V73.";
@@ -140,7 +141,7 @@ final class Models {
         } catch (Exception e) { return true; }
     }
     boolean is29(String id) { return !Moss.is(id) && new File(modelDir(id), "blk39.bin").exists(); }
-    boolean modelInstalled(String id) { if (Moss.is8(id)) return Moss.installed8(home); if (Moss.is(id)) return Moss.installed(home) && (Moss.isVariant(id) ? id.equals(Moss.variantId(home, Moss.variantKey(id))) && Moss.installedVariant(home, Moss.variantKey(id)) : id.equals(mossId())); if (Qwen.is(id)) return Qwen.installed(home) && id.equals(qwenId()); if (Mage.is(id)) return Mage.installed(home) && id.equals(mageId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
+    boolean modelInstalled(String id) { if (Ltx.is(id)) return Ltx.installed(home); if (Moss.is8(id)) return Moss.installed8(home); if (Moss.is(id)) return Moss.installed(home) && (Moss.isVariant(id) ? id.equals(Moss.variantId(home, Moss.variantKey(id))) && Moss.installedVariant(home, Moss.variantKey(id)) : id.equals(mossId())); if (Qwen.is(id)) return Qwen.installed(home) && id.equals(qwenId()); if (Mage.is(id)) return Mage.installed(home) && id.equals(mageId()); return commonInstalled() && doneMark(modelDir(id)).exists() && new File(sd, id + ".safetensors").exists(); }
     /** v69 keeps the original "common" folder (older apps use it); other Hexagon generations have their own QNN contexts in common_<arch> */
     static String commonDir() { String a = Compat.dspArch(); return a.isEmpty() || a.equals("v69") ? "common" : "common_" + a; }
     /** where common_<arch> lives: the V73 contexts (Snapdragon 8 Gen 2 port) are in their own repository; the models stay in the main one */
@@ -195,6 +196,7 @@ final class Models {
     }
 
     void installModel(String base, Item it, Progress pg, AtomicBoolean cancel) throws Exception {
+        if (it.video) { Ltx.install(home, pg, cancel); return; }
         final String murl = it.manifest.startsWith("http") ? it.manifest : base + it.manifest;   // a pack may live in another repository (MOSS-Image: Apache-2.0, not in the Anima repo)
         JSONObject m = new JSONObject(get(murl));
         File dir = modelDir(it.id); dir.mkdirs();
@@ -238,11 +240,12 @@ final class Models {
 
     /** installed models take the name / speed of the current catalog (names are shown from meta.json) */
     void refreshMeta(Item it) {
-        if (Moss.is8(it.id) || Moss.isVariant(it.id) || !modelInstalled(it.id)) return;
+        if (it.video || Moss.is8(it.id) || Moss.isVariant(it.id) || !modelInstalled(it.id)) return;
         try (FileWriter w = new FileWriter(new File(modelDir(it.id), "meta.json"))) { w.write(new JSONObject().put("id", it.id).put("name", it.name).put("speed", it.speed).toString()); } catch (Exception ignored) { }
     }
 
     void delete(String id) {
+        if (Ltx.is(id)) { Ltx.delete(home); return; }
         File dir = modelDir(id);
         if (Moss.is8(id)) { Moss.delete8(home); return; }
         if (Moss.isVariant(id)) { String key = Moss.variantKey(id); deleteTree(new File(dir, key)); deleteTree(new File(dir, "v" + key)); return; }

@@ -41,4 +41,11 @@ if [ -f "$MAGE/native/libmagerun.so" ]; then
 fi
 # picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
+# LTX-Video (video, experimental): the T5 text runner, the NPU runner and the QAIRT 2.50 runtime its contexts need, renamed so they do not clash with the 2.28 runtime above
+# (Ltx.prepare links files/ltx/lib/libQnnHtp.so etc. to these). Built in ~/Hexanima-dev/ltx (ltx/t5enc/build.sh, ltx/ltxrun/build.sh; runtime from com.qualcomm.qti:qnn-runtime:2.50.0)
+LTX=${LTX_DIR:-$HOME/Hexanima-dev/ltx}; R=$LTX/qnn250/jni/arm64-v8a
+if [ -f $LTX/ltxrun/ltxrun ] && [ -f $LTX/t5enc/t5enc.bin ] && [ -f $R/libQnnHtp.so ]; then
+  cp $LTX/t5enc/t5enc.bin $J/libltxt5.so; cp $LTX/ltxrun/ltxrun $J/libltxrun.so
+  cp $R/libQnnHtp.so $J/libqnn250htp.so; cp $R/libQnnSystem.so $J/libqnn250system.so; cp $R/libQnnHtpV73Stub.so $J/libqnn250v73stub.so; cp $R/libQnnHtpV73Skel.so $J/libqnn250v73skel.so
+fi
 ls -la $J

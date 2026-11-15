@@ -1,0 +1,9 @@
+LTX-Video 2B 0.9.8 distilled - notices
+
+Model: Lightricks LTX-Video (https://huggingface.co/Lightricks/LTX-Video), LTXV Open Weights License 0.X (the full text is in this app: Info -> Licenses).
+The weights were converted to ONNX, quantized (INT8 weights, FP16 activations for the transformer; W8A16 for the VAE decoder)
+and compiled into QNN context binaries for the Hexagon NPU by timmyboy26 (https://huggingface.co/timmyboy26/LTX-Video-2B-0.9.8-distilled-QNN).
+HexAnima downloads these files unchanged from Hugging Face; nothing is retrained.
+Text encoder: T5-XXL v1.1, GGUF q4_0 from https://huggingface.co/calcuis/ltxv-gguf (Apache-2.0).
+The use restrictions of the LTXV Open Weights License (paragraph 4 and Attachment A) apply to every video made with it.
+The NPU runner (libltxrun.so) and the text runner (libltxt5.so, built on stable-diffusion.cpp / ggml, MIT) are HexAnima code.

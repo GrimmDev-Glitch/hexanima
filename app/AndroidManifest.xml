@@ -25,6 +25,7 @@
         <activity android:name=".Welcome" android:exported="false"/>
         <activity android:name=".WallEdit" android:exported="false"/>
         <activity android:name=".Corrections" android:exported="false"/>
+        <activity android:name=".VideoActivity" android:exported="false"/>
         <provider android:name=".GalleryProvider" android:authorities="com.hexanima.npu.gallery" android:exported="false" android:grantUriPermissions="true"/>
         <activity android:name=".Main" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>

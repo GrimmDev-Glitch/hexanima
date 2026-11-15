@@ -7,7 +7,10 @@
 // stdin: "gen EMB MASK SEED OUT [W H F fps]"  EMB = 128x4096 f32 T5 states, MASK = 128 f32 (0 / -10000)
 //        writes OUT = F frames of W*H RGB bytes; prints "step k/8 <ms>", "vae <ms>", "done <ms>"
 //        "quit" ends.
+#include <android/dlext.h>
 #include <dlfcn.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -165,10 +168,23 @@ static void pass(const Tensor& from, Tensor& to) {
   std::vector<float> f(from.elems); from.get(f.data()); to.set(f.data(), f.size());
 }
 
+// loads a library from an anonymous memory file: the QNN HTP backend then does not see the app's native lib dir as "its" folder
+// (it looks for libQnnHtpV73Stub.so next to itself, and that folder holds the 2.28 stub of the other models)
+static void* dlopenMem(const char* path, const char* name) {
+  std::vector<uint8_t> b = readFile(path); if (b.empty()) return nullptr;
+  int fd = (int)syscall(__NR_memfd_create, name, 0); if (fd < 0) { fprintf(stderr, "memfd_create failed\n"); return nullptr; }
+  for (size_t o = 0; o < b.size(); ) { ssize_t w = write(fd, b.data() + o, b.size() - o); if (w <= 0) { close(fd); return nullptr; } o += w; }
+  android_dlextinfo ex = {}; ex.flags = ANDROID_DLEXT_USE_LIBRARY_FD; ex.library_fd = fd;
+  void* h = android_dlopen_ext(name, RTLD_NOW | RTLD_LOCAL, &ex);
+  if (!h) fprintf(stderr, "android_dlopen_ext %s: %s\n", name, dlerror());
+  return h;
+}
+
 int main(int argc, char** argv) {
   if (argc < 5) { fprintf(stderr, "usage: ltxrun BACKEND SYSTEM DIR STATS.bin\n"); return 2; }
   const std::string dir = argv[3];
-  void* hb = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL); void* hs = dlopen(argv[2], RTLD_NOW | RTLD_LOCAL);
+  void* hb = getenv("LTX_MEMFD") ? dlopenMem(argv[1], "libQnnHtp.so") : dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
+  void* hs = dlopen(argv[2], RTLD_NOW | RTLD_LOCAL);
   if (!hb || !hs) { fprintf(stderr, "dlopen failed: %s\n", dlerror()); return 1; }
   typedef Qnn_ErrorHandle_t (*GetP)(const QnnInterface_t***, uint32_t*);
   typedef Qnn_ErrorHandle_t (*GetSP)(const QnnSystemInterface_t***, uint32_t*);

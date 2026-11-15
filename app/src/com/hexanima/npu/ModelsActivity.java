@@ -90,7 +90,7 @@ public class ModelsActivity extends Base {
         final String base = prefBase();
         final boolean needCommonAnima = !store.commonInstalled();
         for (final Models.Item it : items) {
-            final boolean needCommon = needCommonAnima && !it.moss && !it.qwen && !it.mage;
+            final boolean needCommon = needCommonAnima && !it.moss && !it.qwen && !it.mage && !it.video;
             final boolean have = store.modelInstalled(it.id);
             final boolean busyThis = downloading && it.id.equals(dlId);
             if (Mage.is(it.id) && !Mage.V73_RUNNER_VALIDATED && !have && !busyThis) continue;   // doesn't run on V73 yet: no 8.7 GB download; an installed pack stays listed so it can be deleted
@@ -99,10 +99,10 @@ public class ModelsActivity extends Base {
             if (have) { TextView ok = text("✓", 18, OK, true); ok.setPadding(0, 0, dp(8), 0); top.addView(ok); }
             top.addView(text(it.name, 17, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
             c.addView(top);
-            String meta = (it.params.isEmpty() ? "" : it.params + (it.quant.isEmpty() ? "" : " " + it.quant) + "  ·  ") + (it.speed > 0 ? L.f("~%d с на 512×768", "~%d s at 512×768", it.speed) + "  ·  " : "") + L.f("%s ГБ", "%s GB", gb(it.size));
+            String meta = (it.params.isEmpty() ? "" : it.params + (it.quant.isEmpty() ? "" : " " + it.quant) + "  ·  ") + (it.video ? L.s("~30 с на клип 512×320", "~30 s per 512×320 clip") + "  ·  " : it.speed > 0 ? L.f("~%d с на 512×768", "~%d s at 512×768", it.speed) + "  ·  " : "") + L.f("%s ГБ", "%s GB", gb(it.size));
             TextView m = text(meta, 13, ACC, false); m.setPadding(0, dp(4), 0, 0); c.addView(m);
             String d = L.s(it.desc, it.descEn);
-            if (it.speed >= 60 && !it.moss && !it.qwen && !it.mage) {   // the catalog copies "Fast, ..." from the turbo sibling onto the full (base) model
+            if (it.speed >= 60 && !it.moss && !it.qwen && !it.mage && !it.video) {   // the catalog copies "Fast, ..." from the turbo sibling onto the full (base) model
                 d = d.replaceFirst("^(Fast|Rápido|Rápida|Быстро|Быстрая|Быстрый),\\s*", "");
                 if (!d.isEmpty()) d = Character.toUpperCase(d.charAt(0)) + d.substring(1);
                 d = (d.isEmpty() ? "" : d.replaceAll("[.\\s]+$", "") + ". ") + L.s("Полная модель: 20+ шагов, медленнее, но точнее следует промпту.", "Full model: 20+ steps, slower but follows the prompt more closely.");
@@ -132,7 +132,7 @@ public class ModelsActivity extends Base {
         else if (!store.commonInstalled() && hasAnima()) { TextView n = text(L.f("К первой модели добавятся общие файлы (%s ГБ): текстовый энкодер и VAE. Они качаются один раз.", "The first model also fetches the shared files (%s GB): text encoder and VAE, once.", gb(store.commonSize)), 12, DIM, false); n.setPadding(dp(2), 0, 0, 0); list.addView(n); }
     }
 
-    boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen && !it.mage) return true; return false; }
+    boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen && !it.mage && !it.video) return true; return false; }
 
     void start(String base, Models.Item it, boolean needCommon) {
         if (!Compat.chipAllowed(this)) {   // an unsupported chip: the models will not run, so ask before 4 GB are downloaded
@@ -140,7 +140,7 @@ public class ModelsActivity extends Base {
                 .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> { Compat.allowChip(this); begin(base, it, needCommon); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
         }
-        if ((it.moss || it.qwen) && Compat.ramGb(this) < 10.5) {   // text encoder 6 GB and the DiT stream through RAM: 12 GB phones only
+        if ((it.moss || it.qwen || it.video) && Compat.ramGb(this) < 10.5) {   // text encoder 6 GB and the DiT stream through RAM: 12 GB phones only
             builder().setMessage(L.f("В телефоне %.1f ГБ ОЗУ: для этой модели рекомендуется 12 ГБ. Всё равно скачать?", "This phone has %.1f GB of RAM: 12 GB is recommended for this model. Download anyway?", Compat.ramGb(this)))
                 .setPositiveButton(L.s("Скачать", "Download"), (d, w) -> begin(base, it, needCommon)).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
             return;
@@ -164,7 +164,7 @@ public class ModelsActivity extends Base {
                 dlDone = d; dlTotal = tot; dlMsg = L.f("%s / %s ГБ  ·  %s", "%s / %s GB  ·  %s", gb(d), gb(tot), what);
             };
             String err = null;
-            try { if (!it.moss && !it.qwen) store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
+            try { if (!it.moss && !it.qwen && !it.video) store.installCommon(base, pg, cancel); store.installModel(base, it, pg, cancel); }
             catch (java.io.InterruptedIOException e) { err = L.s("Загрузка отменена: файлы сохранены, можно продолжить", "Cancelled: the files are kept, you can resume"); }
             catch (Exception e) { err = L.f("Ошибка: %s", "Error: %s", e.getMessage()); }
             final String msg = err;
