@@ -785,3 +785,19 @@ LTX-Video © Lightricks, LTXV Open Weights License (Info → Licenses). NPU cont
 Your video will appear here	Tu vídeo aparecerá aquí
 seed %d · %.1f s	semilla %d · %.1f s
 Short videos from text: 512×320, 25 frames (~1 s), about 30 s per clip on the NPU. Experimental.	Vídeos cortos a partir de texto: 512×320, 25 fotogramas (~1 s), unos 30 s por clip en la NPU. Experimental.
+Loading the VAE encoder…	Cargando el codificador VAE…
+The VAE encoder did not start	El codificador VAE no arrancó
+Part %d of %d · 	Parte %d de %d · 
+Encoding the frame…	Codificando el fotograma…
+The VAE encoder did not finish	El codificador VAE no terminó
+The NPU did not start	La NPU no arrancó
+%d frames · about %s	%d fotogramas · unos %s
+Longer clips are built from 1 s parts, each starting from the last frame of the one before, so the scene can drift little by little.	Los clips largos se arman con partes de 1 s: cada una empieza en el último fotograma de la anterior, así que la escena puede ir cambiando poco a poco.
+Another picture	Otra imagen
+Experimental: LTX-Video 2B, 512×320 at 24 frames per second. The text runs on the CPU, the frames on the NPU.	Experimental: LTX-Video 2B, 512×320 a 24 fotogramas por segundo. El texto va en el procesador y los fotogramas en la NPU.
+Starting picture · optional	Imagen inicial · opcional
+Choose a picture	Elegir imagen
+The clip starts from this picture (cropped to 512×320 around the middle) and the prompt says how it moves.	El clip empieza en esta imagen (recortada a 512×320 desde el centro) y la descripción dice cómo se mueve.
+Length	Duración
+%d s	%d s
+Short videos from text or from a picture: 512×320, 1 to 15 s, about 30 s per second of video on the NPU. Experimental.	Vídeos cortos a partir de texto o de una imagen: 512×320, de 1 a 15 s, unos 30 s por cada segundo de vídeo en la NPU. Experimental.

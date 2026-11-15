@@ -2,6 +2,10 @@
 
 ## Próximo (V73)
 
+- 15 nov 2026 · Vídeo: **imagen a vídeo** (botón «Elegir imagen»: el clip empieza en esa foto) y **duración** de 1, 2, 3, 5, 10 o 15 s (partes de 1 s encadenadas desde el último fotograma de la anterior, con corrección de color entre partes). El paquete suma el VAE 0.9.5 en fp8 (1,25 GB, codificador en el procesador; total 6,8 GB).
+  - `libltxt5.so enc` (codificador VAE con stable-diffusion.cpp), `libltxrun.so` con fotograma de condición (tokens fijos con timestep 0), lectura de contextos por `mmap` (recarga del DiT en < 1 s por bloque) y arreglo del tamaño de los tensores al recargar.
+  - Probado en el Poco F6 Pro (app Dev): 3 s de texto en 133 s; 2 s desde imagen en 117 s. Descarga de 5,5 GB desde Modelos probada: 4 min, todo verificado por SHA-256. Captura: `docs/screens/v73/42-video-from-image.jpg`.
+  - Estudio de calidades (360p–1080p), duraciones (3–15 s) y de Grok Imagine en `docs/LTX_VIDEO_STUDY.md`.
 - 15 nov 2026 · **Vídeo (experimental)** con LTX-Video 2B 0.9.8 distilled: menú ⋯ → «Vídeo (experimental)». Escribes qué pasa y sale un clip de 512×320 y 25 fotogramas (~1 s) en MP4, con lista de clips, «Guardar en galería» (Movies/HexAnima) y Eliminar. El modelo se descarga en Modelos (5,5 GB, solo en V73).
   - Texto: T5-XXL q4_0 en el procesador (`libltxt5.so`, sobre stable-diffusion.cpp). Pasos y VAE: en la NPU con contextos QAIRT 2.50 de timmyboy26 (`libltxrun.so`, código propio en `ltx/`).
   - Las librerías QAIRT 2.50 van en el APK con otro nombre (`libqnn250*.so`) y `files/ltx/lib` enlaza los nombres originales. El backend se carga desde memoria (memfd): junto a su archivo encontraría el stub 2.28 de los demás modelos («Stub lib id mismatch»).

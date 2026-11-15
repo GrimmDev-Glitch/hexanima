@@ -26,7 +26,7 @@ final class Ltx {
     static boolean supported() { return Compat.dspArch().equals("v73"); }
     static File dir(File home) { return new File(home, "ltx"); }
     static File outDir(File home) { File d = new File(dir(home), "videos"); d.mkdirs(); return d; }
-    static boolean installed(File home) { return new File(dir(home), ".installed").exists(); }
+    static boolean installed(File home) { return new File(dir(home), ".installed").exists() && new File(dir(home), "ltxv_0.9.5_vae_fp8_e4m3fn.safetensors").exists(); }   // the VAE encoder came with the second version of the pack
     static final int W = 512, H = 320, F = 25, FPS = 24;
 
     private static final String QNN = "https://huggingface.co/timmyboy26/LTX-Video-2B-0.9.8-distilled-QNN/resolve/e8c1f3edb48a1e4faa2e0d6a6c77c7b7222674b0/";
@@ -39,14 +39,16 @@ final class Ltx {
         {QNN + "v73/ltxv_chunk3.bin", "v73/ltxv_chunk3.bin", "490160456", "a7af2491106cc4d4ee8618351352a7778e40501c33fd2a750dd20bef7ff71124"},
         {QNN + "v73/ltxv_vae_512x320x25.bin", "v73/ltxv_vae_512x320x25.bin", "635607096", "ee715cd6298be35aaf49d5692c09ff07c4dc51aafac9222441101c8dc32ef84e"},
         {GG + "t5xxl_fp16-q4_0.gguf", "t5xxl_fp16-q4_0.gguf", "2896123072", "6be2b0b7e2de7cf2919340c88cb802a103a997ce46c53131cec91958c1db1af4"},
+        {GG + "ltxv_0.9.5_vae_fp8_e4m3fn.safetensors", "ltxv_0.9.5_vae_fp8_e4m3fn.safetensors", "1246943402", "126c45eaef59fbd250520ccb5185b4249389dfdf83f5e2fe7a51596da28ad8ae"},   // VAE encoder for image to video and longer clips (CPU)
         {QNN + "LICENSE.txt", "LICENSE.txt", "-1", ""},
     };
+    static final String VAE_ENC = "ltxv_0.9.5_vae_fp8_e4m3fn.safetensors";
     static long size() { long t = 0; for (String[] f : FILES) t += Math.max(0, Long.parseLong(f[2])); return t; }
 
     static Models.Item item() {
         Models.Item it = new Models.Item(); it.id = ID; it.name = "LTX-Video 2B · " + L.s("видео", "video"); it.video = true;
-        it.desc = "Короткие видео по тексту: 512×320, 25 кадров (~1 с), около 30 с на клип на NPU. Экспериментально.";
-        it.descEn = "Short videos from text: 512×320, 25 frames (~1 s), about 30 s per clip on the NPU. Experimental.";
+        it.desc = "Короткие видео по тексту или из картинки: 512×320, от 1 до 15 с, около 30 с на секунду видео на NPU. Экспериментально.";
+        it.descEn = "Short videos from text or from a picture: 512×320, 1 to 15 s, about 30 s per second of video on the NPU. Experimental.";
         it.params = "2B"; it.quant = "INT8"; it.author = "Lightricks · LTX-Video 0.9.8 distilled";
         it.size = size(); it.manifest = "";
         return it;
@@ -64,7 +66,7 @@ final class Ltx {
         new File(d, ".installed").createNewFile();
     }
 
-    static void delete(File home) { Models.deleteTree(new File(dir(home), "v73")); new File(dir(home), "t5xxl_fp16-q4_0.gguf").delete(); new File(dir(home), ".installed").delete(); Models.deleteTree(new File(dir(home), "lib")); }
+    static void delete(File home) { Models.deleteTree(new File(dir(home), "v73")); new File(dir(home), "t5xxl_fp16-q4_0.gguf").delete(); new File(dir(home), VAE_ENC).delete(); new File(dir(home), ".installed").delete(); Models.deleteTree(new File(dir(home), "lib")); }
 
     /** files/ltx/lib: the QAIRT 2.50 runtime under the names QNN looks for (links into the native lib dir, which may execute) + the VAE latent statistics */
     static void prepare(Context c) throws IOException {
@@ -83,52 +85,164 @@ final class Ltx {
 
     interface Phase { void on(String what, int permille); }
 
-    /** prompt -> mp4 in files/ltx/videos (with a .json beside it); throws with the reason */
-    static File generate(Context c, String prompt, long seed, Phase ph, BooleanSupplier cancel) throws Exception {
+    /** frames of a clip of n segments: the first has 25, every next one adds 24 (its first frame repeats the last one of the previous segment) */
+    static int frames(int segments) { return F + (F - 1) * (segments - 1); }
+    /** seconds offered: 1 = one segment; longer clips chain segments, each starting from the last frame of the one before */
+    static final int[] SECONDS = {1, 2, 3, 5, 10, 15};
+    static int segments(int seconds) { int n = 1; while (frames(n) < seconds * FPS) n++; return n; }
+
+    /** a child process with a line reader on its stdout */
+    static final class Proc {
+        static final String EOF = "\u0000eof";
+        final Process p; final Writer w; final java.util.concurrent.LinkedBlockingQueue<String> q = new java.util.concurrent.LinkedBlockingQueue<>();
+        Proc(ProcessBuilder pb) throws IOException {
+            p = pb.start(); w = new OutputStreamWriter(p.getOutputStream(), "UTF-8");
+            Thread t = new Thread(() -> { try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"))) { for (String l; (l = br.readLine()) != null; ) q.add(l.trim()); } catch (IOException ignored) { } q.add(EOF); });
+            t.setDaemon(true); t.start();
+        }
+        void send(String line) throws IOException { w.write(line + "\n"); w.flush(); }
+        /** next line starting with want or "error" (other lines go to cb); null when cancelled */
+        String until(String want, Line cb, BooleanSupplier cancel) throws Exception {
+            while (true) {
+                if (cancel.getAsBoolean()) { kill(); return null; }
+                String l = q.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS); if (l == null) continue;
+                if (l.equals(EOF)) { p.waitFor(); return "exit " + p.exitValue(); }
+                if (l.startsWith(want) || l.startsWith("error")) return l;
+                cb.on(l);
+            }
+        }
+        void kill() { p.destroy(); }
+        void quit() { try { send("q"); send("quit"); w.close(); } catch (IOException ignored) { } try { if (!p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) p.destroy(); } catch (InterruptedException e) { p.destroy(); } }
+    }
+
+    /** per-channel mean (0-2) and standard deviation (3-5) of an RGB24 frame */
+    static double[] stats(byte[] rgb) {
+        double[] s = new double[6]; long n = rgb.length / 3;
+        for (int i = 0; i < rgb.length; i++) s[i % 3] += rgb[i] & 255;
+        for (int c = 0; c < 3; c++) s[c] /= n;
+        for (int i = 0; i < rgb.length; i++) { double d = (rgb[i] & 255) - s[i % 3]; s[3 + i % 3] += d * d; }
+        for (int c = 0; c < 3; c++) s[3 + c] = Math.sqrt(s[3 + c] / n);
+        return s;
+    }
+
+    /** a picture scaled to cover 512x320 and cropped in the middle, as RGB24 */
+    static byte[] fitRgb(android.graphics.Bitmap src) {
+        float s = Math.max((float) W / src.getWidth(), (float) H / src.getHeight());
+        int sw = Math.max(W, Math.round(src.getWidth() * s)), sh = Math.max(H, Math.round(src.getHeight() * s));
+        android.graphics.Bitmap sc = android.graphics.Bitmap.createScaledBitmap(src, sw, sh, true);
+        android.graphics.Bitmap cr = android.graphics.Bitmap.createBitmap(sc, (sw - W) / 2, (sh - H) / 2, W, H);
+        int[] px = new int[W * H]; cr.getPixels(px, 0, W, 0, 0, W, H);
+        byte[] rgb = new byte[W * H * 3]; for (int i = 0; i < px.length; i++) { rgb[i * 3] = (byte) (px[i] >> 16); rgb[i * 3 + 1] = (byte) (px[i] >> 8); rgb[i * 3 + 2] = (byte) px[i]; }
+        if (cr != sc) cr.recycle(); if (sc != src) sc.recycle();
+        return rgb;
+    }
+
+    /** prompt (+ optional first picture) -> mp4 of about `seconds` in files/ltx/videos, with a .json beside it; throws with the reason */
+    static File generate(Context c, String prompt, long seed, android.graphics.Bitmap first, int seconds, Phase ph, BooleanSupplier cancel) throws Exception {
         File home = c.getFilesDir(), d = dir(home), work = new File(d, "work"); work.mkdirs();
-        String nat = c.getApplicationInfo().nativeLibraryDir;
+        String nat = c.getApplicationInfo().nativeLibraryDir, libs = new File(d, "lib").getPath();
         prepare(c);
-        long t0 = System.currentTimeMillis();
+        final int segs = segments(seconds), total = frames(segs);
+        final long t0 = System.currentTimeMillis();
+        final int[] seg = {0};
+        // overall progress: text 0-80, then the segments share 80-900
+        java.util.function.IntUnaryOperator at = k -> 80 + (int) ((long) (900 - 80) * (seg[0] * 100 + k) / (segs * 100L));
         // 1. text: T5-XXL on the CPU
         ph.on(L.s("Подготовка текста…", "Preparing the text…"), 20);
-        File pfx = new File(work, "p"); new File(work, "p.emb").delete();
-        ProcessBuilder pb = new ProcessBuilder(nat + "/libltxt5.so", new File(d, "t5xxl_fp16-q4_0.gguf").getPath(), pfx.getPath(), "6").directory(work);
+        File emb = new File(work, "p.emb"), mask = new File(work, "p.mask"); emb.delete();
+        ProcessBuilder pb = new ProcessBuilder(nat + "/libltxt5.so", new File(d, "t5xxl_fp16-q4_0.gguf").getPath(), new File(work, "p").getPath(), "6").directory(work);
         pb.redirectError(new File(work, "t5.log"));
-        Process p = pb.start();
-        try (Writer w = new OutputStreamWriter(p.getOutputStream(), "UTF-8")) { w.write(prompt.replace('\n', ' ').replace('\r', ' ') + "\nq\n"); }
-        String r = waitFor(p, "done", line -> { }, cancel);
+        Proc t5 = new Proc(pb); t5.send(prompt.replace('\n', ' ').replace('\r', ' ')); t5.send("q");
+        String r = t5.until("done", l -> { }, cancel);
         if (r == null) throw new InterruptedIOException("cancelled");
-        if (!r.startsWith("done") || new File(work, "p.emb").length() != 128L * 4096 * 4) throw new IOException(L.s("T5 не завершился", "T5 did not finish") + " (" + r + ")");
+        if (!r.startsWith("done") || emb.length() != 128L * 4096 * 4) throw new IOException(L.s("T5 не завершился", "T5 did not finish") + " (" + r + ")");
+        t5.quit();
         long tText = System.currentTimeMillis() - t0;
-        // 2. transformer (8 steps) and VAE on the NPU
-        ph.on(L.s("Загрузка модели в NPU…", "Loading the model on the NPU…"), 120);
-        File rgb = new File(work, "out.rgb"); rgb.delete();
-        String libs = new File(d, "lib").getPath();
-        pb = new ProcessBuilder(nat + "/libltxrun.so", libs + "/libQnnHtp.so", libs + "/libQnnSystem.so", new File(d, "v73").getPath(), new File(d, "vae_stats.bin").getPath()).directory(work);
-        pb.environment().put("LD_LIBRARY_PATH", libs + ":/system/lib64:/vendor/lib64");
-        pb.environment().put("LTX_MEMFD", "1");   // libltxrun loads the 2.50 backend from memory: next to its file it would find the 2.28 stub of the other models
-        pb.environment().put("ADSP_LIBRARY_PATH", libs + ";/vendor/lib/rfsa/adsp;/vendor/dsp/cdsp;/system/lib/rfsa/adsp;/vendor/dsp");
-        pb.redirectError(new File(work, "ltxrun.log"));
-        p = pb.start();
-        Writer w = new OutputStreamWriter(p.getOutputStream(), "UTF-8");
-        w.write("gen " + new File(work, "p.emb") + " " + new File(work, "p.mask") + " " + seed + " " + rgb + "\nquit\n"); w.flush();
-        final long[] tSteps = {0};
-        r = waitFor(p, "done", line -> {
-            if (line.equals("ready")) ph.on(L.f("Шаг %d/8", "Step %d/8", 1), 200);
-            else if (line.startsWith("step ")) { int k = Integer.parseInt(line.substring(5, line.indexOf('/'))); ph.on(k < 8 ? L.f("Шаг %d/8", "Step %d/8", k + 1) : L.s("Декодирование кадров…", "Decoding the frames…"), 200 + 85 * k); }
-        }, cancel);
-        try { w.close(); } catch (IOException ignored) { }
-        if (r == null) throw new InterruptedIOException("cancelled");
-        if (!r.startsWith("done") || rgb.length() != (long) W * H * 3 * F) throw new IOException(L.s("NPU не завершила видео", "The NPU did not finish the video") + " (" + r + ", " + tail(new File(work, "ltxrun.log")) + ")");
+        // 2. the VAE encoder (CPU) when a picture starts the clip or the clip has several segments
+        Proc enc = null, run = null; File cond = new File(work, "cond.lat"), still = new File(work, "still.rgb");
+        final boolean useImg = first != null;
+        File all = new File(work, "all.rgb"); all.delete();
+        final int frameBytes = W * H * 3;
+        try {
+            if (useImg || segs > 1) {
+                ph.on(L.s("Загрузка кодировщика VAE…", "Loading the VAE encoder…"), 60);
+                pb = new ProcessBuilder(nat + "/libltxt5.so", "enc", new File(d, VAE_ENC).getPath(), new File(d, "vae_stats.bin").getPath(), "6").directory(work);
+                pb.redirectError(new File(work, "enc.log"));
+                enc = new Proc(pb);
+                r = enc.until("ready", l -> { }, cancel);
+                if (r == null) throw new InterruptedIOException("cancelled");
+                if (!r.equals("ready")) throw new IOException(L.s("Кодировщик VAE не запустился", "The VAE encoder did not start") + " (" + r + ", " + tail(new File(work, "enc.log")) + ")");
+            }
+            try (RandomAccessFile out = new RandomAccessFile(all, "rw")) {
+                for (seg[0] = 0; seg[0] < segs; seg[0]++) {
+                    final String st = segs > 1 ? L.f("Часть %d из %d · ", "Part %d of %d · ", seg[0] + 1, segs) : "";
+                    final boolean condNow = seg[0] > 0 || useImg;
+                    if (condNow) {
+                        ph.on(st + L.s("Кодирование кадра…", "Encoding the frame…"), at.applyAsInt(2));
+                        if (seg[0] == 0) try (FileOutputStream o = new FileOutputStream(still)) { o.write(fitRgb(first)); }
+                        cond.delete(); enc.send("img " + still + " " + W + " " + H + " " + cond);
+                        r = enc.until("done", l -> { }, cancel);
+                        if (r == null) throw new InterruptedIOException("cancelled");
+                        if (!r.startsWith("done") || cond.length() != (long) (W / 32) * (H / 32) * 128 * 4) throw new IOException(L.s("Кодировщик VAE не завершился", "The VAE encoder did not finish") + " (" + r + ", " + tail(new File(work, "enc.log")) + ")");
+                    }
+                    // transformer (8 steps) and VAE decoder on the NPU; the runner stays alive across segments
+                    if (run == null) {
+                        ph.on(st + L.s("Загрузка модели в NPU…", "Loading the model on the NPU…"), at.applyAsInt(8));
+                        pb = new ProcessBuilder(nat + "/libltxrun.so", libs + "/libQnnHtp.so", libs + "/libQnnSystem.so", new File(d, "v73").getPath(), new File(d, "vae_stats.bin").getPath()).directory(work);
+                        pb.environment().put("LD_LIBRARY_PATH", libs + ":/system/lib64:/vendor/lib64");
+                        pb.environment().put("LTX_MEMFD", "1");   // the 2.50 backend is loaded from memory: next to its file it would find the 2.28 stub of the other models
+                        pb.environment().put("ADSP_LIBRARY_PATH", libs + ";/vendor/lib/rfsa/adsp;/vendor/dsp/cdsp;/system/lib/rfsa/adsp;/vendor/dsp");
+                        pb.redirectError(new File(work, "ltxrun.log"));
+                        run = new Proc(pb);
+                        r = run.until("ready", l -> { }, cancel);
+                        if (r == null) throw new InterruptedIOException("cancelled");
+                        if (!r.equals("ready")) throw new IOException(L.s("NPU не запустилась", "The NPU did not start") + " (" + r + ", " + tail(new File(work, "ltxrun.log")) + ")");
+                    }
+                    File rgb = new File(work, "seg.rgb"); rgb.delete();
+                    ph.on(st + L.f("Шаг %d/8", "Step %d/8", 1), at.applyAsInt(12));
+                    run.send("gen " + emb + " " + mask + " " + (seed + seg[0]) + " " + rgb + " " + (condNow ? cond.getPath() : "-"));
+                    r = run.until("done", l -> {
+                        if (l.startsWith("step ")) { int k = Integer.parseInt(l.substring(5, l.indexOf('/'))); ph.on(st + (k < 8 ? L.f("Шаг %d/8", "Step %d/8", k + 1) : L.s("Декодирование кадров…", "Decoding the frames…")), at.applyAsInt(12 + 9 * k)); }
+                    }, cancel);
+                    if (r == null) throw new InterruptedIOException("cancelled");
+                    if (!r.startsWith("done") || rgb.length() != (long) frameBytes * F) throw new IOException(L.s("NPU не завершила видео", "The NPU did not finish the video") + " (" + r + ", " + tail(new File(work, "ltxrun.log")) + ")");
+                    // append (a later segment's first frame repeats the previous last one) and keep the last frame for the next segment
+                    byte[] fb = new byte[frameBytes];
+                    // colour drift: every re-encode of the last frame pushes saturation a little; a later segment is mapped (per channel mean / std)
+                    // so its first frame matches the frame it started from, and the whole segment follows
+                    float[] gain = {1, 1, 1}, off = {0, 0, 0};
+                    if (condNow && (seg[0] > 0 || useImg)) {
+                        byte[] ref = java.nio.file.Files.readAllBytes(still.toPath()), f0 = new byte[frameBytes];
+                        try (RandomAccessFile in = new RandomAccessFile(rgb, "r")) { in.readFully(f0); }
+                        double[] a = stats(ref), b = stats(f0);
+                        for (int ch = 0; ch < 3; ch++) { gain[ch] = (float) Math.max(0.5, Math.min(2.0, a[3 + ch] / Math.max(1e-3, b[3 + ch]))); off[ch] = (float) (a[ch] - gain[ch] * b[ch]); }
+                    }
+                    boolean corr = gain[0] != 1 || gain[1] != 1 || gain[2] != 1 || off[0] != 0 || off[1] != 0 || off[2] != 0;
+                    try (RandomAccessFile in = new RandomAccessFile(rgb, "r")) {
+                        for (int f = seg[0] == 0 ? 0 : 1; f < F; f++) {
+                            in.seek((long) f * frameBytes); in.readFully(fb);
+                            if (corr) for (int i = 0; i < frameBytes; i++) { int ch = i % 3; int v = Math.round((fb[i] & 255) * gain[ch] + off[ch]); fb[i] = (byte) (v < 0 ? 0 : v > 255 ? 255 : v); }
+                            out.write(fb);
+                        }
+                    }
+                    try (FileOutputStream o = new FileOutputStream(still)) { o.write(fb); }
+                    rgb.delete();
+                }
+            }
+        } finally {
+            if (run != null) run.quit();
+            if (enc != null) enc.quit();
+        }
         // 3. MP4
         ph.on(L.s("Сохранение MP4…", "Saving the MP4…"), 960);
         String stamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
         File mp4 = new File(outDir(home), "ltx_" + stamp + ".mp4");
-        encode(rgb, mp4);
-        rgb.delete();
+        encode(all, mp4, total);
+        all.delete();
         long ms = System.currentTimeMillis() - t0;
         try (FileWriter jw = new FileWriter(new File(mp4.getPath().replace(".mp4", ".json")))) {
-            jw.write(new JSONObject().put("prompt", prompt).put("seed", seed).put("model", "LTX-Video 2B 0.9.8 distilled").put("width", W).put("height", H).put("frames", F).put("fps", FPS).put("ms", ms).put("text_ms", tText).toString());
+            jw.write(new JSONObject().put("prompt", prompt).put("seed", seed).put("model", "LTX-Video 2B 0.9.8 distilled").put("width", W).put("height", H).put("frames", total).put("fps", FPS)
+                .put("segments", segs).put("from_image", useImg).put("ms", ms).put("text_ms", tText).toString());
         }
         return mp4;
     }
@@ -155,7 +269,7 @@ final class Ltx {
     static String tail(File f) { try { String s = new String(java.nio.file.Files.readAllBytes(f.toPath()), "UTF-8").trim(); return s.substring(Math.max(0, s.length() - 300)); } catch (Exception e) { return ""; } }
 
     /** RGB24 frames -> H.264 MP4 with the hardware encoder */
-    static void encode(File rgb, File out) throws Exception {
+    static void encode(File rgb, File out, int frames) throws Exception {
         MediaFormat fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, W, H);
         fmt.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
         fmt.setInteger(MediaFormat.KEY_BIT_RATE, 6_000_000); fmt.setInteger(MediaFormat.KEY_FRAME_RATE, FPS); fmt.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
@@ -170,7 +284,7 @@ final class Ltx {
                     int ii = enc.dequeueInputBuffer(10000);
                     if (ii >= 0) {
                         long pts = frame * 1_000_000L / FPS;
-                        if (frame >= F || in.read(buf) != buf.length) { enc.queueInputBuffer(ii, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inDone = true; }
+                        if (frame >= frames || in.read(buf) != buf.length) { enc.queueInputBuffer(ii, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inDone = true; }
                         else { Image img = enc.getInputImage(ii); toYuv(buf, img); enc.queueInputBuffer(ii, 0, W * H * 3 / 2, pts, 0); frame++; }
                     }
                 }

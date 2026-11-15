@@ -22,6 +22,10 @@ public class VideoActivity extends Base {
     ProgressBar bar;
     Button gen;
     File shown;
+    int seconds = 1;                  // chosen length; more than 1 s chains segments
+    android.graphics.Bitmap firstPic; // image to video: the clip starts from this picture
+    LinearLayout durRow; ImageView picView; Button picBtn, picClear; TextView estimate;
+    static final int REQ_PIC = 31;
     volatile boolean running, stop;
 
     @Override protected void onCreate(Bundle b) {
@@ -35,8 +39,8 @@ public class VideoActivity extends Base {
             LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-1, dp(46)); ml.topMargin = dp(12); c.addView(m, ml);
             return;
         }
-        info = text(L.s("Экспериментально: LTX-Video 2B, 512×320, 25 кадров (~1 с). Около 30 секунд на клип: текст на процессоре, кадры на NPU.",
-                "Experimental: LTX-Video 2B, 512×320, 25 frames (~1 s). About 30 seconds per clip: the text on the CPU, the frames on the NPU."), 12, DIM, false);
+        info = text(L.s("Экспериментально: LTX-Video 2B, 512×320, 24 кадра/с. Текст на процессоре, кадры на NPU.",
+                "Experimental: LTX-Video 2B, 512×320 at 24 frames per second. The text runs on the CPU, the frames on the NPU."), 12, DIM, false);
         col.addView(info);
 
         player = new VideoView(this);
@@ -63,6 +67,29 @@ public class VideoActivity extends Base {
         TextView tip = text(L.s("Совет: описывайте движение простыми фразами на английском, например «A girl with white hair smiles and waves, cherry blossom petals falling, soft daylight».",
                 "Tip: describe the motion in plain English sentences, for example \"A girl with white hair smiles and waves, cherry blossom petals falling, soft daylight\"."), 12, DIM, false);
         tip.setPadding(dp(2), dp(6), 0, 0); col.addView(tip);
+        // first picture (image to video)
+        col.addView(label(L.s("Начальная картинка · по желанию", "Starting picture · optional")));
+        LinearLayout pr0 = new LinearLayout(this); pr0.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        picView = new ImageView(this); picView.setScaleType(ImageView.ScaleType.CENTER_CROP); picView.setBackground(bg(CARD, 10)); picView.setClipToOutline(true); picView.setVisibility(View.GONE);
+        pr0.addView(picView, new LinearLayout.LayoutParams(dp(96), dp(60)));
+        picBtn = button(L.s("Выбрать картинку", "Choose a picture"), CARD, TXT); picBtn.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), REQ_PIC));
+        LinearLayout.LayoutParams pbl = new LinearLayout.LayoutParams(0, dp(44), 1); pbl.leftMargin = dp(8); pr0.addView(picBtn, pbl);
+        picClear = button("✕", CARD, TXT); picClear.setVisibility(View.GONE); picClear.setOnClickListener(v -> setPic(null));
+        LinearLayout.LayoutParams pcl = new LinearLayout.LayoutParams(dp(48), dp(44)); pcl.leftMargin = dp(8); pr0.addView(picClear, pcl);
+        col.addView(pr0);
+        TextView pt = text(L.s("Клип начнётся с этой картинки (обрезается до 512×320 по центру), а описание задаёт движение.", "The clip starts from this picture (cropped to 512×320 around the middle) and the prompt says how it moves."), 12, DIM, false);
+        pt.setPadding(dp(2), dp(6), 0, 0); col.addView(pt);
+        // length
+        col.addView(label(L.s("Длительность", "Length")));
+        durRow = new LinearLayout(this);
+        for (final int sec : Ltx.SECONDS) {
+            TextView ch = text(sec + " s", 14, TXT, true); ch.setGravity(android.view.Gravity.CENTER); ch.setTag(sec);
+            ch.setOnClickListener(v -> { seconds = sec; getSharedPreferences("anima", 0).edit().putInt("ltx_seconds", sec).apply(); paintDur(); });
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(40), 1); cl.rightMargin = dp(6); durRow.addView(ch, cl);
+        }
+        col.addView(durRow);
+        estimate = text("", 12, DIM, false); estimate.setPadding(dp(2), dp(6), 0, 0); col.addView(estimate);
+        seconds = getSharedPreferences("anima", 0).getInt("ltx_seconds", 1); paintDur();
         LinearLayout sr = new LinearLayout(this); sr.setGravity(android.view.Gravity.CENTER_VERTICAL);
         sr.addView(text(L.s("Сид", "Seed"), 14, TXT, false), new LinearLayout.LayoutParams(dp(60), -2));
         seed = field(L.s("случайный", "random")); seed.setInputType(android.text.InputType.TYPE_CLASS_NUMBER); seed.setTextSize(15);
@@ -82,6 +109,34 @@ public class VideoActivity extends Base {
         lic.setPadding(dp(2), dp(14), 0, 0); col.addView(lic);
         showLatest();
     }
+
+    void paintDur() {
+        for (int i = 0; i < durRow.getChildCount(); i++) { TextView c = (TextView) durRow.getChildAt(i); boolean on = (int) c.getTag() == seconds; c.setTextColor(on ? ON_ACC : TXT); c.setBackground(on ? grad(12) : bg(CARD, 12)); }
+        int segs = Ltx.segments(seconds), est = 25 + 22 * segs + (segs > 1 || firstPic != null ? 15 : 0);
+        estimate.setText(L.f("%d кадров · около %s", "%d frames · about %s", Ltx.frames(segs), est < 90 ? L.f("%d с", "%d s", est) : L.f("%d мин", "%d min", Math.round(est / 60f)))
+            + (segs > 1 ? "\n" + L.s("Длинные клипы собираются из частей по 1 с: каждая начинается с последнего кадра предыдущей, поэтому сцена может постепенно меняться.", "Longer clips are built from 1 s parts, each starting from the last frame of the one before, so the scene can drift little by little.") : ""));
+    }
+
+    void setPic(android.graphics.Bitmap b) {
+        if (firstPic != null && firstPic != b) firstPic.recycle();
+        firstPic = b; picView.setImageBitmap(b); picView.setVisibility(b == null ? View.GONE : View.VISIBLE); picClear.setVisibility(b == null ? View.GONE : View.VISIBLE);
+        picBtn.setText(b == null ? L.s("Выбрать картинку", "Choose a picture") : L.s("Другая картинка", "Another picture")); paintDur();
+    }
+
+    @Override protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_PIC || res != RESULT_OK || data == null || data.getData() == null) return;
+        try (java.io.InputStream in = getContentResolver().openInputStream(data.getData())) {
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inSampleSize = 1;
+            byte[] all = readAll(in); android.graphics.BitmapFactory.Options b0 = new android.graphics.BitmapFactory.Options(); b0.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeByteArray(all, 0, all.length, b0);
+            while (Math.min(b0.outWidth, b0.outHeight) / (o.inSampleSize * 2) >= 640) o.inSampleSize *= 2;
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeByteArray(all, 0, all.length, o);
+            if (b == null) throw new java.io.IOException("decode");
+            setPic(b);
+        } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); }
+    }
+    static byte[] readAll(java.io.InputStream in) throws java.io.IOException { java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream(); byte[] b = new byte[65536]; for (int n; (n = in.read(b)) > 0; ) bo.write(b, 0, n); return bo.toByteArray(); }
 
     File[] clips() { File[] fs = Ltx.outDir(getFilesDir()).listFiles((d, n) -> n.endsWith(".mp4")); if (fs == null) fs = new File[0]; Arrays.sort(fs, (a, c) -> c.getName().compareTo(a.getName())); return fs; }
 
@@ -127,7 +182,7 @@ public class VideoActivity extends Base {
                 File ad = new File(getFilesDir(), "anima");
                 new ProcessBuilder("/system/bin/sh", "-c", "sh " + ad + "/anima.sh stop < /dev/null > /dev/null 2>&1").directory(ad).start().waitFor();
                 Corrections.freedAnima = true;
-                out = Ltx.generate(this, pr, s, (what, pm) -> ui.post(() -> { status.setText(what); bar.setProgress(pm); }), () -> stop);
+                out = Ltx.generate(this, pr, s, firstPic, seconds, (what, pm) -> ui.post(() -> { status.setText(what); bar.setProgress(pm); }), () -> stop);
             } catch (java.io.InterruptedIOException e) { err = L.s("Отменено", "Cancelled"); }
             catch (Exception e) { err = L.f("Ошибка: %s", "Error: %s", e.getMessage()); }
             final String msg = err; final File f = out;

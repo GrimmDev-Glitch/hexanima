@@ -4,12 +4,15 @@
 //
 // usage: ltxrun BACKEND.so SYSTEM.so DIR STATS.bin
 //   DIR holds ltxv_chunk0..3.bin and ltxv_vae_<W>x<H>x<F>.bin; STATS.bin = 128 means + 128 stds of the VAE latents (float32)
-// stdin: "gen EMB MASK SEED OUT [W H F fps]"  EMB = 128x4096 f32 T5 states, MASK = 128 f32 (0 / -10000)
+// stdin: "gen EMB MASK SEED OUT [COND.lat|-]"  EMB = 128x4096 f32 T5 states, MASK = 128 f32 (0 / -10000)
+//        COND = first-frame latents from "t5enc enc" (image to video): those tokens stay fixed at timestep 0 while the rest is denoised
 //        writes OUT = F frames of W*H RGB bytes; prints "step k/8 <ms>", "vae <ms>", "done <ms>"
 //        "quit" ends.
 #include <android/dlext.h>
 #include <dlfcn.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/syscall.h>
 #include <chrono>
 #include <cmath>
@@ -48,6 +51,16 @@ static std::vector<uint8_t> readFile(const std::string& p) {
   if (fread(v.data(), 1, n, f) != (size_t)n) v.clear(); fclose(f); return v;
 }
 
+// a read-only mapping of a context binary: no 0.5 GB heap copy per load (the transformer is reloaded for every segment of a long clip)
+struct Mapped {
+  void* p = MAP_FAILED; size_t n = 0;
+  explicit Mapped(const std::string& path) { int fd = open(path.c_str(), O_RDONLY); if (fd < 0) return; struct stat st; if (fstat(fd, &st) == 0) { n = st.st_size; p = mmap(nullptr, n, PROT_READ, MAP_PRIVATE, fd, 0); } close(fd); }
+  ~Mapped() { if (p != MAP_FAILED) munmap(p, n); }
+  bool ok() const { return p != MAP_FAILED && n > 0; }
+  uint8_t* data() const { return (uint8_t*)p; }
+  size_t size() const { return n; }
+};
+
 // ---- one graph: its tensors with our own copies of the metadata and host buffers ----
 struct Tensor {
   std::string name; std::vector<uint32_t> dims; Qnn_Tensor_t t; std::vector<uint8_t> buf;
@@ -84,7 +97,7 @@ static void copyTensor(const Qnn_Tensor_t& src, Tensor& d) {
   bool v1 = src.version == QNN_TENSOR_VERSION_1;
   d.name = v1 ? src.v1.name : src.v2.name;
   uint32_t rank = v1 ? src.v1.rank : src.v2.rank; const uint32_t* dims = v1 ? src.v1.dimensions : src.v2.dimensions;
-  d.dims.assign(dims, dims + rank); for (uint32_t x : d.dims) d.elems *= x;
+  d.dims.assign(dims, dims + rank); d.elems = 1; d.scale = 1.f; d.offset = 0; for (uint32_t x : d.dims) d.elems *= x;   // reset: the same Graph is filled again when the transformer is reloaded
   d.type = v1 ? src.v1.dataType : src.v2.dataType;
   const Qnn_QuantizeParams_t& qp = v1 ? src.v1.quantizeParams : src.v2.quantizeParams;
   if (qp.encodingDefinition == QNN_DEFINITION_DEFINED && qp.quantizationEncoding == QNN_QUANTIZATION_ENCODING_SCALE_OFFSET) { d.scale = qp.scaleOffsetEncoding.scale; d.offset = qp.scaleOffsetEncoding.offset; }
@@ -109,8 +122,8 @@ static const char* tname(Qnn_DataType_t t) { switch (t) { case QNN_DATATYPE_FLOA
 // group: register the chunks as one group so they share a spill-fill buffer (the HTP address space of V73 is tight)
 static bool loadGraph(const std::string& path, Graph& g, Qnn_ContextHandle_t first = nullptr, uint64_t spill = 0) {
   double t0 = now_ms();
-  std::vector<uint8_t> bin = readFile(path);
-  if (bin.empty()) { fprintf(stderr, "cannot read %s\n", path.c_str()); return false; }
+  Mapped bin(path);
+  if (!bin.ok()) { fprintf(stderr, "cannot read %s\n", path.c_str()); return false; }
   QnnSystemContext_Handle_t sh = nullptr;
   if (!check(qsi.systemContextCreate(&sh), "systemContextCreate")) return false;
   const QnnSystemContext_BinaryInfo_t* bi = nullptr; Qnn_ContextBinarySize_t bis = 0;
@@ -146,7 +159,7 @@ static bool loadGraph(const std::string& path, Graph& g, Qnn_ContextHandle_t fir
 }
 // the spill-fill buffer a context binary asks for (HTP graph blob info), so a group can share the largest one
 static uint64_t spillOf(const std::string& path) {
-  std::vector<uint8_t> bin = readFile(path); if (bin.empty()) return 0;
+  Mapped bin(path); if (!bin.ok()) return 0;
   QnnSystemContext_Handle_t sh = nullptr; if (qsi.systemContextCreate(&sh) != QNN_SUCCESS) return 0;
   const QnnSystemContext_BinaryInfo_t* bi = nullptr; Qnn_ContextBinarySize_t bis = 0; uint64_t r = 0;
   if (qsi.systemContextGetBinaryInfo(sh, bin.data(), bin.size(), &bi, &bis) == QNN_SUCCESS && bi->version == QNN_SYSTEM_CONTEXT_BINARY_INFO_VERSION_3) {
@@ -230,7 +243,7 @@ int main(int argc, char** argv) {
   while (std::getline(std::cin, line)) {
     std::istringstream ss(line); std::string cmd, fe, fm, fo; long seed = 0; int W = 512, H = 320, F = 25; float fps = 24.f;
     ss >> cmd; if (cmd == "quit") break; if (cmd != "gen") continue;
-    ss >> fe >> fm >> seed >> fo; ss >> W >> H >> F >> fps;
+    std::string fc = "-"; ss >> fe >> fm >> seed >> fo; ss >> fc;
     double T0 = now_ms();
     const int w = W / 32, h = H / 32, f = (F - 1) / 8 + 1, T = w * h * f, C = 128, D = 2048, TT = 128;
     auto emb = readFile(fe), msk = readFile(fm);
@@ -249,6 +262,9 @@ int main(int argc, char** argv) {
 
     std::mt19937_64 rng(seed); std::normal_distribution<float> nd(0.f, 1.f);
     std::vector<float> x((size_t)T * C); for (auto& v : x) v = nd(rng);   // token-major [T, C], tokens = frame, row, column
+    std::vector<float> cond; int nc = 0;   // image to video: the first latent frame (w*h tokens) is the encoded picture
+    if (fc != "-") { auto cb = readFile(fc); if (cb.size() != (size_t)w * h * C * 4) { printf("error cond\n"); fflush(stdout); continue; }
+      cond.assign((const float*)cb.data(), (const float*)cb.data() + (size_t)w * h * C); nc = w * h; memcpy(x.data(), cond.data(), cond.size() * 4); }
     const float sig[9] = {1.0f, 0.9937f, 0.9875f, 0.9812f, 0.975f, 0.9094f, 0.725f, 0.4219f, 0.0f};
     std::vector<float> tf((size_t)T * 256), v((size_t)T * C);
     for (int i = 0; i < 4; i++) { ch[i].I("mask").set((const float*)msk.data(), TT); ch[i].I("cos").set(cs.data(), cs.size()); ch[i].I("sin").set(sn.data(), sn.size()); }
@@ -258,7 +274,8 @@ int main(int argc, char** argv) {
       double t1 = now_ms();
       { std::vector<float> one(256); const int half = 128;   // diffusers Timesteps(256, flip_sin_to_cos) of sigma * 1000
         for (int i = 0; i < half; i++) { double a = (double)sig[s] * 1000.0 * std::exp(-std::log(10000.0) * i / half); one[i] = (float)std::cos(a); one[half + i] = (float)std::sin(a); }
-        for (int t = 0; t < T; t++) memcpy(&tf[(size_t)t * 256], one.data(), 256 * 4); }
+        std::vector<float> zero(256); for (int i = 0; i < half; i++) { zero[i] = 1.f; zero[half + i] = 0.f; }   // timestep 0 for the conditioning tokens
+        for (int t = 0; t < T; t++) memcpy(&tf[(size_t)t * 256], (t < nc ? zero : one).data(), 256 * 4); }
       ch[0].I("latent").set(x.data(), x.size()); ch[0].I("t_freq").set(tf.data(), tf.size());
       ok = ch[0].run();
       for (int i = 1; i < 4 && ok; i++) {
@@ -270,7 +287,7 @@ int main(int argc, char** argv) {
       if (!ok) break;
       ch[3].O("out").get(v.data());
       const float dt = sig[s + 1] - sig[s];   // flow matching Euler: the model predicts the velocity
-      for (size_t k = 0; k < x.size(); k++) x[k] += dt * v[k];
+      for (size_t k = (size_t)nc * C; k < x.size(); k++) x[k] += dt * v[k];   // the conditioning tokens are not updated
       printf("step %d/8 %.0f\n", s + 1, now_ms() - t1); fflush(stdout);
     }
     if (!ok) { printf("error dit run\n"); fflush(stdout); continue; }
