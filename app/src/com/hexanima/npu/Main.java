@@ -892,12 +892,28 @@ public class Main extends Base {
         MossLora.Check c = MossLora.check(BIN, loraSrc());
         return c.ok && c.lokr;
     }
+    /** the "✓ Compatible: …" line in the current language: rebuilt from the check instead of the text saved at import (that one keeps the language of that moment) */
+    String liveLoraInfo() {
+        String saved = prefs().getString(lp() + "lora_info", "");
+        try {
+            if (isMoss()) {
+                MossLora.Check c = MossLora.check(BIN, loraSrc()); if (!c.ok) return saved;
+                File f = new File(MossLora.civitaiDir(getFilesDir()), prefs().getString("moss_lora_file", ""));
+                String w = f.isFile() ? Civitai.words(f) : "";
+                if (w.isEmpty()) for (String line : saved.split("\n")) { int k = line.indexOf(": "); if (k > 0 && (line.startsWith("Activadores") || line.startsWith("Triggers") || line.startsWith("Триггеры"))) w = line.substring(k + 2).trim(); }
+                return "✓ " + c.message() + (w.isEmpty() ? "" : "\n" + L.s("Activadores: ", "Triggers: ") + w);
+            }
+            AnimaLora.Check c = AnimaLora.check(loraSrc()); if (!c.ok) return saved;
+            String tag = loraSrc().getName().replaceAll("\\.safetensors$", "");
+            return "✓ " + c.message() + "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag);
+        } catch (Exception e) { return saved; }
+    }
     void refreshLora() {
         boolean has = !loraId().isEmpty() && loraSrc().exists();
         loraName.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") : L.s("не выбрана", "none"));
         String hint = L.s("Файл .safetensors, проверяется при выборе. Библиотека: «LoRAs» над промптом.", "A .safetensors file, checked when imported. Long-press a LoRA in the Library for its trigger words, category or to delete it.");
         boolean fits = !has || loraFitsModel();
-        String info = has ? prefs().getString(lp() + "lora_info", "") : hint;
+        String info = has ? liveLoraInfo() : hint;
         if (has && fits && MossLora.check(BIN, loraSrc()).lokr) info += "\n" + L.s("LoKr: la primera imagen con cada intensidad prepara una copia de los pesos (unos 20 s y 5,7 GB, se guarda solo la última).", "LoKr: the first picture at each strength prepares a copy of the weights (about 20 s and 5.7 GB, only the last one is kept).");
         loraFold.sum.setText(has ? prefs().getString(lp() + "lora_name", "LoRA") + String.format(java.util.Locale.US, " · %.2f", loraStr()) : L.s("нет", "none"));
         loraFold.sum.setTextColor(has ? ACC : DIM);

@@ -81,11 +81,17 @@ final class MossLora {
         return sb.toString();
     }
 
-    static Check check(String bin, File f) {
+    /** the last check result, keyed by path, size and date: the main screen asks several times per refresh and each check starts lorafold */
+    private static String lastKey = ""; private static String lastLine = "";
+    static synchronized Check check(String bin, File f) {
+        String key = f.getPath() + "|" + f.length() + "|" + f.lastModified();
+        if (f.isFile() && key.equals(lastKey)) return parse(lastLine);   // a fresh Check each time (message() follows the current language)
         try {
             String out = run(bin, "check", f.getPath()); String last = "";
             for (String l : out.split("\n")) if (l.startsWith("OK") || l.startsWith("ERR")) last = l;
-            return last.isEmpty() ? parse("ERR\tFILE\t" + out.trim()) : parse(last);
+            String line = last.isEmpty() ? "ERR\tFILE\t" + out.trim() : last;
+            if (!last.isEmpty()) { lastKey = key; lastLine = line; }
+            return parse(line);
         } catch (IOException e) { return parse("ERR\tFILE\t" + e.getMessage()); }
     }
 
