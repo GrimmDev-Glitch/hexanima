@@ -196,6 +196,14 @@
   - Probado con HexAnima Dev instalada un rato (desinstalada después; la release con los datos no se tocó): 512×768 → ×2 1024×1536 en 1,9 s y ×4 2048×3072 en 4,8 s, sin costuras visibles en las uniones (el salto entre columnas en la unión es igual que alrededor).
   - Licencia BSD-3 en `app/assets/licenses/real_esrgan_bsd3.txt`, en Info y en `THIRD_PARTY.md`. Falta: capturas en inglés para el README y comparar con UltraSharp.
 
+- 15 nov 2026 · **Correcciones (primera parte de `docs/IMAGE_CORRECTIONS_FLOW.md`):**
+  - Pantalla nueva `Corrections` (botón de controles junto a ampliar, en la imagen y en el visor del Historial). El original nunca se toca; los archivos de trabajo van a `cache/corrections` y se borran al salir.
+  - Comparador con etiquetas (Original, Base aceptada, Alternativa N) y zoom ×3 con doble toque; tira de miniaturas; Usar esta / Descartar; Deshacer / Rehacer (aceptar después de deshacer descarta la rama de rehacer); volver al original; Guardar en el Historial con `corrections` (pasos con sus parámetros y tiempos) y `corrected_from`; aviso al salir sin guardar.
+  - Cada alternativa parte de la base aceptada, nunca de la alternativa anterior.
+  - Categorías con procesador real en la NPU: **Ruido** (Real-ESRGAN ×4 y vuelta al mismo tamaño promediando 4×4, mezclado con la base según la fuerza) y **Resolución** (×2 / ×4). Cara, Manos, Detalles y Otros aparecen como «pronto» hasta que pasen una prueba en V73.
+  - Probado con HexAnima Dev instalada un rato (desinstalada después): Ruido 60 % en 1,4 s, aceptar, Resolución ×2 desde esa base en 1,8 s (1024×1536), aceptar, deshacer (vuelve a Ruido), rehacer, guardar: la imagen nueva lleva el prompt original y los dos pasos; el original y la carpeta de trabajo quedan como deben.
+  - Pendiente (segunda parte): Manos/Detalles/Otros con la edición de Qwen con máscara, Cara con un restaurador facial convertido a la NPU, y capturas en inglés para el README.
+
 ## MOSS en V73 (experimental)
 
 - Se portó el kernel HMX de MOSS a V73 y se validó un bloque real del transformer en el teléfono con pesos del pack verificados.

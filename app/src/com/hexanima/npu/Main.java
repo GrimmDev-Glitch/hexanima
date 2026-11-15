@@ -71,7 +71,7 @@ public class Main extends Base {
     TextView chipName, chipDot, state, status, saved, placeholder, ramTxt, warnTxt, sizeText;
     LinearLayout customRow, imgBox;
     Button loadBtn, genBtn, countBtn;
-    ImageButton dlBtn, shareBtn, favBtn, againBtn, upBtn; Button editGeneratedBtn;
+    ImageButton dlBtn, shareBtn, favBtn, againBtn, upBtn, fixBtn; Button editGeneratedBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
     LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
@@ -320,9 +320,12 @@ public class Main extends Base {
         upBtn.setOnClickListener(v -> { if (lastFile == null) return; if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_LONG).show(); return; }
             upscaleDialog(lastFile, out -> { prefs().edit().remove("hidden_last").apply(); lastFile = null; restoreLatestGenerated(); }); });
         upBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Ampliar en la NPU", "Enlarge on the NPU"), Toast.LENGTH_SHORT).show(); return true; });
+        fixBtn = icon("ic_tune", CARD); fixBtn.setContentDescription(L.s("Correcciones", "Corrections")); fixBtn.setImageTintList(ColorStateList.valueOf(TXT));
+        fixBtn.setOnClickListener(v -> { if (lastFile == null) return; if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_LONG).show(); return; } Corrections.open(this, lastFile); });
+        fixBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Correcciones", "Corrections"), Toast.LENGTH_SHORT).show(); return true; });
         shareBtn = icon("ic_share", CARD);
         shareBtn.setOnClickListener(v -> { if (lastFile != null) Gallery.share(this, lastFile); });
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) {
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) {
             x.setVisibility(View.GONE);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
             if (x == againBtn) resRow.addView(x, lp); else imgTools.addView(x, lp);   // "again" stays by the seed; the file actions go to the toolbar
@@ -659,7 +662,7 @@ public class Main extends Base {
         lastFile = f; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
         img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE);
         setFavIcon(Gallery.fav(f));
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) x.setVisibility(View.VISIBLE);
         refreshGeneratedEditAction();
         JSONObject m = Gallery.meta(f);
         saved.setText(m.has("grid") ? L.f("Última cuadrícula · %d imágenes", "Last grid · %d pictures", m.optInt("count", 0)) : m.optBoolean("compare") ? L.s("Última comparación", "Last comparison") : L.f("Última imagen · seed %s", "Last image · seed %s", m.optString("seed", "?")));
@@ -691,6 +694,7 @@ public class Main extends Base {
     };
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == Corrections.REQ && res == RESULT_OK) { prefs().edit().remove("hidden_last").apply(); lastFile = null; restoreLatestGenerated(); return; }   // the corrected picture is the newest one
         if (req == 14 && res == RESULT_OK && d != null) {
             appendPromptWords(d.getStringExtra("moss_triggers"));
             String qid = d.getStringExtra("qwen_fold");   // a Qwen LoRA downloaded from Civitai: convert it here, on the phone
@@ -804,7 +808,7 @@ public class Main extends Base {
         prefs().edit().putString("hidden_last", recent.length > 0 ? recent[0].getName() : "").apply();
         lastFile = null; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
         img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE);
-        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.GONE);
+        for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) x.setVisibility(View.GONE);
         saved.setText(""); refreshGeneratedEditAction();
     }
     void refreshGeneratedEditAction() {
@@ -2439,7 +2443,7 @@ public class Main extends Base {
                     lastFile = f; img.setImageBitmap(bm); showImg(true); placeholder.setVisibility(View.GONE);
                     refreshGeneratedEditAction();
                     setFavIcon(false);
-                    for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, shareBtn}) x.setVisibility(View.VISIBLE);
+                    for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) x.setVisibility(View.VISIBLE);
                     final ScrollView svv = (ScrollView) imgBox.getParent().getParent(); svv.post(() -> svv.smoothScrollTo(0, 0));   // after the image has been laid out
                     saved.setText("seed " + seedS);
                 });

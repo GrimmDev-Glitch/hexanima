@@ -113,11 +113,17 @@ public class Viewer extends Base {
         }
         ico("ic_download", () -> { try { Gallery.export(this, f); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
         ico("ic_share", () -> Gallery.share(this, f));
+        if (Upscaler.available(this)) ico("ic_tune", () -> Corrections.open(this, f));
         if (Upscaler.available(this)) ico("ic_upscale", () -> upscaleDialog(f, out -> { files.add(0, out); idx = 0; changed = true; pager.set(files, idx); refresh(); }));
         favB = ico("ic_star_off", () -> { boolean nv = !Gallery.fav(f); Gallery.setFav(f, nv); setFav(favB, nv); changed = true; }); setFav(favB, Gallery.fav(f));
         if (Qwen.beforeFile(getFilesDir(), f).isFile()) act("⇆", () -> showBeforeAfter(f));   // an edit: the original it came from is kept, slide between both
         if (reuse) ico("ic_refresh", () -> { setResult(RESULT_OK, new Intent().putExtra("prompt", m.optString("prompt")).putExtra("seed", m.optString("seed")).putExtra("w", m.optInt("w", 512)).putExtra("h", m.optInt("h", 768))); finish(); });
         ico("ic_delete", () -> { Gallery.trash(this, f); removeCurrent(); });
+    }
+
+    @Override protected void onActivityResult(int req, int res, Intent d) {
+        super.onActivityResult(req, res, d);
+        if (req == Corrections.REQ && res == RESULT_OK && d != null && d.getStringExtra("f") != null) { files.add(0, new File(d.getStringExtra("f"))); idx = 0; changed = true; pager.set(files, idx); refresh(); }
     }
 
     /** the picture left this list (trash / restore / delete): show the next one, or close when it was the last */

@@ -704,3 +704,37 @@ Tile %d of %d	Trozo %d de %d
 Enlarged ×%d in %.1f s · saved in the History	Ampliada ×%d en %.1f s · guardada en el Historial
 Could not enlarge: %s	No se pudo ampliar: %s
 The picture is too large for that factor	La imagen es demasiado grande para ese aumento
+Corrections	Correcciones
+Slide to compare · double-tap to zoom	Desliza para comparar · doble toque para acercar
+Use this one	Usar esta
+Discard	Descartar
+↶ Undo	↶ Deshacer
+Redo ↷	Rehacer ↷
+Correction	Corrección
+Save to the History	Guardar en el Historial
+The original picture is not changed: a new one is saved with the accepted corrections.	La imagen original no se modifica: se guarda una nueva con las correcciones aceptadas.
+Noise	Ruido
+Resolution	Resolución
+Face	Cara
+Hands	Manos
+Details	Detalles
+Other	Otros
+soon	pronto
+Not yet: it needs a processor tested on the V73 NPU	Todavía no: necesita un procesador probado en la NPU V73
+Cleans noise, grain and artefacts without changing the size (Real-ESRGAN on the NPU, it does not invent faces). Too much strength wipes fine texture.	Limpia ruido, grano y artefactos sin cambiar el tamaño (Real-ESRGAN en la NPU, no inventa caras). Demasiada fuerza borra textura fina.
+Raises the resolution and sharpness (Real-ESRGAN on the NPU). It may invent texture; it does not fix fingers or features.	Aumenta la resolución y la nitidez (Real-ESRGAN en la NPU). Puede inventar textura; no arregla dedos ni rasgos.
+Make an alternative	Generar alternativa
+Alternative %d	Alternativa %d
+Could not correct: %s	No se pudo corregir: %s
+Accepted: the next correction starts from this version	Aceptada: la siguiente corrección parte de esta versión
+Noise %d %%	Ruido %d %%
+Resolution ×%d	Resolución ×%d
+ · %.1f s	 · %.1f s
+Accepted base	Base aceptada
+Alternative %d · %s · %d×%d	Alternativa %d · %s · %d×%d
+Back to the original? The accepted corrections stay under Redo.	¿Volver al original? Las correcciones aceptadas quedan en «Rehacer».
+Base	Base
+Alt. %d	Alt. %d
+Saved to the History	Guardada en el Historial
+Leave without saving? The corrections of this session are lost.	¿Salir sin guardar? Se pierden las correcciones de esta sesión.
+Leave	Salir
