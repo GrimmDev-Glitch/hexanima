@@ -2489,7 +2489,15 @@ public class Main extends Base {
             byte[] png = Mage.png(raw, w, h); raw.delete();
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             if (edit) meta.put("edit", true);
-            return Gallery.save(this, PngMeta.embed(png, meta), meta);
+            File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
+            if (edit && out != null) {   // same as Qwen: keep the photo it came from, for the before/after slider in the viewer and the ⇆ button
+                Qwen.saveBefore(home, src, out);
+                if (prefs().getBoolean("qwen_compare", false)) {
+                    Bitmap after = BitmapFactory.decodeByteArray(png, 0, png.length);
+                    if (after != null) { pendingCompare = saveSideBySide(src, after, meta); after.recycle(); }
+                }
+            }
+            return out;
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Error de generación: %s (registro files/mage/mage.log)", "Generation error: %s (log files/mage/mage.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
     }
 
