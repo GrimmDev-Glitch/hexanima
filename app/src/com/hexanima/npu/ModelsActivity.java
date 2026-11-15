@@ -102,10 +102,10 @@ public class ModelsActivity extends Base {
             String meta = (it.params.isEmpty() ? "" : it.params + (it.quant.isEmpty() ? "" : " " + it.quant) + "  ·  ") + (it.speed > 0 ? L.f("~%d с на 512×768", "~%d s at 512×768", it.speed) + "  ·  " : "") + L.f("%s ГБ", "%s GB", gb(it.size));
             TextView m = text(meta, 13, ACC, false); m.setPadding(0, dp(4), 0, 0); c.addView(m);
             String d = L.s(it.desc, it.descEn);
-            if (it.speed >= 60) {   // the catalog copies "Fast, ..." from the turbo sibling onto the full (base) model
+            if (it.speed >= 60 && !it.moss && !it.qwen && !it.mage) {   // the catalog copies "Fast, ..." from the turbo sibling onto the full (base) model
                 d = d.replaceFirst("^(Fast|Rápido|Rápida|Быстро|Быстрая|Быстрый),\\s*", "");
                 if (!d.isEmpty()) d = Character.toUpperCase(d.charAt(0)) + d.substring(1);
-                d = (d.isEmpty() ? "" : d + ". ") + L.s("Полная модель: 20+ шагов, медленнее, но точнее следует промпту.", "Full model: 20+ steps, slower but follows the prompt more closely.");
+                d = (d.isEmpty() ? "" : d.replaceAll("[.\\s]+$", "") + ". ") + L.s("Полная модель: 20+ шагов, медленнее, но точнее следует промпту.", "Full model: 20+ steps, slower but follows the prompt more closely.");
             }
             if (!d.isEmpty()) { TextView dv = text(d, 13, DIM, false); dv.setPadding(0, dp(4), 0, 0); c.addView(dv); }
             if (!it.author.isEmpty()) { TextView a = text(L.f("Автор: %s", "By %s", it.author), 12, DIM, false); a.setPadding(0, dp(4), 0, 0); c.addView(a); }

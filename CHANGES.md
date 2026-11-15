@@ -167,9 +167,10 @@
 - 14 nov 2026 · **Release firmado y prueba limpia en XSpace (bloque 7):**
   - Primer APK release firmado con la clave propia del fork (`~/.hexanima-signing/release.keystore`, fuera del repositorio). Se instaló solo en XSpace (`com.hexanima.npu`, no depurable); HexAnima Dev del perfil principal no se tocó.
   - Bienvenida: ahora presenta las tres familias (Anima, MOSS, Qwen) y aclara que la velocidad de 7 / 12 s es de Anima; MOSS y Qwen tardan de 30 s a 2 min.
-  - Catálogo: los modelos «(base)» decían «Rápido» y tardan ~100 s; en los modelos de 60 s o más se quita «Rápido» y se añade «Modelo completo: 20+ pasos…». Mage ya no se ofrece para descargar mientras no funcione en V73 (si está instalado sigue en la lista para poder borrarlo). La descripción de Qwen del catálogo se tradujo.
+  - Catálogo: los modelos «(base)» decían «Rápido» y tardan ~100 s; en los modelos Anima de 60 s o más se quita «Rápido» y se añade «Modelo completo: 20+ pasos…». Mage ya no se ofrece para descargar mientras no funcione en V73 (si está instalado sigue en la lista para poder borrarlo). La descripción de Qwen del catálogo se tradujo.
   - Pantalla principal sin modelos: decía «Descargada · se carga al generar». «Unloaded» estaba traducido como «Descargada»; ahora es «No está en memoria», y sin modelo muestra «Todavía no hay modelo: consigue uno con el botón de abajo». Las demás cadenas de descargar de memoria pasan a «Liberar» para que «Descargar» solo signifique bajar archivos.
   - **Fondo de pantalla propio (de upstream 1.6.0):** Ajustes → Fondo de pantalla → Elegir imagen, Posición y tamaño (pellizcar y arrastrar) y Quitar; deslizadores de transparencia de los bloques y oscurecimiento. Valores por defecto 25 % y 55 % (con 35 % el texto gris sobre un fondo claro no se leía). Diálogos y menú ⋯ siguen opacos. Probado en el teléfono en la pantalla principal, Ajustes y el editor; el fondo de prueba se quitó después.
+  - Segunda compilación release, instalada desde cero en XSpace: la Bienvenida muestra las tres familias, la pantalla sin modelo dice «Todavía no hay modelo…», los modelos «(base)» llevan el texto nuevo y Mage no aparece. La regla de «Modelo completo» se aplicaba también a «Qwen-Image 2.1 Turbo 8 step» (80 s) con un punto doble; ahora es solo para Anima (comprobado en Dev).
 
 ## MOSS en V73 (experimental)
 
