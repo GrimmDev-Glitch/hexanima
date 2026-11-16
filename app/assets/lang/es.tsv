@@ -864,3 +864,8 @@ Export logs	Exportar registros
 Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key.	Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.
 Saved to Downloads/HexAnima/%s (%d logs)	Guardado en Descargas/HexAnima/%s (%d registros)
 Could not export: %s	No se pudo exportar: %s
+Again (long-press: variations)	Otra vez (mantén pulsado: variaciones)
+4 with new seeds	4 con semillas nuevas
+4 close to this picture	4 parecidas a esta imagen
+Variations	Variaciones
+Quality tags before the prompt (this Anima model)	Etiquetas de calidad antes del prompt (este modelo Anima)

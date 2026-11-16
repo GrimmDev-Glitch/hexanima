@@ -25,7 +25,7 @@ public class Settings extends Base {
     static boolean lowRam(Context c) { return prefs(c).getBoolean("lowram", Compat.ramGb(c) < 9.5); }
     static boolean keepOn(Context c) { return prefs(c).getBoolean("keepon", true); }
     static boolean keepMeta(Context c) { return prefs(c).getBoolean("keep_meta", true); }
-    static String rawPrefix(Context c) { String p = prefs(c).getString("prefix", DEFAULT_PREFIX); return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
+    static String rawPrefix(Context c) { SharedPreferences sp = prefs(c); String p = sp.getString(key(c, "prefix"), sp.getString("prefix", DEFAULT_PREFIX));  /* per model, falling back to the old global one */ return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
     /** what goes before the prompt: trimmed, ending with a comma and a space; a single space when the user cleared it (anima.sh treats an empty PREFIX as "use the default") */
     static String prefix(Context c) { String p = rawPrefix(c).trim(); return p.isEmpty() ? " " : (p.endsWith(",") ? p : p + ",") + " "; }
 
@@ -164,7 +164,7 @@ public class Settings extends Base {
         keyEdit = field("…"); keyEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD); keyEdit.setText(p.getString("civitai_key", "")); keyEdit.setTextSize(14);
         cc.addView(keyEdit);
         if (Moss.is(p.getString("model", "")) || Qwen.is(p.getString("model", ""))) return;   // MOSS-Image takes plain sentences: the quality-tag prefix is for the Anima models only, so the setting is hidden while MOSS is selected
-        TextView pl = text(L.s("Теги качества перед описанием (модели Anima)", "Quality tags before the prompt (Anima models)"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
+        TextView pl = text(L.s("Etiquetas de calidad antes del prompt (este modelo Anima)", "Quality tags before the prompt (this Anima model)"), 15, TXT, true); pl.setPadding(dp(2), dp(14), 0, dp(6)); c3.addView(pl);
         prefixEdit = field("");
         prefixEdit.setText(rawPrefix(this)); prefixEdit.setTextSize(13); prefixEdit.setMinLines(2); prefixEdit.setGravity(Gravity.TOP);
         prefixEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
@@ -177,7 +177,7 @@ public class Settings extends Base {
 
     @Override protected void onPause() {
         super.onPause();
-        if (prefixEdit != null) prefs(this).edit().putString("prefix", prefixEdit.getText().toString()).apply();
+        if (prefixEdit != null) prefs(this).edit().putString(key(this, "prefix"), prefixEdit.getText().toString()).apply();
         if (keyEdit != null) prefs(this).edit().putString("civitai_key", keyEdit.getText().toString().trim()).apply();
     }
 

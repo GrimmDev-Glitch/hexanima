@@ -323,6 +323,8 @@ public class Main extends Base {
         LinearLayout.LayoutParams edl = new LinearLayout.LayoutParams(dp(46), dp(40)); edl.leftMargin = dp(6); resRow.addView(editGeneratedBtn, edl);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
+        againBtn.setOnLongClickListener(v -> { variations(); return true; });
+        againBtn.setContentDescription(L.s("Otra vez (mantén pulsado: variaciones)", "Again (long-press: variations)"));
         favBtn = icon("ic_star_off", CARD);
         favBtn.setOnClickListener(v -> { if (lastFile == null) return; boolean nv = !Gallery.fav(lastFile); Gallery.setFav(lastFile, nv); setFavIcon(nv); });
         dlBtn = icon("ic_download", CARD);
@@ -1474,11 +1476,23 @@ public class Main extends Base {
     /** INIT / STRENGTH / MASK for anima.sh */
     String initEnv(int w, int h) {
         File init = initFor(w, h); if (init == null) return "";
-        String e = "INIT=" + q(init.getPath()) + " STRENGTH=" + pf("x_strength", .6f) + " ";
-        File m = maskFor(w, h); if (m != null) e += "MASK=" + q(m.getPath()) + " ";
+        String e = "INIT=" + q(init.getPath()) + " STRENGTH=" + (varInit != null ? "0.45" : pf("x_strength", .6f)) + " ";
+        File m = varInit != null ? null : maskFor(w, h); if (m != null) e += "MASK=" + q(m.getPath()) + " ";
         return e;
     }
     /** the last picture becomes the init image (to inpaint or vary it) */
+    volatile File varInit; int countOv;   // one batch of "similar variations": its init picture; one batch with its own picture count
+    /** long-press on ↻: four new seeds, or (Anima) four pictures close to the shown one, drawn from it at denoise 0.45 */
+    void variations() {
+        if (busy || lastFile == null || !lastFile.isFile()) return;
+        boolean anima = !isMoss() && !isQwen() && !isMage() && !model.isEmpty();
+        List<String> it = new ArrayList<>(); it.add(L.s("4 con semillas nuevas", "4 with new seeds"));
+        if (anima) it.add(L.s("4 parecidas a esta imagen", "4 close to this picture"));
+        builder().setTitle(L.s("Variaciones", "Variations")).setItems(it.toArray(new String[0]), (d, k) -> {
+            if (k == 1) { File v = new File(getFilesDir(), "variation_src.png"); try { java.nio.file.Files.copy(lastFile.toPath(), v.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING); } catch (Exception e) { return; } varInit = v; }
+            countOv = 4; generate(true);
+        }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+    }
     void useResultAsInit() {
         if (lastFile == null || !lastFile.exists()) { Toast.makeText(this, L.s("Сначала создайте картинку", "Make a picture first"), Toast.LENGTH_SHORT).show(); return; }
         try (InputStream in = new FileInputStream(lastFile); OutputStream o = new FileOutputStream(initSrc())) { byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); }
@@ -1502,9 +1516,10 @@ public class Main extends Base {
     }
     /** writes the init image fitted (scale + center crop) to w x h; null if none */
     File initFor(int w, int h) {
-        if (!initSrc().exists()) return null;
+        File src = varInit != null ? varInit : initSrc();   // "similar variations" of a picture use it as the init image for that batch only
+        if (!src.exists()) return null;
         try {
-            Bitmap b = BitmapFactory.decodeFile(initSrc().getPath()); if (b == null) return null;
+            Bitmap b = BitmapFactory.decodeFile(src.getPath()); if (b == null) return null;
             float s = Math.max(w / (float) b.getWidth(), h / (float) b.getHeight());
             Bitmap sc = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * s), Math.round(b.getHeight() * s), true);
             Bitmap cr = Bitmap.createBitmap(sc, (sc.getWidth() - w) / 2, (sc.getHeight() - h) / 2, w, h);
@@ -1669,7 +1684,7 @@ public class Main extends Base {
                     JSONObject p = ps.optJSONObject(n); if (p == null) return;
                     SharedPreferences.Editor e = prefs().edit();
                     for (String key : PRESET_KEYS) if (p.has(key)) { String fk = Settings.key(this, key); if (key.equals("steps")) e.putInt(fk, p.optInt(key)); else e.putString(fk, p.optString(key)); }
-                    if (p.has("prefix")) e.putString("prefix", p.optString("prefix"));
+                    if (p.has("prefix")) e.putString(Settings.key(this, "prefix"), p.optString("prefix"));
                     for (String x : new String[]{"x_hires", "x_ad"}) if (p.has(x)) e.putBoolean(x, p.optBoolean(x));
                     for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) if (p.has(x) && !p.optString(x).isEmpty()) e.putString(x, p.optString(x));
                     e.apply();
@@ -2131,9 +2146,11 @@ public class Main extends Base {
 
     void setModel(String m) {
         if (m.equals(model) || busy) return;   // no model switch mid-generation
+        prefs().edit().putInt("w@" + model, resW).putInt("h@" + model, resH).apply();   // the size is remembered per model
         model = m;
-        prefs().edit().putString("model", model).apply();   // the sampling fields are kept per model
-        setRes(resW, resH);
+        prefs().edit().putString("model", model).apply();   // the sampling fields, the negative prompt and the quality prefix are kept per model
+        SharedPreferences pm0 = prefs(); boolean known = pm0.contains("w@" + m);
+        setRes(known ? pm0.getInt("w@" + m, resW) : resW, known ? pm0.getInt("h@" + m, resH) : resH);
         sampFill = false; refreshSampling();   // show this model's values
         if (loaded) {   // the loaded server holds the other model's weights
             setModelUi(true, true, L.s("Меняю модель…", "Switching model…"));
@@ -2332,6 +2349,14 @@ public class Main extends Base {
         else ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
     }
 
+    /** {red|blue|green} in the prompt: one option per picture, chosen from the seed (the same seed gives the same choice); the saved prompt holds the chosen words */
+    static String wildcards(String pr, String seed) {
+        if (pr.indexOf('{') < 0) return pr;
+        Random r = new Random(seed.hashCode() * 31L + pr.hashCode());
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{([^{}]*\\|[^{}]*)\\}").matcher(pr); StringBuffer sb = new StringBuffer();
+        while (m.find()) { String[] o = m.group(1).split("\\|", -1); m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(o[r.nextInt(o.length)].trim())); }
+        m.appendTail(sb); return sb.toString();
+    }
     void generate(boolean newSeed) {
         if (model.isEmpty()) { openModels(); return; }
         int cw = 0, ch = 0;
@@ -2357,7 +2382,7 @@ public class Main extends Base {
         long base0 = 0; try { base0 = Long.parseLong(sd); } catch (NumberFormatException ignored) { }
         final long baseSeed = base0;
         final int gk = gridKind; gridKind = 0;
-        final int n = gk != 0 ? 4 : count, w = resW, h = resH;
+        final int n = gk != 0 ? 4 : countOv > 0 ? countOv : count, w = resW, h = resH; countOv = 0;
         final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
         final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
         batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; pendingCompare = null; refreshGeneratedEditAction();
@@ -2390,7 +2415,7 @@ public class Main extends Base {
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
                 picStart = System.currentTimeMillis(); picExpect = estSec();
-                final File f = runOne(pr, seedS, w, h, t0);
+                final File f = runOne(wildcards(pr, seedS), seedS, w, h, t0);
                 if (f != null && !cancelled && gk == 0) { int took = (int) Math.round((System.currentTimeMillis() - picStart) / 1000.0), old = prefs().getInt(timeKey(), 0); prefs().edit().putInt(timeKey(), old > 0 ? (old + 2 * took) / 3 : took).apply(); }   // learn the real time (weighted to the last runs)
                 cfgOv = null; stepsOv = 0; cutOv = 0;
                 if (f == null) break;
@@ -2422,7 +2447,7 @@ public class Main extends Base {
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
                 if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · ‹ › to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
-            picStart = 0;
+            picStart = 0; varInit = null;
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
             hotStop = false;
