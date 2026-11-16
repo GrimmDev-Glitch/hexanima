@@ -1,19 +1,7 @@
-# New
-Prompt from a picture (⋯ menu): reads a photo and writes its tags or a sentence, short, medium or long. On the NPU, in under a second.
-Mage takes several reference pictures: "the girl from image 1 wearing the dress from image 2".
-Anima: "Edit a photo" like Qwen and Mage (img2img and area to change, with "How much it changes").
-Corrections: one-tap "Detect and fix every face / hand" (optional).
-# Generate
-Time left for every model ("~30 s left"), also for the whole batch.
-Prompt wildcards: {red|blue|green} picks a different option for each picture.
-Long-press ↻ for variations: new seeds or similar pictures (Anima), as many as you like.
-Size and quality tags remembered per model.
-Large batches in contact sheets of 9 pictures; ‹ › to go from one to the next.
-# Pictures and LoRAs
-Enlarge a picture from the gallery (⋯ menu).
-Before/after also for enlarged and corrected pictures, and from the History (⇆).
-The Qwen LoRA library now works like the Anima and MOSS ones (filter, categories, rename).
-Civitai marks everything you already downloaded with ✓.
-# Phone
-Temperature next to the RAM and a notice when a batch pauses for heat.
-Settings → Export logs: a ZIP to report problems.
+# New in 1.9.1
+Reference pictures (Qwen and Mage): tap a reference → "Use only its pose (silhouette)". It copies the pose without the clothes or the face.
+Prompt from a picture: "Character only" keeps hair, eyes, clothes and accessories, without pose or background, to write a new pose or style (Anima and MOSS).
+Negative prompt templates: save, pick and reuse recent ones.
+Settings: a GitHub row with the version.
+# From 1.9.0
+Prompt from a picture, Mage with several references, Anima "Edit a photo", one-tap detailer, time left, wildcards, variations, sheets of 9, temperature and export logs.

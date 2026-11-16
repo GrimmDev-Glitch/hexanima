@@ -1,19 +1,7 @@
-# Nuevo
-Prompt desde una imagen (menú ⋯): lee una foto y escribe sus etiquetas o una frase, corta, media o larga. En la NPU, en menos de un segundo.
-Mage acepta varias imágenes de referencia: «la chica de la imagen 1 con el vestido de la imagen 2».
-Anima: «Editar una foto» como en Qwen y Mage (img2img y zona a cambiar, con «Cuánto cambia»).
-Correcciones: «Detectar y corregir todas las caras / manos» de un toque (opcional).
-# Generar
-Tiempo restante en todos los modelos («quedan ~30 s»), también para toda la tanda.
-Comodines en el prompt: {rojo|azul|verde} elige una opción distinta en cada imagen.
-Mantén pulsado ↻ para variaciones: semillas nuevas o imágenes parecidas (Anima), las que quieras.
-Tamaño y etiquetas de calidad recordados por modelo.
-Tandas grandes en cuadrículas de 9 imágenes; ‹ › para pasar de una a otra.
-# Imágenes y LoRAs
-Ampliar una imagen de la galería (menú ⋯).
-Antes/después también para imágenes ampliadas y corregidas, y desde el Historial (⇆).
-La biblioteca de LoRAs de Qwen ahora es como la de Anima y MOSS (filtro, categorías, renombrar).
-Civitai marca con ✓ todo lo que ya descargaste.
-# Teléfono
-Temperatura junto a la RAM y aviso cuando una tanda se pausa por calor.
-Ajustes → Exportar registros: un ZIP para reportar fallos.
+# Nuevo en 1.9.1
+Imágenes de referencia (Qwen y Mage): toca una referencia → «Usar solo su pose (silueta)». Copia la pose sin copiar la ropa ni la cara.
+Prompt desde una imagen: «Solo el personaje» saca pelo, ojos, ropa y accesorios, sin pose ni fondo, para escribir una pose o un estilo nuevos (Anima y MOSS).
+Plantillas para el prompt negativo: guardar, elegir y usar los recientes.
+Ajustes: fila de GitHub con la versión.
+# De la 1.9.0
+Prompt desde una imagen, Mage con varias referencias, «Editar una foto» en Anima, detailer de un toque, tiempo restante, comodines, variaciones, cuadrículas de 9, temperatura y exportar registros.
