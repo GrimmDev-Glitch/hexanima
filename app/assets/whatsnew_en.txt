@@ -1,4 +1,8 @@
-# New in 1.9.2
+# New in 1.9.3
+Outfit swaps that keep the quality (Qwen and Mage): add the photo and the picture with the clothes, paint the clothes with "✎ Area to edit" and generate; only the painted area changes, the body, hands and pose stay. "👗 Copy its outfit" and "🧍 Copy its pose" read image 2 and write the prompt.
+Anima's "Edit a photo" and "Pose" fold away to take less room.
+Prompt from a picture: "Character only" keeps nudity and body traits. LoRAs: the button opens each model's library and the strength goes up to 5.
+# From 1.9.2
 Configuration templates (⋯ menu): save the model, prompt, negative, steps, CFG, size, LoRAs and extras under a name (e.g. "3D Style") and load it all back with one tap.
 Pose for Anima (experimental): in "Edit a photo" → POSE, pick a picture or the last one and new pictures copy its posture. It uses Claquasse's adapter (non-commercial); made for Anima Base 1.0, few-step turbo models follow it less.
 # From 1.9.1

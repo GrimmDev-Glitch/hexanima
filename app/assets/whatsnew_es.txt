@@ -1,4 +1,8 @@
-# Nuevo en 1.9.2
+# Nuevo en 1.9.3
+Cambiar ropa con calidad (Qwen y Mage): pon la foto y la imagen de la ropa, pinta la ropa con «✎ Zona a cambiar» y genera; solo cambia la zona pintada, el cuerpo, las manos y la pose se quedan igual. «👗 Copiar su ropa» y «🧍 Copiar su pose» leen la imagen 2 y escriben el prompt.
+«Editar una foto» y «Pose» de Anima se pliegan para ocupar menos.
+Imagen a prompt: «Solo el personaje» conserva la desnudez y el cuerpo. LoRAs: el botón abre la biblioteca de cada modelo y la fuerza llega a 5.
+# De la 1.9.2
 Plantillas de configuración (menú ⋯): guarda modelo, prompt, negativo, pasos, CFG, tamaño, LoRAs y extras con un nombre (p. ej. «3D Style») y cárgalo todo con un toque.
 Pose para Anima (experimental): en «Editar una foto» → POSE, elige una imagen o la última generada y las nuevas copian su postura. Usa el adaptador de Claquasse (no comercial); está hecho para Anima Base 1.0 y con modelos turbo de pocos pasos la sigue peor.
 # De la 1.9.1
