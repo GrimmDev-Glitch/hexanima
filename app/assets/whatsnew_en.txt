@@ -1,4 +1,8 @@
-# New in 1.9.3
+# New in 1.9.4
+Mage without a size limit: the model runs in windows on the NPU, pictures up to 2048×3072 (1536×1536 in ~72 s) and reference photos at full size.
+Anima without a size limit: up to 4096×4096 (1536×1536 in ~50 s), with big sizes in the list.
+"How much it changes" (Edit a photo): tap the number to type the percentage. The step counter with a photo counts the real steps.
+# From 1.9.3
 Outfit swaps that keep the quality (Qwen and Mage): add the photo and the picture with the clothes, paint the clothes with "✎ Area to edit" and generate; only the painted area changes, the body, hands and pose stay. "👗 Copy its outfit" and "🧍 Copy its pose" read image 2 and write the prompt. With a reference picture Qwen always uses "High fidelity": the garment is copied much closer (name its colour and pattern in the prompt).
 Anima's "Edit a photo" and "Pose" fold away to take less room.
 Prompt from a picture: "Character only" keeps nudity and body traits. LoRAs: the button opens each model's library and the strength goes up to 5.
