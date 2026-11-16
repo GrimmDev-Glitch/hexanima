@@ -1040,7 +1040,7 @@ public class Main extends Base {
             prompt.setText(android.text.TextUtils.join(", ", keep)); prompt.setSelection(prompt.getText().length()); return;
         }
         final File f = new File(AnimaLora.dir(getFilesDir()), GPT_LORA + ".safetensors");
-        if (f.isFile() && f.length() == GPT_SIZE) { gptApply(); return; }
+        if (f.isFile() && f.length() == GPT_SIZE) { gptMeta(f); gptApply(); return; }
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(12), dp(20), dp(4));
         v.addView(text(L.s("Descarga la LoRA «Style > gpt-image-2» de AgileNumbers desde Civitai (22 MB) y la añade al prompt. Da el acabado de ilustración del ChatGPT actual: líneas finas, ojos detallados y luz suave.",
             "Downloads the LoRA \"Style > gpt-image-2\" by AgileNumbers from Civitai (22 MB) and adds it to the prompt. It gives the illustration finish of today's ChatGPT: thin lines, detailed eyes and soft light."), 13, DIM, false));
@@ -1052,9 +1052,17 @@ public class Main extends Base {
                 Civitai.download(this, GPT_URL, f, GPT_SIZE, (d, t) -> ui.post(() -> { if (t > 0) pb.setProgress((int) (1000 * d / t)); }), stop);
                 if (!GPT_SHA.equalsIgnoreCase(Models.sha256(f))) { f.delete(); throw new IOException(L.s("el archivo descargado no coincide (SHA-256)", "the downloaded file does not match (SHA-256)")); }
                 AnimaLora.Check c = AnimaLora.check(f); if (!c.ok) { f.delete(); throw new IOException(c.message()); }
-                ui.post(() -> { dl.dismiss(); gptApply(); });
+                ui.post(() -> { dl.dismiss(); gptMeta(f); gptApply(); });
             } catch (Exception e) { f.delete(); ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setMessage(L.f("No se pudo descargar: %s", "Could not download: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
         });
+    }
+    /** the Civitai card of the style LoRA (model 2564225, version 2998634) next to the file: Civitai shows it as downloaded, the library shows its name and trigger */
+    static void gptMeta(File f) {
+        File mf = Civitai.metaFile(f); if (mf.isFile()) return;
+        try (java.io.FileWriter w = new java.io.FileWriter(mf)) {
+            w.write(new JSONObject().put("name", "Style > gpt-image-2").put("version", "Anima-base1 v1.1").put("model_id", 2564225L).put("version_id", 2998634L).put("type", "LORA").put("base", "Anima")
+                .put("words", new org.json.JSONArray().put(GPT_TRIGGER)).put("tags", new org.json.JSONArray().put("style")).toString());
+        } catch (Exception ignored) { }
     }
     void gptApply() {
         List<String> cur = new ArrayList<>(); cur.add(GPT_TRIGGER); for (String t : tokens(prompt.getText().toString())) if (!t.equalsIgnoreCase(GPT_TRIGGER)) cur.add(t);

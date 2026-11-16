@@ -194,12 +194,35 @@ final class Civitai {
     /** Civitai ids of what is already on the phone (the .json written next to each download): [0] model ids, [1] version ids */
     static java.util.Set<Long>[] downloaded(File home) {
         @SuppressWarnings("unchecked") java.util.Set<Long>[] out = new java.util.Set[]{new java.util.HashSet<Long>(), new java.util.HashSet<Long>()};
+        // ids without a .json: Qwen LoRAs are named civitai_<model>_<version>_..., converted Anima checkpoints are installed as m_cv<version>
+        for (File d : new File[]{Qwen.srcDir(home), Qwen.lorasDir(home), qwenRawDir(home)}) { String[] ns = d.list(); if (ns != null) for (String n : ns) {
+            java.util.regex.Matcher mm = java.util.regex.Pattern.compile("^civitai_(\\d+)_(\\d+)_").matcher(n); if (mm.find()) { out[0].add(Long.parseLong(mm.group(1))); out[1].add(Long.parseLong(mm.group(2))); } } }
+        { String[] ns = new File(home, "anima").list(); if (ns != null) for (String n : ns) if (n.matches("m_cv\\d+")) out[1].add(Long.parseLong(n.substring(4))); }
         for (File d : new File[]{AnimaLora.dir(home), MossLora.civitaiDir(home), Qwen.srcDir(home), AnimaImport.importDir(home)}) {
             File[] fs = d.listFiles(); if (fs == null) continue;
             for (File f : fs) { if (!f.getName().endsWith(".json")) continue;
                 try { JSONObject m = new JSONObject(Models.read(f)); if (m.optLong("model_id") > 0) out[0].add(m.optLong("model_id")); if (m.optLong("version_id") > 0) out[1].add(m.optLong("version_id")); } catch (Exception ignored) { } }
         }
         return out;
+    }
+    /** file names of the LoRAs on the phone (Anima, MOSS, Qwen originals), as AnimaLora.fileName stores them: a Civitai file with one of these names is already here */
+    static java.util.Set<String> localNames(File home) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (File d : new File[]{AnimaLora.dir(home), MossLora.civitaiDir(home), Qwen.srcDir(home), qwenRawDir(home)}) { String[] ns = d.list(); if (ns != null) for (String n : ns) if (n.endsWith(".safetensors")) out.add(n.replaceFirst("^civitai_\\d+_\\d+_", "").toLowerCase(Locale.ROOT)); }
+        return out;
+    }
+    /** a model card counts as downloaded when its id, one of its version ids or one of its file names is on the phone */
+    static boolean have(JSONObject model, java.util.Set<Long>[] ids, java.util.Set<String> names) {
+        if (ids[0].contains(model.optLong("id"))) return true;
+        JSONArray vs = model.optJSONArray("modelVersions"); if (vs == null) return false;
+        for (int i = 0; i < vs.length(); i++) if (haveVersion(vs.optJSONObject(i), ids, names)) return true;
+        return false;
+    }
+    static boolean haveVersion(JSONObject v, java.util.Set<Long>[] ids, java.util.Set<String> names) {
+        if (v == null) return false; if (ids[1].contains(v.optLong("id"))) return true;
+        JSONArray fs = v.optJSONArray("files"); if (fs == null) return false;
+        for (int j = 0; j < fs.length(); j++) { JSONObject f = fs.optJSONObject(j); if (f != null && names.contains(AnimaLora.fileName(f.optString("name")).toLowerCase(Locale.ROOT))) return true; }
+        return false;
     }
     static File metaFile(File f) { return new File(f.getParent(), f.getName().replaceAll("\\.safetensors$", "") + ".json"); }
     static JSONObject meta(File f) { try { return new JSONObject(Models.read(metaFile(f))); } catch (Exception e) { return null; } }

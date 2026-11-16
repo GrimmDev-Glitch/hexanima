@@ -116,7 +116,7 @@ public class CivitaiActivity extends Base {
                     if (isFinishing() || gen != searchGen) return;
                     if (fresh) results.removeAllViews();
                     cursor = nx; more.setVisibility(nx != null && link == null ? View.VISIBLE : View.GONE);
-                    have = Civitai.downloaded(getFilesDir());
+                    have = Civitai.downloaded(getFilesDir()); haveNames = Civitai.localNames(getFilesDir());
                     for (JSONObject m : items) results.addView(card(m, link != null ? link[1] : 0));
                     status.setText(results.getChildCount() == 0 ? L.s("Ничего не найдено", "Nothing found") : L.f("Найдено: %d", "Found: %d", results.getChildCount()));
                     if (link != null && !items.isEmpty()) open(items.get(0), link[1]);
@@ -126,6 +126,12 @@ public class CivitaiActivity extends Base {
     }
 
     @SuppressWarnings("unchecked") java.util.Set<Long>[] have = new java.util.Set[]{new java.util.HashSet<Long>(), new java.util.HashSet<Long>()};
+    java.util.Set<String> haveNames = new java.util.HashSet<>();
+    /** after a download: mark it at once in the list (the card shows ✓ without searching again) */
+    void markDownloaded(JSONObject m, JSONObject ver) {
+        have[0].add(m.optLong("id")); have[1].add(ver.optLong("id"));
+        for (int i = 0; i < results.getChildCount(); i++) { View c = results.getChildAt(i); if (m.equals(c.getTag())) { results.removeViewAt(i); results.addView(card(m, ver.optLong("id")), i); break; } }
+    }
     View card(JSONObject m, long wantVersion) {
         LinearLayout c = new LinearLayout(this); c.setBackground(bg(CARD, 18)); c.setPadding(dp(10), dp(10), dp(12), dp(10)); c.setGravity(Gravity.CENTER_VERTICAL);
         ImageView iv = new ImageView(this); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setBackground(bg(FIELD, 12)); iv.setClipToOutline(true);
@@ -133,7 +139,8 @@ public class CivitaiActivity extends Base {
         LinearLayout t = new LinearLayout(this); t.setOrientation(LinearLayout.VERTICAL); t.setPadding(dp(12), 0, 0, 0);
         JSONArray vs = m.optJSONArray("modelVersions"); JSONObject v0 = vs != null && vs.length() > 0 ? vs.optJSONObject(0) : new JSONObject();
         TextView name = text(m.optString("name"), 15, TXT, true); name.setMaxLines(2); t.addView(name);
-        if (have[0].contains(m.optLong("id"))) { TextView ok = text(L.s("✓ Descargada", "✓ Downloaded"), 12, OK, true); t.addView(ok); }
+        c.setTag(m);
+        if (Civitai.have(m, have, haveNames)) { TextView ok = text(L.s("✓ Descargada", "✓ Downloaded"), 12, OK, true); t.addView(ok); }
         JSONObject cr = m.optJSONObject("creator"); JSONObject st = m.optJSONObject("stats");
         t.addView(text(m.optString("type") + " · " + v0.optString("baseModel") + (m.optBoolean("nsfw") ? " · 18+" : ""), 12, Civitai.anima(v0.optString("baseModel")) ? ACC : DIM, false));
         t.addView(text((cr != null ? cr.optString("username") : "") + (st != null ? "  ·  ⬇ " + st.optInt("downloadCount") : ""), 12, DIM, false));
@@ -162,7 +169,7 @@ public class CivitaiActivity extends Base {
         Runnable show = () -> {
             JSONObject x = vs.optJSONObject(cur[0]); JSONObject f = Civitai.mainFile(x);
             JSONArray w = x.optJSONArray("trainedWords"); List<String> ws = new ArrayList<>(); if (w != null) for (int i = 0; i < w.length(); i++) ws.add(w.optString(i));
-            info.setText((have[1].contains(x.optLong("id")) ? L.s("✓ Esta versión ya está descargada", "✓ This version is already downloaded") + (char) 10 : "") + m.optString("type") + " · " + x.optString("baseModel") + (f != null ? String.format(Locale.US, " · %.0f MB", f.optDouble("sizeKB") / 1024) : "")
+            info.setText((Civitai.haveVersion(x, have, haveNames) ? L.s("✓ Esta versión ya está descargada", "✓ This version is already downloaded") + (char) 10 : "") + m.optString("type") + " · " + x.optString("baseModel") + (f != null ? String.format(Locale.US, " · %.0f MB", f.optDouble("sizeKB") / 1024) : "")
                 + (ws.isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + String.join(", ", ws)));
             pick.setText(names[cur[0]] + "  ▾");
         };
@@ -205,7 +212,7 @@ public class CivitaiActivity extends Base {
                     String err = AnimaImport.convert(getFilesDir(), getApplicationInfo().nativeLibraryDir, Main.DEFAULT_BASE, out, id, nm,
                         (d, t, what) -> ui.post(() -> { pb.setProgress(1000 * d / Math.max(1, t)); pt.setText(what + " " + d + "/" + t); }), stop);
                     if (err != null) throw new Exception(err);
-                    ui.post(() -> { dl.dismiss(); builder().setTitle(nm).setMessage("✓ " + L.s("Модель установлена: выберите её в списке моделей. Если это не «turbo»-модель, используйте 20–30 шагов и CFG 4–5 (или LoRA turbo для 2B).",
+                    ui.post(() -> { dl.dismiss(); markDownloaded(m, ver); builder().setTitle(nm).setMessage("✓ " + L.s("Модель установлена: выберите её в списке моделей. Если это не «turbo»-модель, используйте 20–30 шагов и CFG 4–5 (или LoRA turbo для 2B).",
                         "Model installed: pick it in the model list. If it is not a \"turbo\" model, use 20–30 steps and CFG 4–5 (or a turbo LoRA on the 2B ones).")).setPositiveButton("OK", null).show(); });
                     return;
                 }
@@ -242,7 +249,7 @@ public class CivitaiActivity extends Base {
                 final String done = qwen || moss ? "✓ " + msg : "✓ " + msg + "\n" + L.f("В промпте: <lora:%s:1.0>", "In the prompt: <lora:%s:1.0>", tag) + (Civitai.words(out).isEmpty() ? "" : "\n" + L.s("Слова-активаторы: ", "Trigger words: ") + Civitai.words(out));
                 ui.post(() -> {
                     if (moss) setResult(RESULT_OK, new Intent().putExtra("moss_triggers", Civitai.words(out)));
-                    dl.dismiss(); builder().setTitle(m.optString("name")).setMessage(m.optString("type").equals("Checkpoint") ? "✓ " + out.getName() : done).setPositiveButton("OK", null).show();
+                    dl.dismiss(); markDownloaded(m, ver); builder().setTitle(m.optString("name")).setMessage(m.optString("type").equals("Checkpoint") ? "✓ " + out.getName() : done).setPositiveButton("OK", null).show();
                 });
             } catch (Exception e) { ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setTitle(L.s("Не удалось скачать", "Download failed")).setMessage(e.getMessage()).setPositiveButton("OK", null).show(); }); }
         });
