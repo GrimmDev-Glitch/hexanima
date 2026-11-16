@@ -6,7 +6,7 @@ Corrections: one-tap "Detect and fix every face / hand" (optional).
 # Generate
 Time left for every model ("~30 s left"), also for the whole batch.
 Prompt wildcards: {red|blue|green} picks a different option for each picture.
-Long-press ↻ for variations: 4 new seeds or 4 similar pictures (Anima).
+Long-press ↻ for variations: new seeds or similar pictures (Anima), as many as you like.
 Size and quality tags remembered per model.
 Large batches in contact sheets of 9 pictures; ‹ › to go from one to the next.
 # Pictures and LoRAs

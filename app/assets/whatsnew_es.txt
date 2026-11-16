@@ -6,7 +6,7 @@ Correcciones: «Detectar y corregir todas las caras / manos» de un toque (opcio
 # Generar
 Tiempo restante en todos los modelos («quedan ~30 s»), también para toda la tanda.
 Comodines en el prompt: {rojo|azul|verde} elige una opción distinta en cada imagen.
-Mantén pulsado ↻ para variaciones: 4 semillas nuevas o 4 imágenes parecidas (Anima).
+Mantén pulsado ↻ para variaciones: semillas nuevas o imágenes parecidas (Anima), las que quieras.
 Tamaño y etiquetas de calidad recordados por modelo.
 Tandas grandes en cuadrículas de 9 imágenes; ‹ › para pasar de una a otra.
 # Imágenes y LoRAs

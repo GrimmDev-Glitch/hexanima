@@ -411,13 +411,32 @@ abstract class MainTools extends MainRun {
     /** long-press on ↻: four new seeds, or (Anima) four pictures close to the shown one, drawn from it at denoise 0.45 */
     void variations() {
         if (busy || lastFile == null || !lastFile.isFile()) return;
-        boolean anima = !isMoss() && !isQwen() && !isMage() && !model.isEmpty();
-        List<String> it = new ArrayList<>(); it.add(L.s("4 con semillas nuevas", "4 with new seeds"));
-        if (anima) it.add(L.s("4 parecidas a esta imagen", "4 close to this picture"));
-        builder().setTitle(L.s("Variaciones", "Variations")).setItems(it.toArray(new String[0]), (d, k) -> {
-            if (k == 1) { File v = new File(getFilesDir(), "variation_src.png"); try { java.nio.file.Files.copy(lastFile.toPath(), v.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING); } catch (Exception e) { return; } varInit = v; }
-            countOv = 4; generate(true);
-        }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+        final boolean anima = !isMoss() && !isQwen() && !isMage() && !model.isEmpty();
+        final int[] n = {Math.max(1, Math.min(16, prefs().getInt("var_count", 4)))};
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
+        v.addView(text(L.s("Variaciones", "Variations"), 20, TXT, true));
+        LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(10), 0, dp(4));
+        row.addView(text(L.s("Cuántas", "How many"), 14, TXT, false), new LinearLayout.LayoutParams(0, -2, 1));
+        final TextView val = text(String.valueOf(n[0]), 18, ACC, true); val.setGravity(Gravity.CENTER);
+        Button minus = button("−", FIELD, ACC), plus = button("+", FIELD, ACC);
+        minus.setOnClickListener(x -> { n[0] = Math.max(1, n[0] - 1); val.setText(String.valueOf(n[0])); });
+        plus.setOnClickListener(x -> { n[0] = Math.min(16, n[0] + 1); val.setText(String.valueOf(n[0])); });
+        row.addView(minus, new LinearLayout.LayoutParams(dp(48), dp(44))); row.addView(val, new LinearLayout.LayoutParams(dp(56), -2)); row.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(44)));
+        v.addView(row);
+        Button seeds = button(L.s("Con semillas nuevas", "With new seeds"), FIELD, ACC); seeds.setAllCaps(false);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, dp(46)); bl.topMargin = dp(8); v.addView(seeds, bl);
+        Button close = button(L.s("Parecidas a esta imagen", "Close to this picture"), ACC, ON_ACC); close.setAllCaps(false);
+        if (anima) { LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, dp(46)); cl.topMargin = dp(8); v.addView(close, cl); }
+        TextView note = text(anima ? L.s("«Parecidas» parte de esta imagen y cambia poco (img2img); «semillas nuevas» repite el prompt desde cero.", "\"Close\" starts from this picture and changes it a little (img2img); \"new seeds\" runs the prompt again from scratch.")
+            : L.s("Repite el prompt con semillas nuevas.", "Runs the prompt again with new seeds."), 11, DIM, false);
+        note.setPadding(dp(2), dp(8), 0, 0); v.addView(note);
+        final AlertDialog dlg = dialog(v);
+        seeds.setOnClickListener(x -> { dlg.dismiss(); prefs().edit().putInt("var_count", n[0]).apply(); countOv = n[0]; generate(true); });
+        close.setOnClickListener(x -> {
+            dlg.dismiss(); prefs().edit().putInt("var_count", n[0]).apply();
+            File f = new File(getFilesDir(), "variation_src.png"); try { java.nio.file.Files.copy(lastFile.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING); } catch (Exception e) { return; }
+            varInit = f; countOv = n[0]; generate(true);
+        });
     }
     /** {red|blue|green} in the prompt: one option per picture, chosen from the seed (the same seed gives the same choice); the saved prompt holds the chosen words */
     static String wildcards(String pr, String seed) {

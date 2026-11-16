@@ -45,6 +45,7 @@ import org.json.JSONObject;
 
 /** part of the main screen (split out of Main.java): MainEdit */
 abstract class MainEdit extends MainTools {
+    List<File> batchFiles = new ArrayList<>();
     abstract Fold fold(LinearLayout parent, String title, String key);
     LinearLayout extrasBox; TextView initText, adText, queueText; EditText strEdit, hsEdit, hdEdit, hnEdit;
     LinearLayout animaInitBox; ImageView initThumb; TextView initInfo, initStrVal; Button initDrop, initMaskB; SeekBar initStr;
@@ -195,8 +196,10 @@ abstract class MainEdit extends MainTools {
             + (maskSrc().exists() ? L.s("\nSolo se redibuja la zona pintada.", "\nOnly the painted area is redrawn.") : ""));
     }
     void useResultAsInit() {
-        if (lastFile == null || !lastFile.exists()) { Toast.makeText(this, L.s("Сначала создайте картинку", "Make a picture first"), Toast.LENGTH_SHORT).show(); return; }
-        try (InputStream in = new FileInputStream(lastFile); OutputStream o = new FileOutputStream(initSrc())) { byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); }
+        File src = lastFile;
+        if (src != null && (Gallery.meta(src).has("grid") || Gallery.meta(src).optBoolean("compare"))) src = batchFiles.isEmpty() ? null : batchFiles.get(batchFiles.size() - 1);   // a contact sheet: its last picture
+        if (src == null || !src.exists()) { Toast.makeText(this, L.s("Сначала создайте картинку", "Make a picture first"), Toast.LENGTH_SHORT).show(); return; }
+        try (InputStream in = new FileInputStream(src); OutputStream o = new FileOutputStream(initSrc())) { byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); }
         catch (IOException e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); return; }
         maskSrc().delete(); refreshExtras();
     }

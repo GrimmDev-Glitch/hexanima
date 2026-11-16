@@ -26,7 +26,7 @@ Open the app, pick a model, write a prompt and press **Generate**. The models do
 | **Anima** (MiaoMiao Harem, 3D Harem, your own checkpoints) | Anime and illustration from tags | 2B turbo ~7 s, 2.9B turbo ~10–12 s, 20-step base models ~85–100 s (512×768) |
 | **MOSS-Image** (base 5B, RealSkin, Harem) | Realistic pictures from plain sentences, text in the picture | ~30–45 s at 512×768, 4 steps |
 | **Qwen-Image 2.1 Turbo** | Text to image, and **editing your own photos with words**, with up to 3 reference pictures | ~45–55 s for a picture or an edit, ~70 s with two references |
-| **Mage-Flow-Edit-Turbo** (new in 1.8) | Fast text to image and photo edits from plain sentences, with an area to edit | ~10 s at 512×512, ~19 s at 768×1024, ~36 s for an edit |
+| **Mage-Flow-Edit-Turbo** (new in 1.8) | Fast text to image and photo edits from plain sentences, with an area to edit or up to 3 reference pictures (1.9) | ~10 s at 512×512, ~19 s at 768×1024, ~36 s for an edit |
 
 Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower, with the CPU around 60 °C instead of 90 °C on long runs. By default it is automatic: full speed while the phone is cool, the lower clock once the battery reaches 40 °C (43 °C while charging).
 
@@ -40,21 +40,38 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 | **LoRAs, one panel for every family** | Library, Import and Civitai under every model. Anima supports kohya, diffusers / ComfyUI, LyCORIS LoKr and LoHa, including adaLN, LLM and text-encoder adapters; several LoRAs at once, each with its own strength. MOSS accepts A/B adapters and full 4×4 LoKr adapters (baked on the phone in about 20 s). Qwen LoRAs (.safetensors, also from Civitai) are converted on the phone in a few seconds, with a strength slider. Long-press a LoRA for its trigger words, category, to rename it (Qwen too, new in 1.8) or to delete it. |
 | **Civitai** | Search and download LoRAs and checkpoints for Anima, MOSS and Qwen, filtered by category; a ✓ marks what you already have. Optional API key for 18+ (sent only to civitai.com). |
 | **Enlarge on the NPU** | ×2 or ×4, from the picture or the History, saved as a new picture. **Fast** (Real-ESRGAN General x4v3): about 2 s for ×2 and 5 s for ×4 on a 512×768 picture. **Detailed** (4x-UltraSharp, new in 1.8): about 10 times slower, keeps textures, eyes and thin lines better (×2 of a 768×1024 picture in about 9 s). |
-| **Corrections** | A screen to fix a finished picture without touching it: make alternatives from the accepted version, compare them with a slider (double-tap to zoom), keep one or discard it, undo / redo, and save the result as a new picture. **Noise** (cleans grain and artefacts at the same size, with a strength) and **Resolution** (×2 / ×4) run on the NPU in 1–5 s. **Face, Hands, Details and Other**: paint an area and Qwen-Image redraws only that area (about a minute; needs Qwen-Image installed). **Detect faces / hands automatically** (new in 1.8) paints the area for you: face_yolov8n and hand_yolov8n run on the NPU in 6 ms. |
+| **Corrections** | A screen to fix a finished picture without touching it: make alternatives from the accepted version, compare them with a slider (double-tap to zoom), keep one or discard it, undo / redo, and save the result as a new picture. **Noise** (cleans grain and artefacts at the same size, with a strength) and **Resolution** (×2 / ×4) run on the NPU in 1–5 s. **Face, Hands, Details and Other**: paint an area and Qwen-Image redraws only that area (about a minute; needs Qwen-Image installed). **Detect faces / hands automatically** (new in 1.8) paints the area for you: face_yolov8n and hand_yolov8n run on the NPU in 6 ms. **Detect and fix every face / hand** (1.9, optional) redraws each one in turn and keeps the result as an alternative to compare. |
 | **Mage-Flow on the 8 Gen 2** (new in 1.8) | ayanoby's Mage-Flow kernels ported to Hexagon V73: a 512×512 picture in about 10 s, 768×1024 in about 19 s. Photo edits keep the original (before/after slider, side by side), keep the photo's shape, and can be limited to a painted area: the rest keeps its exact pixels. |
+| **Prompt from a picture** (new in 1.9) | ⋯ menu: pick a picture and the app writes its prompt, as Danbooru tags (for Anima) or a sentence (for MOSS, Qwen and Mage), short, medium or long; use it, add it or copy it. WD ViT Tagger v3 (SmilingWolf) runs on the NPU in about 0.1 s; it is downloaded once (190 MB). |
+| **Mage with reference pictures** (new in 1.9) | Add up to 3 pictures and write, for example, "the girl from image 1 wearing the dress from image 2" (about 25 s). |
+| **Anima: Edit a photo** (new in 1.9) | img2img and inpainting in their own box, like Qwen and Mage: the photo, Last picture, Area to change and a How much it changes slider. |
+| **Batches** (new in 1.9) | Time left for every model and the whole batch; prompt wildcards {red\|blue\|green} (a different pick for each picture); long-press ↻ for variations (new seeds, or pictures close to the shown one, as many as you like); large batches in contact sheets of 9. |
 | **ChatGPT style** (new in 1.8) | One tap in the Anima LoRA panel downloads the gpt-image-2 style LoRA (23 MB, checked by SHA-256) and adds its trigger and tag to the prompt; tap again to remove it. Qwen and MOSS can use the GPT-Image style LoRAs from Civitai too. |
-| **Storage** (new in 1.8) | Settings → Storage: free space, the size of every model, cache and picture folder; free up caches, empty the trash and the before/after originals. |
+| **Storage** (new in 1.8) | Settings → Storage: free space, the size of every model, cache and picture folder; free up caches, empty the trash and the before/after originals. Settings → Export logs (1.9) makes a ZIP to report a problem. |
 | **Your own checkpoints** | Any Anima `.safetensors` checkpoint becomes an NPU model on the phone. |
 | **Prompt tools** | Tag palette, `( − ) ( + )` for `(tag:1.2)` weights, the negative prompt right under the prompt, saved and recent prompts (Templates). |
 | **Sampling controls** | Anima: steps, CFG, samplers and schedulers per model, right after the negative prompt. MOSS: 1–4 steps (RealSkin also the 8-step DMD add-on). Qwen: fixed 4 steps. |
 | **Extras** | Live preview (Anima), img2img, **inpainting** with brush, eraser and move, hires fix on the NPU, ADetailer for faces, presets, a queue, a **2×2 comparison grid** (seeds, CFG or steps). Batches can be extended while running, up to 999 images, with a contact grid. |
 | **History** | Filter by model, LoRA or prompt words; favourites, trash, a ZIP of everything; *Reuse settings* brings back the sampling too. |
-| **Heat and memory** | Repeated prompts skip the text encoder (a batch, *again* and the negative prompt reuse it: 0.29 s → 0.001 s). Automatic cool mode, a free-RAM check before loading, and batches that wait for the phone to cool down. A home-screen widget shows free RAM and frees it. |
+| **Heat and memory** | The battery temperature next to the free RAM, and a notification when a batch pauses to cool down (1.9). Repeated prompts skip the text encoder (a batch, *again* and the negative prompt reuse it: 0.29 s → 0.001 s). Automatic cool mode, a free-RAM check before loading, and batches that wait for the phone to cool down. A home-screen widget shows free RAM and frees it. |
 | **Look** | Lavender light / dark themes, your own wallpaper behind see-through blocks, Barlow Semi Condensed font, folding sections. Spanish and English. |
 
 ## Screens
 
 <table>
+<tr>
+<td align="center" width="33%"><img src="docs/screens/v73/57-prompt-from-picture.jpg" width="220"><br><b>New in 1.9: Prompt from a picture</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/52-batch-grids.jpg" width="220"><br><b>Wildcards {silver|pink|blue}, sheets of 9</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/53-variations.jpg" width="220"><br><b>Variations close to a picture</b></td>
+</tr>
+<tr>
+<td align="center" width="33%"><img src="docs/screens/v73/54-anima-edit-photo.jpg" width="220"><br><b>Anima: Edit a photo</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/56-fix-every-face.jpg" width="220"><br><b>Detect and fix every face, 60 s</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/55-qwen-lora-library.jpg" width="220"><br><b>Qwen LoRA library with filter and categories</b></td>
+</tr>
+<tr>
+<td align="center" colspan="3"><img src="mage/samples/v73-multiref-girl-dress.png" width="660"><br><b>Mage with two reference pictures: image 1 + image 2 → "the girl from image 1 wearing the dress from image 2", 24 s</b></td>
+</tr>
 <tr>
 <td align="center" width="33%"><img src="docs/screens/v73/44-chatgpt-style-button.jpg" width="220"><br><b>New: one-tap ChatGPT style (Anima)</b></td>
 <td align="center" width="33%"><img src="docs/screens/v73/45-chatgpt-style-result.jpg" width="220"><br><b>Anima + gpt-image-2 LoRA, 14 s</b></td>
@@ -129,7 +146,7 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 - **[ayanoby](https://github.com/ayanoby)**: author of [HexAnima](https://github.com/ayanoby/hexanima), its Hexagon HMX kernels, the on-device server, the app and the [NPU model packs](https://huggingface.co/ayanoby/anima-npu-packs). This fork stands entirely on that work.
 - **Models**: Anima by CircleStone Labs (on NVIDIA Cosmos); MiaoMiao Harem / 3D Harem / RealSkin by MIAOKA; turbo LoRAs by somedoby (2B) and n_Arno (2.9B). Non-commercial use only.
 - **Mage-Flow-Edit-Turbo** by Microsoft (MIT), mobile pack and kernels by ayanoby.
-- **Software**: [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (patched), Qualcomm QNN runtime, Real-ESRGAN General x4v3 (BSD-3), [4x-UltraSharp](https://huggingface.co/Kim2091/UltraSharp) by Kim2091 (CC BY-NC-SA 4.0), face_yolov8n and hand_yolov8n (Bingsu/adetailer, Apache-2.0), Barlow Semi Condensed font (SIL OFL).
+- **Software**: [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) (patched), Qualcomm QNN runtime, Real-ESRGAN General x4v3 (BSD-3), [4x-UltraSharp](https://huggingface.co/Kim2091/UltraSharp) by Kim2091 (CC BY-NC-SA 4.0), face_yolov8n and hand_yolov8n (Bingsu/adetailer, Apache-2.0), [WD ViT Tagger v3](https://huggingface.co/SmilingWolf/wd-vit-tagger-v3) by SmilingWolf (Apache-2.0), Barlow Semi Condensed font (SIL OFL).
 - **gpt-image-2 style LoRA** for Anima by AgileNumbers (Civitai), downloaded by the app on request.
 - LoRAs you download stay under their authors' licenses.
 

@@ -905,3 +905,8 @@ Add	Añadir
 Use	Usar
 Copied	Copiado
 Could not read the picture: %s	No se pudo leer la imagen: %s
+How many	Cuántas
+With new seeds	Con semillas nuevas
+Close to this picture	Parecidas a esta imagen
+"Close" starts from this picture and changes it a little (img2img); "new seeds" runs the prompt again from scratch.	«Parecidas» parte de esta imagen y cambia poco (img2img); «semillas nuevas» repite el prompt desde cero.
+Runs the prompt again with new seeds.	Repite el prompt con semillas nuevas.

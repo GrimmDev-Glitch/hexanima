@@ -61,7 +61,6 @@ public class Main extends MainEdit {
     LinearLayout pageBar, imgTools;   // ‹ 2 / 3 › over a batch picture (swiping needs a quick fling; the buttons always work)
     TextView pageTag;   // "2 / 3" over a batch picture: the caption under a tall picture is off screen
     TextView clearX;   // small ✕ over the shown picture: back to the placeholder (the picture stays in the History)
-    List<File> batchFiles = new ArrayList<>();
     int batchDisplayIndex;
     android.view.GestureDetector batchGestures;
 
@@ -1396,7 +1395,7 @@ public class Main extends MainEdit {
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
                 picStart = System.currentTimeMillis(); picExpect = estSec();
                 final File f = runOne(wildcards(pr, seedS), seedS, w, h, t0);
-                if (f != null && !cancelled && gk == 0) { int took = (int) Math.round((System.currentTimeMillis() - picStart) / 1000.0), old = prefs().getInt(timeKey(), 0); prefs().edit().putInt(timeKey(), old > 0 ? (old + 2 * took) / 3 : took).apply(); }   // learn the real time (weighted to the last runs)
+                if (f != null && !cancelled && gk == 0 && varInit == null) { int took = (int) Math.round((System.currentTimeMillis() - picStart) / 1000.0), old = prefs().getInt(timeKey(), 0); prefs().edit().putInt(timeKey(), old > 0 ? (old + 2 * took) / 3 : took).apply(); }   // learn the real time (weighted to the last runs)
                 cfgOv = null; stepsOv = 0; cutOv = 0;
                 if (f == null) break;
                 made++;
