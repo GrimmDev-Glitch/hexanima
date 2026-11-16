@@ -371,6 +371,9 @@ int main(int argc, char** argv) {
         fprintf(stderr, "animad: chain ready %.1fs (text encoder on NPU: %s)\n", now() - t0, te.empty() ? "no" : "yes");
     }
     // plain: Euler, discrete schedule, no CFG (one DiT call per step on sd.cpp's flow schedule), the only case the low-res first steps are exact for
+    // NPU text-encoder results of the last prompts (key: the token ids), kept for this process: a batch, "again" or the negative prompt (encoded on every CFG
+    // job) re-uses them instead of another ~0.3 s NPU run. The text encoder never changes inside one animad (model and LoRA are fixed per process).
+    std::vector<std::pair<std::string, std::vector<char>>> te_cache;   // most recent last, at most 16
     auto handle = [&](const std::string& dir, int steps, const std::string& vd, bool plain) {
     std::vector<f32> ctx512;  // adapter output [512,1024]
     // text encoder requests: sd.cpp (SD_TE_MODE=extern) writes qids<sfx>.bin/.shape (Qwen token ids) for every prompt it encodes (the prompt, then the
@@ -385,6 +388,14 @@ int main(int argc, char** argv) {
             double tt = now();
             auto ib = readfile(dir + "/qids" + sfx + ".bin");
             int S = (int)(ib.size() / 4); const int SM = te_sm;
+            const std::string key(ib.begin(), ib.end());
+            for (size_t ci = 0; ci < te_cache.size(); ci++) if (te_cache[ci].first == key) {
+                auto hit = te_cache[ci]; te_cache.erase(te_cache.begin() + ci); te_cache.push_back(hit);
+                writefile(dir + "/qh" + sfx + ".bin", hit.second.data(), hit.second.size());
+                writefile(dir + "/qh" + sfx + ".bin.done", "", 0);
+                fprintf(stderr, "animad: text encoder S=%d cached %.3fs\n", S, now() - tt);
+                return true;
+            }
             // longer prompts than the contexts take: the first SM tokens are encoded, the rest get zero states (the app has no CPU text-encoder weights,
             // only a header stub, so the old CPU fallback produced garbage)
             if (S > SM) fprintf(stderr, "animad: text S=%d > %d, the tokens after %d are dropped\n", S, SM, SM);
@@ -404,6 +415,7 @@ int main(int argc, char** argv) {
                 writefile(dir + "/qh" + sfx + ".bin", ob.data(), (size_t)S * 1024 * 4);
                 writefile(dir + "/qh" + sfx + ".bin.done", "", 0);
                 fprintf(stderr, "animad: text encoder S=%d %.3fs (npu %s)\n", S, now() - tt, r.c_str() + 5);
+                te_cache.emplace_back(key, std::move(ob)); if (te_cache.size() > 16) te_cache.erase(te_cache.begin());
             }
         }
         return true;
