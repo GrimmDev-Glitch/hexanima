@@ -93,7 +93,10 @@ final class Tagger {
     static String tags(List<Tag> t, int len) {
         int max = len == SHORT ? 6 : len == MEDIUM ? 14 : 40; List<String> out = new ArrayList<>();
         for (Tag x : t) { if (x.cat == 4) out.add(clean(x.name)); }   // characters first
-        for (Tag x : t) { if (x.cat != 0) continue; String n = clean(x.name); if (len == SHORT && n.equals("solo")) continue; if (out.size() >= max) break; out.add(n); }
+        List<String> all = new ArrayList<>(); for (Tag x : t) if (x.cat == 0) all.add(clean(x.name));
+        Set<String> drop = new HashSet<>(); for (String a : all) for (String b : all) if (!a.equals(b) && b.endsWith(" " + a)) drop.add(a);   // "shirt" when "white shirt" is there
+        if (len != LONG) drop.addAll(Arrays.asList("solo", "general", "simple background"));
+        for (String n : all) { if (drop.contains(n)) continue; if (out.size() >= max) break; out.add(n); }
         return String.join(", ", out);
     }
 
@@ -105,7 +108,8 @@ final class Tagger {
             : n.contains("2boys") ? "two boys" : n.contains("multiple boys") ? "a group of boys" : n.contains("1boy") && n.contains("1girl") ? "a boy and a girl" : n.contains("1boy") ? "a boy" : n.contains("1girl") ? "a girl" : "a person";
         if (!chars.isEmpty()) subj = chars.get(0) + " (" + subj + ")";
         Set<String> used = new HashSet<>(Arrays.asList(SUBJECTS)); used.addAll(Arrays.asList(FILLER));
-        String hairLen = first(n, used, "very long hair", "long hair", "medium hair", "short hair"), hairCol = null;
+        String hairLen = null, hairCol = null;
+        for (String x : n) if (x.equals("very long hair") || x.equals("long hair") || x.equals("medium hair") || x.equals("short hair")) { if (hairLen == null) hairLen = x; used.add(x); }   // the most likely length
         for (String x : n) if (x.endsWith(" hair") && !x.contains("long") && !x.contains("short") && !x.contains("medium") && !used.contains(x)) { hairCol = x.substring(0, x.length() - 5); used.add(x); break; }
         String hair = hairLen != null || hairCol != null ? ((hairLen != null ? hairLen.replace(" hair", "") + " " : "") + (hairCol != null ? hairCol + " " : "") + "hair").trim() : null;
         StringBuilder s = new StringBuilder(subj.substring(0, 1).toUpperCase(Locale.ROOT) + subj.substring(1));
@@ -118,7 +122,8 @@ final class Tagger {
         for (String x : n) { if (used.contains(x)) continue; for (String cl : cloth) if (x.equals(cl) || x.endsWith(" " + cl)) { wear.add(x); used.add(x); break; } }
         wear = dropContained(wear);
         int nw = len == MEDIUM ? 3 : wear.size();
-        if (!wear.isEmpty()) s.append(", wearing ").append(list(wear.subList(0, Math.min(nw, wear.size()))));
+        List<String> wa = new ArrayList<>(); for (String x : wear.subList(0, Math.min(nw, wear.size()))) wa.add(article(x));
+        if (!wa.isEmpty()) s.append(", wearing ").append(list(wa));
         String[] acts = {"smile", "open mouth", "blush", "standing", "sitting", "lying", "walking", "running", "holding", "arms at sides", "hand up", "looking back", "from side", "full body", "upper body", "cowboy shot", "portrait", "close-up"};
         List<String> act = new ArrayList<>(); for (String a : acts) if (n.contains(a)) { act.add(a.equals("smile") ? "smiling" : a); used.add(a); }
         if (!act.isEmpty()) s.append(", ").append(list(act.subList(0, Math.min(len == MEDIUM ? 2 : act.size(), act.size()))));
@@ -128,6 +133,8 @@ final class Tagger {
         if (len == LONG) { List<String> rest = new ArrayList<>(); for (String x : n) if (!used.contains(x) && rest.size() < 20) rest.add(x); if (!rest.isEmpty()) s.append(". Details: ").append(String.join(", ", rest)); }
         return s.append('.').toString();
     }
+    static final String[] PLURAL = {"jeans", "pants", "shorts", "sneakers", "boots", "gloves", "thighhighs", "glasses", "shoes", "socks", "pantyhose"};
+    static String article(String x) { for (String p : PLURAL) if (x.equals(p) || x.endsWith(" " + p)) return x; return ("aeiou".indexOf(x.charAt(0)) >= 0 ? "an " : "a ") + x; }
     static String first(Set<String> n, Set<String> used, String... opts) { for (String o : opts) if (n.contains(o)) { used.add(o); return o; } return null; }
     static List<String> dropContained(List<String> l) { List<String> o = new ArrayList<>(); for (String a : l) { boolean sub = false; for (String b : l) if (!a.equals(b) && b.endsWith(" " + a)) sub = true; if (!sub) o.add(a); } return o; }   // "dress" goes when "red dress" is there
     static String list(List<String> l) { if (l.size() <= 1) return l.isEmpty() ? "" : l.get(0); return String.join(", ", l.subList(0, l.size() - 1)) + " and " + l.get(l.size() - 1); }
