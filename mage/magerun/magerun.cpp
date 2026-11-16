@@ -306,7 +306,8 @@ static bool vit_features(const std::vector<f32>& px, int gh, int gw, std::vector
     return true; }, NLAYER_VIT);
   fprintf(stderr, "vit: %.2fs (%d patches)\n", now() - t0, Np); return ok;
 }
-struct EditIn { bool on = false; int nm = 0, k0 = 0, gh = 0, gw = 0; std::vector<f32> pooled, ds[3]; };
+struct EditImg { int nm = 0, k0 = 0, gh = 0, gw = 0; std::vector<f32> pooled, ds[3]; };
+struct EditIn { bool on = false; std::vector<EditImg> im; };   // one entry per input picture ("Image 1: ...", "Image 2: ..."), in prompt order
 static void add_rows_x32(f32* X, int row0, int nrows, const f32* feat) {   // X x32 tiles [slab][80 cb][32][32]: rows row0.. += feat[r][2560]
   for (int r = 0; r < nrows; r++) { const int row = row0 + r; const int s = row / 32, rr = row % 32;
     for (int cb = 0; cb < 80; cb++) { f32* t = X + ((size_t)s * 80 + cb) * 1024 + (size_t)rr * 32; const f32* a = feat + (size_t)r * TD + cb * 32; for (int c = 0; c < 32; c++) t[c] += a[c]; } }
@@ -319,13 +320,17 @@ static bool encode_text(const std::vector<int>& ids, int drop, std::vector<f32>&
   uint8_t* blob = g_blobTE.p; memset(blob, 0, g_LT.total);
   { std::vector<f32> rows((size_t)ntok * TD, 0.f); const f32* sc = (const f32*)g_embd; const int8_t* q = (const int8_t*)(g_embd + (size_t)151936 * 4);
     for (int t = 0; t < T; t++) { const int id = ids[t]; const f32 s = sc[id]; const int8_t* r = q + (size_t)id * TD; f32* o = &rows[(size_t)t * TD]; for (int i = 0; i < TD; i++) o[i] = s * r[i]; }
-    if (ed && ed->on) memcpy(&rows[(size_t)ed->k0 * TD], ed->pooled.data(), (size_t)ed->nm * TD * 4);   // image slots carry the ViT features
+    if (ed && ed->on) for (const EditImg& e : ed->im) memcpy(&rows[(size_t)e.k0 * TD], e.pooled.data(), (size_t)e.nm * TD * 4);   // image slots carry the ViT features
     rows_to_x32(rows.data(), ntok, TD, (f32*)(blob + g_LT.meta[M_X]), ns); }
   { std::vector<double> flat((size_t)T * 3); for (int i = 0; i < T; i++) { flat[i * 3] = flat[i * 3 + 1] = flat[i * 3 + 2] = i; }
-    if (ed && ed->on) {   // interleaved mrope: the merged image grid (gh/2 x gw/2) carries (t, h, w) = (k0, k0+row, k0+col); text after it continues at k0 + max(gh, gw)
-      const int gh = ed->gh / 2, gw = ed->gw / 2;
-      for (int r = 0; r < gh; r++) for (int c = 0; c < gw; c++) { const int j = ed->k0 + r * gw + c; flat[j * 3] = ed->k0; flat[j * 3 + 1] = ed->k0 + r; flat[j * 3 + 2] = ed->k0 + c; }
-      for (int t = ed->k0 + ed->nm; t < T; t++) flat[t * 3] = flat[t * 3 + 1] = flat[t * 3 + 2] = ed->k0 + std::max(gh, gw) + (t - (ed->k0 + ed->nm)); }
+    if (ed && ed->on) {   // interleaved mrope: text tokens count up one by one; each merged image grid (gh/2 x gw/2) carries (t, h, w) = (p, p+row, p+col), then the count goes on at p + max(gh, gw)
+      int p = 0, t = 0;
+      for (const EditImg& e : ed->im) {
+        for (; t < e.k0; t++, p++) flat[t * 3] = flat[t * 3 + 1] = flat[t * 3 + 2] = p;
+        const int gh = e.gh / 2, gw = e.gw / 2;
+        for (int r = 0; r < gh; r++) for (int c = 0; c < gw; c++) { const int j = e.k0 + r * gw + c; flat[j * 3] = p; flat[j * 3 + 1] = p + r; flat[j * 3 + 2] = p + c; }
+        p += std::max(gh, gw); t = e.k0 + e.nm; }
+      for (; t < T; t++, p++) flat[t * 3] = flat[t * 3 + 1] = flat[t * 3 + 2] = p; }
     f32* cs = (f32*)(blob + g_LT.meta[M_COS]); f32* sn = (f32*)(blob + g_LT.meta[M_SIN]); memset(cs, 0, (size_t)ns * 8192); memset(sn, 0, (size_t)ns * 8192);
     par_for(T, [&](int t) { for (int d = 0; d < 64; d++) { const int ax = (d % 3 == 1 && d < 60) ? 1 : (d % 3 == 2 && d < 60) ? 2 : 0; const double a = flat[t * 3 + ax] * pow(5e6, -(double)d / 64.0); const size_t idx = (((size_t)(t / 32) * 2 + d / 32) * 1024) + (t % 32) * 32 + d % 32; cs[idx] = (f32)cos(a); sn[idx] = (f32)sin(a); } }); }
   sync_clean(g_blobTE);
@@ -336,7 +341,7 @@ static bool encode_text(const std::vector<int>& ids, int drop, std::vector<f32>&
   if (!stream_files(g_tefiles, g_te, [&](int l, Buf& w) {
     meta[M_FIRST] = l == 0 || (dsk && l >= 1 && l <= 3); meta[M_REL] = l == NL_TE - 1 || (dsk && l < 3);
     if (call(g_LT, meta, w, 0, g_blobTE, mod.data(), (int)mod.size())) return false;
-    if (dsk && l < 3) { sync_inval(g_blobTE); add_rows_x32((f32*)(blob + g_LT.meta[M_X]), ed->k0, ed->nm, ed->ds[l].data()); sync_clean(g_blobTE); }   // DeepStack
+    if (dsk && l < 3) { sync_inval(g_blobTE); for (const EditImg& e : ed->im) add_rows_x32((f32*)(blob + g_LT.meta[M_X]), e.k0, e.nm, e.ds[l].data()); sync_clean(g_blobTE); }   // DeepStack, for every picture
     return true; }, getenv("MAGE_KEEPTE") ? NL_TE : 0)) return false;
   sync_inval(g_blobTE);
   std::vector<f32> rows((size_t)T * TD); x32_to_rows((const f32*)(blob + g_LT.meta[M_X]), T, TD, rows.data());
@@ -345,15 +350,18 @@ static bool encode_text(const std::vector<int>& ids, int drop, std::vector<f32>&
   fprintf(stderr, "te: %.2fs (%d tokens, waited %.2fs for io)\n", now() - t0, T, g_waitio); g_waitio = 0; return true;
 }
 // run the DiT. ref (optional): clean reference-image latent tokens [Nr][128] (edit), rh x rw tokens, appended to the image stream after the target tokens (frame index 1)
-struct RefImg { std::vector<f32> tok; int h = 0, w = 0; };
+struct RefImg { std::vector<f32> tok; int h = 0, w = 0; std::vector<std::pair<int, int>> segs; };   // tok: the references' latent tokens one after the other; segs: (h, w) of each (empty = one h x w picture)
 static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned seed, int steps, const std::string& outz, const RefImg* ref, std::vector<f32>* ztok = nullptr) {
-  const double T0 = now(); const int N = h * w, Nr = ref ? ref->h * ref->w : 0, NI = N + Nr;
+  const double T0 = now(); const int N = h * w, Nr = ref ? (int)(ref->tok.size() / 128) : 0, NI = N + Nr;
   if (NI % 32 || N % 32) { fprintf(stderr, "image tokens must be a multiple of 32\n"); return false; }
   const int nsI = NI / 32, nsT = (nt + 31) / 32, ns = nsI + nsT, ntok = ns * 32;
   if (g_M_ns != ns) { if (g_blobM.p) { unmap_buf(g_blobM); rpcmem_free(g_blobM.p); } g_LM = make_layout_m(ns); g_blobM = make_buf(g_LM.total, true); if (!g_blobM.p) return false; g_M_ns = ns; }
   uint8_t* blob = g_blobM.p; memset(blob, 0, g_LM.total); fill_bias_tiles(blob, g_LM, ns);
   { std::vector<double> flat((size_t)NI * 3); for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) { const int i = y * w + x; flat[i * 3] = 0; flat[i * 3 + 1] = y - (h - h / 2); flat[i * 3 + 2] = x - (w - w / 2); }
-    for (int y = 0; y < (ref ? ref->h : 0); y++) for (int x = 0; x < ref->w; x++) { const int i = N + y * ref->w + x; flat[i * 3] = 1; flat[i * 3 + 1] = y - (ref->h - ref->h / 2); flat[i * 3 + 2] = x - (ref->w - ref->w / 2); }
+    if (ref) {   // reference k (0-based) sits at frame index k + 1, centred like the target (as the official pipeline's per-image RoPE index)
+      std::vector<std::pair<int, int>> sg = ref->segs; if (sg.empty()) sg.push_back({ref->h, ref->w});
+      int i = N; for (size_t k = 0; k < sg.size(); k++) { const int rh = sg[k].first, rw = sg[k].second;
+        for (int y = 0; y < rh; y++) for (int x = 0; x < rw; x++, i++) { flat[i * 3] = (double)(k + 1); flat[i * 3 + 1] = y - (rh - rh / 2); flat[i * 3 + 2] = x - (rw - rw / 2); } } }
     rope_rows((const double(*)[3])flat.data(), NI, ntok, (f32*)(blob + g_LM.meta[M_COS]), (f32*)(blob + g_LM.meta[M_SIN])); }
   std::vector<f32> rows((size_t)ntok * D, 0.f), ttx((size_t)nt * D);
   double t1 = now(); txt_in(tx.data(), nt, ttx.data()); fprintf(stderr, "txt_in: %.2fs\n", now() - t1);
@@ -646,28 +654,43 @@ int main(int argc, char** argv) {
       if (getenv("MAGE_DUMP_TX")) { FILE* f = fopen(getenv("MAGE_DUMP_TX"), "wb"); fwrite(tx.data(), 4, tx.size(), f); fclose(f); }
       std::vector<f32> zt; if (!run_dit(tx, (int)tx.size() / TD, H / 16, W / 16, seed, steps, outz, nullptr, &zt)) printf("error gen\n"); else { finish_rgb(zt, H / 16, W / 16); printf("done\n"); }
     }
-    if (cmd == "edit") {   // edit DIR DROP SEED STEPS OUT.z : DIR/{meta.txt "gh gw h w", ids.i32 (image pads expanded), px.f32 [gh*gw][1536], ref.rgb fp32 [h*16][w*16][3] in [-1,1]}
-      std::string dir, outz; int drop, steps; unsigned seed; ss >> dir >> drop >> seed >> steps >> outz; int gh, gw, h, w;
-      FILE* mf = fopen((dir + "/meta.txt").c_str(), "r"); if (!mf || fscanf(mf, "%d %d %d %d", &gh, &gw, &h, &w) != 4) { printf("error meta\n"); continue; } fclose(mf);
+    if (cmd == "edit") {   // edit DIR DROP SEED STEPS OUT.z : DIR/{meta.txt "gh gw h w" [+ "gh gw rh rw" per extra picture], ids.i32 (image pads expanded, one run per picture), px.f32 [gh*gw][1536], ref.rgb fp32 [h*16][w*16][3] in [-1,1], px1.f32 ref1.rgb ...}
+      std::string dir, outz; int drop, steps; unsigned seed; ss >> dir >> drop >> seed >> steps >> outz;
+      struct Pic { int gh, gw, rh, rw; }; std::vector<Pic> pics;
+      { FILE* mf = fopen((dir + "/meta.txt").c_str(), "r"); Pic q; if (mf) { while (pics.size() < 4 && fscanf(mf, "%d %d %d %d", &q.gh, &q.gw, &q.rh, &q.rw) == 4) pics.push_back(q); fclose(mf); } }
+      if (pics.empty()) { printf("error meta\n"); continue; }
+      const int h = pics[0].rh, w = pics[0].rw;   // the output has the first picture's size
       std::vector<int> ids; { FILE* f = fopen((dir + "/ids.i32").c_str(), "rb"); if (!f) { printf("error ids\n"); continue; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); ids.resize(n / 4); if (fread(ids.data(), 4, ids.size(), f) != ids.size()) {} fclose(f); }
-      EditIn ed; ed.on = true; ed.gh = gh; ed.gw = gw; ed.nm = gh * gw / 4; ed.k0 = -1; int cnt = 0; for (size_t i = 0; i < ids.size(); i++) if (ids[i] == 151655) { if (ed.k0 < 0) ed.k0 = (int)i; cnt++; }
-      if (cnt != ed.nm || ed.k0 < 0) { printf("error pads %d != %d\n", cnt, ed.nm); continue; }
-      if (((h * w) % 32) || 2 * h * w > 6400) { printf("error size\n"); continue; }
-      double t0 = now(); RefImg ref; ref.h = h; ref.w = w; ref.tok.resize((size_t)h * w * 128);
-      std::thread enc_thread; bool ref_ok = true;   // the VAE encoder runs on the CPU in parallel with the (flash-bound) ViT / text encoder
-      { std::vector<f32>* rgbp = new std::vector<f32>(); if (!readraw((dir + "/ref.rgb").c_str(), *rgbp, (size_t)h * w * 256 * 3)) { printf("error ref\n"); delete rgbp; continue; }
-        enc_thread = std::thread([&, rgbp] { tl_cpu_only = true; vae_encode(rgbp->data(), h, w, ref.tok.data()); delete rgbp; }); }
-      std::vector<f32> px; if (!readraw((dir + "/px.f32").c_str(), px, (size_t)gh * gw * 1536)) { printf("error px\n"); enc_thread.join(); continue; }
-      std::vector<f32> tx; const std::string cp = tx_cache_path(ids, drop, &px);
+      EditIn ed; ed.on = true; bool bad = false;
+      { size_t i = 0, k = 0; while (i < ids.size()) { if (ids[i] != 151655) { i++; continue; } size_t j = i; while (j < ids.size() && ids[j] == 151655) j++;
+          if (k < pics.size()) { EditImg e; e.gh = pics[k].gh; e.gw = pics[k].gw; e.nm = e.gh * e.gw / 4; e.k0 = (int)i; if ((int)(j - i) != e.nm) { printf("error pads %d != %d\n", (int)(j - i), e.nm); bad = true; break; } ed.im.push_back(e); }
+          k++; i = j; }
+        if (!bad && ed.im.size() != pics.size()) { printf("error pads: %zu runs for %zu pictures\n", ed.im.size(), pics.size()); bad = true; } }
+      if (bad) continue;
+      int nr = 0; for (const Pic& q : pics) { if ((q.rh * q.rw) % 32) bad = true; nr += q.rh * q.rw; }
+      if (bad || h * w + nr > 6400) { printf("error size\n"); continue; }
+      double t0 = now(); RefImg ref; ref.h = h; ref.w = w; ref.tok.resize((size_t)nr * 128);
+      if (pics.size() > 1) for (const Pic& q : pics) ref.segs.push_back({q.rh, q.rw});
+      auto pf = [&](const char* base, size_t k) { return dir + "/" + base + (k ? std::to_string(k) : std::string()) + (std::string(base) == "px" ? ".f32" : ".rgb"); };
+      std::vector<std::vector<f32>*> rgbs; bool ok = true;
+      for (size_t k = 0; k < pics.size() && ok; k++) { auto* v = new std::vector<f32>(); if (!readraw(pf("ref", k).c_str(), *v, (size_t)pics[k].rh * pics[k].rw * 256 * 3)) { printf("error ref\n"); delete v; ok = false; } else rgbs.push_back(v); }
+      if (!ok) { for (auto* v : rgbs) delete v; continue; }
+      std::thread enc_thread([&, rgbs] { tl_cpu_only = true; size_t off = 0;   // the VAE encoder runs on the CPU in parallel with the (flash-bound) ViT / text encoder
+        for (size_t k = 0; k < rgbs.size(); k++) { vae_encode(rgbs[k]->data(), pics[k].rh, pics[k].rw, ref.tok.data() + off); off += (size_t)pics[k].rh * pics[k].rw * 128; delete rgbs[k]; } });
+      std::vector<std::vector<f32>> pxs(pics.size()); std::vector<f32> pxall;
+      for (size_t k = 0; k < pics.size() && ok; k++) { if (!readraw(pf("px", k).c_str(), pxs[k], (size_t)pics[k].gh * pics[k].gw * 1536)) { printf("error px\n"); ok = false; } else pxall.insert(pxall.end(), pxs[k].begin(), pxs[k].end()); }
+      if (!ok) { enc_thread.join(); continue; }
+      std::vector<f32> tx; const std::string cp = tx_cache_path(ids, drop, &pxall);
       if (tx_cache_load(cp, (ids.size() - drop) * TD, tx)) fprintf(stderr, "te: cached (no ViT)\n");
       else {
         if (!g_vglue.base && !g_vglue.load(g_dir + "/vit/vit_glue.bin")) { printf("error vitglue\n"); enc_thread.join(); continue; }
-        if (!vit_features(px, gh, gw, ed.pooled, ed.ds)) { printf("error vit\n"); enc_thread.join(); continue; }
+        for (size_t k = 0; k < pics.size() && ok; k++) if (!vit_features(pxs[k], pics[k].gh, pics[k].gw, ed.im[k].pooled, ed.im[k].ds)) { printf("error vit\n"); ok = false; }
+        if (!ok) { enc_thread.join(); continue; }
         if (!encode_text(ids, drop, tx, &ed)) { printf("error te\n"); enc_thread.join(); continue; }
         tx_cache_save(cp, tx); }
       enc_thread.join();
       std::vector<f32> zt; if (!run_dit(tx, (int)tx.size() / TD, h, w, seed, steps, outz, &ref, &zt)) { printf("error gen\n"); continue; }
-      finish_rgb(zt, h, w); fprintf(stderr, "edit total %.2fs\n", now() - t0); printf("done\n");
+      finish_rgb(zt, h, w); fprintf(stderr, "edit total %.2fs (%zu pictures)\n", now() - t0, pics.size()); printf("done\n");
     }
   }
   mega_close(g_h);

@@ -92,6 +92,12 @@ public class QwenTok {
         for (int i = 0; i < nPads; i++) s.append("<|image_pad|>");
         return encode(s.append("<|vision_end|>").append(prompt == null || prompt.isEmpty() ? " " : prompt).append(MAGE_END).toString());
     }
+    /** Mage-Flow edit with several pictures: "Image 1: <|vision_start|>pads<|vision_end|>Image 2: ..." then the prompt (as the official pipeline) */
+    public int[] encodeMageEditMulti(String prompt, int[] nPads) {
+        StringBuilder s = new StringBuilder(MAGE_EDIT_SYS);
+        for (int k = 0; k < nPads.length; k++) { s.append("Image ").append(k + 1).append(": <|vision_start|>"); for (int i = 0; i < nPads[k]; i++) s.append("<|image_pad|>"); s.append("<|vision_end|>"); }
+        return encode(s.append(prompt == null || prompt.isEmpty() ? " " : prompt).append(MAGE_END).toString());
+    }
     public int dropMage(boolean edit) { return encode(edit ? MAGE_EDIT_SYS : MAGE_SYS).length; }
 
     /** Qwen-Image-2.1 editing prompt: the image placeholder (expanded to nPads image slots) in the user turn, then the prompt */
