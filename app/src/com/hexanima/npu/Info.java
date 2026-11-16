@@ -124,6 +124,7 @@ public class Info extends Base {
             {"Real-ESRGAN General x4v3 upscaler (xinntao, converted for the NPU) — BSD-3-Clause", ""},
             {"4x-UltraSharp upscaler (Kim2091, converted for the NPU) — CC BY-NC-SA 4.0, non-commercial", ""},
             {"Mage-Flow-Edit-Turbo (Microsoft) — MIT; Qwen3-VL-4B text encoder and vision tower — Apache 2.0; Mage runner and kernels by ayanoby — MIT. The Mage pack holds converted copies", ""},
+            {"WD ViT Tagger v3 (SmilingWolf, converted for the NPU; downloaded on first use of Prompt from a picture) — Apache-2.0", ""},
             {"face_yolov8n / hand_yolov8n detectors (Bingsu/adetailer, converted for the NPU) — Apache-2.0", ""},
             {"Qualcomm AI Engine Direct (QNN) runtime libraries — Qualcomm AI Stack License (redistributed only inside this app)", ""},
             {"Tag suggestions — Danbooru tag list from DominikDoom/a1111-sd-webui-tagcomplete", ""},

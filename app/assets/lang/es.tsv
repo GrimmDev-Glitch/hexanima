@@ -890,3 +890,18 @@ Low: the photo almost unchanged, in the model's style. High: a new picture that 
 Pick a photo to change it by the prompt (img2img). Without one the model draws from scratch.	Elige una foto para cambiarla con el prompt (img2img). Sin foto, el modelo dibuja desde cero.
 Photo %d×%d · changes %d %%	Foto %d×%d · cambia %d %%
 \nOnly the painted area is redrawn.	\nSolo se redibuja la zona pintada.
+Prompt from a picture	Prompt desde una imagen
+Reads a picture and writes its prompt: tags (1girl, silver hair…) or a sentence. It uses WD ViT Tagger v3 by SmilingWolf (Apache-2.0) on the NPU, in under a second. It is downloaded once: 190 MB.	Lee una imagen y escribe su prompt: etiquetas (1girl, silver hair…) o una frase. Usa WD ViT Tagger v3 de SmilingWolf (Apache-2.0) en la NPU, en menos de un segundo. Hay que descargarlo una vez: 190 MB.
+Download (190 MB)	Descargar (190 MB)
+Reading the picture…	Leyendo la imagen…
+%d tags in %.1f s	%d etiquetas en %.1f s
+Sentence	Frase
+Short	Corto
+Medium	Medio
+Long	Largo
+You can edit the text before using it. Anima understands tags best; MOSS, Qwen and Mage, the sentence.	Puedes editar el texto antes de usarlo. Anima entiende mejor las etiquetas; MOSS, Qwen y Mage, la frase.
+Copy	Copiar
+Add	Añadir
+Use	Usar
+Copied	Copiado
+Could not read the picture: %s	No se pudo leer la imagen: %s

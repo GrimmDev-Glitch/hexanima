@@ -59,7 +59,71 @@ abstract class MainTools extends MainRun {
         {"Fondo|Background", "simple background", "white background", "outdoors", "indoors", "city", "forest", "beach", "sky", "bedroom", "cherry blossoms"},
     };
     static final String[] PRESET_KEYS = {"steps", "cfg", "sampler", "sched", "neg"};
-    static final int REQ_UPSCALE_PICK = 31;
+    static final int REQ_UPSCALE_PICK = 31, REQ_TAG_PICK = 32;
+    /** "Prompt from a picture": the tagger model is downloaded once (asks first), then the photo picker */
+    void promptFromPicture() {
+        if (Tagger.installed(this)) { pickImage(REQ_TAG_PICK); return; }
+        builder().setTitle(L.s("Prompt desde una imagen", "Prompt from a picture"))
+            .setMessage(L.s("Lee una imagen y escribe su prompt: etiquetas (1girl, silver hair…) o una frase. Usa WD ViT Tagger v3 de SmilingWolf (Apache-2.0) en la NPU, en menos de un segundo. Hay que descargarlo una vez: 190 MB.",
+                "Reads a picture and writes its prompt: tags (1girl, silver hair…) or a sentence. It uses WD ViT Tagger v3 by SmilingWolf (Apache-2.0) on the NPU, in under a second. It is downloaded once: 190 MB."))
+            .setNegativeButton(L.s("Отмена", "Cancel"), null)
+            .setPositiveButton(L.s("Descargar (190 MB)", "Download (190 MB)"), (x, y) -> {
+                final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+                final ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(1000);
+                final TextView pt = text("", 12, DIM, false);
+                LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(12), dp(20), 0); v.addView(pb); v.addView(pt);
+                final AlertDialog dl = builder().setTitle(L.s("Загрузка", "Downloading")).setView(v).setCancelable(false).setNegativeButton(L.s("Отмена", "Cancel"), (a, b) -> stop.set(true)).show();
+                ex2.submit(() -> {
+                    try {
+                        Tagger.install(this, (done, total) -> ui.post(() -> { if (total > 0) pb.setProgress((int) (1000 * done / total)); pt.setText(String.format(java.util.Locale.US, "%.0f / %.0f MB", done / 1048576.0, total / 1048576.0)); }), stop);
+                        ui.post(() -> { dl.dismiss(); pickImage(REQ_TAG_PICK); });
+                    } catch (Exception e) { ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setMessage(L.f("No se pudo descargar: %s", "Could not download: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
+                });
+            }).show();
+    }
+    /** runs the tagger on the picked picture and shows tags / a sentence, short / medium / long, to use, add or copy */
+    void showPicturePrompt(final File pic) {
+        final Toast t0 = Toast.makeText(this, L.s("Leyendo la imagen…", "Reading the picture…"), Toast.LENGTH_SHORT); t0.show();
+        ex2.submit(() -> {
+            try {
+                Bitmap b = BitmapFactory.decodeFile(pic.getPath()); if (b == null) throw new IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
+                final long t = System.currentTimeMillis(); final List<Tagger.Tag> tags = Tagger.tag(this, b); b.recycle(); pic.delete();
+                final long ms = System.currentTimeMillis() - t;
+                ui.post(() -> {
+                    final boolean[] sent = {prefs().getBoolean("tag_sentence", isMoss() || isQwen() || isMage())}; final int[] len = {prefs().getInt("tag_len", Tagger.MEDIUM)};
+                    LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
+                    v.addView(text(L.s("Prompt desde una imagen", "Prompt from a picture"), 20, TXT, true));
+                    v.addView(text(L.f("%d etiquetas en %.1f s", "%d tags in %.1f s", tags.size(), ms / 1000.0), 12, DIM, false));
+                    final EditText out = field(""); out.setTextSize(15); out.setMinLines(3); out.setGravity(Gravity.TOP);
+                    final Runnable fill = () -> out.setText(sent[0] ? Tagger.sentence(tags, len[0]) : Tagger.tags(tags, len[0]));
+                    LinearLayout kind = new LinearLayout(this); kind.setPadding(0, dp(10), 0, 0);
+                    LinearLayout size = new LinearLayout(this); size.setPadding(0, dp(6), 0, 0);
+                    final Button[] kb = {button(L.s("Etiquetas", "Tags"), FIELD, ACC), button(L.s("Frase", "Sentence"), FIELD, ACC)};
+                    final Button[] sb = {button(L.s("Corto", "Short"), FIELD, ACC), button(L.s("Medio", "Medium"), FIELD, ACC), button(L.s("Largo", "Long"), FIELD, ACC)};
+                    final Runnable paint = () -> { for (int i = 0; i < 2; i++) { boolean on = sent[0] == (i == 1); kb[i].setBackground(bg(on ? ACC : FIELD, 12)); kb[i].setTextColor(on ? ON_ACC : ACC); }
+                        for (int i = 0; i < 3; i++) { boolean on = len[0] == i; sb[i].setBackground(bg(on ? ACC : FIELD, 12)); sb[i].setTextColor(on ? ON_ACC : ACC); } fill.run(); };
+                    for (int i = 0; i < 2; i++) { final int k = i; kb[i].setTextSize(13); kb[i].setAllCaps(false); kb[i].setOnClickListener(x -> { sent[0] = k == 1; prefs().edit().putBoolean("tag_sentence", sent[0]).apply(); paint.run(); });
+                        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1); if (i > 0) lp.leftMargin = dp(6); kind.addView(kb[i], lp); }
+                    for (int i = 0; i < 3; i++) { final int k = i; sb[i].setTextSize(13); sb[i].setAllCaps(false); sb[i].setOnClickListener(x -> { len[0] = k; prefs().edit().putInt("tag_len", k).apply(); paint.run(); });
+                        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1); if (i > 0) lp.leftMargin = dp(6); size.addView(sb[i], lp); }
+                    v.addView(kind); v.addView(size);
+                    LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(-1, -2); ol.topMargin = dp(10); v.addView(out, ol);
+                    TextView hint = text(L.s("Puedes editar el texto antes de usarlo. Anima entiende mejor las etiquetas; MOSS, Qwen y Mage, la frase.", "You can edit the text before using it. Anima understands tags best; MOSS, Qwen and Mage, the sentence."), 11, DIM, false);
+                    hint.setPadding(dp(2), dp(4), 0, 0); v.addView(hint);
+                    LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+                    Button cp = button(L.s("Copiar", "Copy"), FIELD, ACC); bot.addView(cp, new LinearLayout.LayoutParams(0, dp(44), 1));
+                    Button add = button(L.s("Añadir", "Add"), FIELD, ACC); LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(0, dp(44), 1); al.leftMargin = dp(8); bot.addView(add, al);
+                    Button use = button(L.s("Usar", "Use"), ACC, ON_ACC); LinearLayout.LayoutParams ul = new LinearLayout.LayoutParams(0, dp(44), 1); ul.leftMargin = dp(8); bot.addView(use, ul);
+                    v.addView(bot);
+                    paint.run();
+                    final AlertDialog dlg = dialog(v);
+                    cp.setOnClickListener(x -> { android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("prompt", out.getText().toString())); Toast.makeText(this, L.s("Copiado", "Copied"), Toast.LENGTH_SHORT).show(); });
+                    add.setOnClickListener(x -> { String p = prompt.getText().toString().trim(); prompt.setText(p.isEmpty() ? out.getText().toString() : p + (sent[0] ? " " : ", ") + out.getText().toString()); dlg.dismiss(); });
+                    use.setOnClickListener(x -> { prompt.setText(out.getText().toString()); dlg.dismiss(); });
+                });
+            } catch (Exception e) { ui.post(() -> builder().setMessage(L.f("No se pudo leer la imagen: %s", "Could not read the picture: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show()); }
+        });
+    }
     long coolCheck; boolean coolOn;
     int count = 1;       // pictures per press of Generate
     final ExecutorService ex = Executors.newSingleThreadExecutor();
@@ -161,6 +225,7 @@ abstract class MainTools extends MainRun {
         if (video) { items.add(L.s("Видео (экспериментально)", "Video (experimental)")); acts.add(() -> { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }); }
         items.add("Civitai"); acts.add(() -> startActivityForResult(new Intent(this, CivitaiActivity.class), 14));
         items.add(L.s("Ampliar una imagen de la galería", "Enlarge a picture from the gallery")); acts.add(() -> pickImage(REQ_UPSCALE_PICK));
+        if (Tagger.supported()) { items.add(L.s("Prompt desde una imagen", "Prompt from a picture")); acts.add(this::promptFromPicture); }
         items.add(L.s("Открыть настройки из PNG", "Load settings from a PNG")); acts.add(() -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8));
         items.add(L.s("Настройки", "Settings")); acts.add(() -> startActivity(new Intent(this, Settings.class)));
         items.add("Info"); acts.add(() -> startActivity(new Intent(this, Info.class)));
