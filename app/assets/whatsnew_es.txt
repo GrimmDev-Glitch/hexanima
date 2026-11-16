@@ -1,4 +1,7 @@
-# Nuevo en 1.9.1
+# Nuevo en 1.9.2
+Plantillas de configuración (menú ⋯): guarda modelo, prompt, negativo, pasos, CFG, tamaño, LoRAs y extras con un nombre (p. ej. «3D Style») y cárgalo todo con un toque.
+Pose para Anima (experimental): en «Editar una foto» → POSE, elige una imagen o la última generada y las nuevas copian su postura. Usa el adaptador de Claquasse (no comercial); está hecho para Anima Base 1.0 y con modelos turbo de pocos pasos la sigue peor.
+# De la 1.9.1
 Imágenes de referencia (Qwen y Mage): toca una referencia → «Usar solo su pose (silueta)». Copia la pose sin copiar la ropa ni la cara.
 Prompt desde una imagen: «Solo el personaje» saca pelo, ojos, ropa y accesorios, sin pose ni fondo, para escribir una pose o un estilo nuevos (Anima y MOSS).
 Plantillas para el prompt negativo: guardar, elegir y usar los recientes.

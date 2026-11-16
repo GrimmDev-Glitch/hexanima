@@ -1,0 +1,18 @@
+Anima Control - Pose (pose control for Anima)
+=============================================
+
+Adapter: Anima Control - Pose, Preview-2, by Claquasse
+Source: https://huggingface.co/Claquasse/Anima-Control-Pose
+It is a derivative of Anima and inherits the CircleStone Labs Non-Commercial License and the NVIDIA Open Model License:
+non-commercial use only. Its LoRA (anima_pose_preview2.safetensors) is downloaded unchanged.
+
+Pose control for Anima in the HexAnima app (Snapdragon 8 Gen 2 NPU)
+
+rtmw_256x192_v73.bin: RTMW whole-body pose estimator (rtmw-dw-x-l, 256x192, OpenMMLab MMPose / DWPose, Apache License 2.0),
+  converted to a Qualcomm QNN HTP context for Hexagon V73 (fp16; the two SimCC outputs joined into one [1,133,896] tensor).
+vae_enc_384_v73.bin: the encoder of the Qwen-Image VAE (Qwen team, Apache License 2.0; the Wan 2.1 VAE Anima uses), reduced to its
+  single-picture 2D form and converted to a QNN HTP context for a 384x384 tile (fp16). Output: the latent mean [1,16,48,48].
+anima_pose_preview2_control_w.bin: the ControlEmbedder (proj.weight [2048][64] + proj.bias [2048], fp32) taken unchanged from
+  Claquasse/Anima-Control-Pose (anima_pose_preview2.safetensors). It is a derivative of Anima and inherits the CircleStone Labs
+  Non-Commercial License and the NVIDIA Open Model License: non-commercial use only.
+Build scripts: pose/ in github.com/GrimmDev-Glitch/hexanima. Nothing was retrained.

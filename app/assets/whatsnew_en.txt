@@ -1,4 +1,7 @@
-# New in 1.9.1
+# New in 1.9.2
+Configuration templates (⋯ menu): save the model, prompt, negative, steps, CFG, size, LoRAs and extras under a name (e.g. "3D Style") and load it all back with one tap.
+Pose for Anima (experimental): in "Edit a photo" → POSE, pick a picture or the last one and new pictures copy its posture. It uses Claquasse's adapter (non-commercial); made for Anima Base 1.0, few-step turbo models follow it less.
+# From 1.9.1
 Reference pictures (Qwen and Mage): tap a reference → "Use only its pose (silhouette)". It copies the pose without the clothes or the face.
 Prompt from a picture: "Character only" keeps hair, eyes, clothes and accessories, without pose or background, to write a new pose or style (Anima and MOSS).
 Negative prompt templates: save, pick and reuse recent ones.
