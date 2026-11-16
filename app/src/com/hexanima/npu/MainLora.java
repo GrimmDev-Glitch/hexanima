@@ -60,7 +60,7 @@ abstract class MainLora extends Base {
     final Handler ui = new Handler(Looper.getMainLooper());
     abstract String alias(boolean lora, String key);
     abstract void appendPromptWords(String words);
-    abstract boolean isMoss();
+    abstract boolean isMoss(); abstract boolean isQwen(); abstract boolean isMage();
     abstract TextView link(String s);
     abstract void loraAdd(String n, String w, String words);
     abstract void loraRemove(String n, String words);
@@ -81,6 +81,8 @@ abstract class MainLora extends Base {
     /** LoRA library: [✓] name · trigger words · weight, a filter on top; long tap offers trigger copying or deletion; Civitai finds more */
     void loraLibrary() {
         if (isMoss()) { mossLoraLibrary(); return; }
+        if (isQwen()) { pickQwenLora(); return; }   // each family opens its own library
+        if (isMage()) { Toast.makeText(this, L.s("Mage no usa LoRAs", "Mage takes no LoRAs"), Toast.LENGTH_SHORT).show(); return; }
         final File dir = AnimaLora.dir(getFilesDir());
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
         LinearLayout th = new LinearLayout(this); th.setGravity(Gravity.CENTER_VERTICAL);

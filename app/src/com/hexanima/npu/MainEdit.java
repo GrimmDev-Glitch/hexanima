@@ -81,7 +81,7 @@ abstract class MainEdit extends MainTools {
                 fr.setOnClickListener(v -> refMenu(rf));   // tap: use only its pose (silhouette)
                 LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(56), dp(56)); fl.rightMargin = dp(8); refsRow.addView(fr, fl);
             }
-            if (!refs.isEmpty()) { TextView how = text(L.s("Escribe, por ejemplo: «el personaje de la imagen 1 con la ropa de la imagen 2».", "Write, for example: \"the character of image 1 wearing the outfit of image 2\"."), 12, DIM, false); refsRow.addView(how, new LinearLayout.LayoutParams(0, -2, 1)); }
+            if (!refs.isEmpty()) { TextView how = text(L.s("Describe lo que tomas de la imagen 2, p. ej.: «la chica de la imagen 1 con el bikini negro de lunares de la imagen 2, mantén su cara y su pelo» o «…agachada con los dos brazos arriba, como en la imagen 2». Solo «la ropa de la imagen 2» no basta.", "Describe what to take from image 2, e.g. \"the girl from image 1 in the black polka-dot bikini from image 2, keep her face and hair\" or \"...squatting with both arms raised, as in image 2\". Just \"the outfit of image 2\" is not enough."), 12, DIM, false); refsRow.addView(how, new LinearLayout.LayoutParams(0, -2, 1)); }
         }
         if (editAddRef != null) editAddRef.setVisibility(b != null && (isQwen() || isMage()) && 1 + refs.size() < Qwen.MAX_REFS && !masked ? View.VISIBLE : View.GONE);
         if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);

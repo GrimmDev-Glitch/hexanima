@@ -466,7 +466,7 @@ public class Main extends MainEdit {
         loraInfo = text("", 12, DIM, false); loraInfo.setPadding(dp(4), dp(6), dp(4), 0); loraFold.body.addView(loraInfo);
         LinearLayout sr2 = new LinearLayout(this); sr2.setGravity(Gravity.CENTER_VERTICAL); sr2.setPadding(0, dp(6), 0, 0);
         sr2.addView(text(L.s("Сила", "Strength"), 14, TXT, false));
-        strBar = new SeekBar(this); strBar.setMax(40); strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
+        strBar = new SeekBar(this); strBar.setMax(100); strBar.setProgress(Math.round(prefs().getFloat(lp() + "lora_str", 1f) * 20));
         sr2.addView(strBar, new LinearLayout.LayoutParams(0, -2, 1));
         strText = field("1.00"); strText.setTextSize(14); strText.setMinWidth(dp(64)); strText.setGravity(Gravity.CENTER); strText.setBackground(bg(CARD, 12));
         strText.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -806,14 +806,14 @@ public class Main extends MainEdit {
         loraInfo.setText(info);
         loraInfo.setTextColor(has ? (fits ? OK : WARN) : DIM);
         loraDrop.setVisibility(has ? View.VISIBLE : View.GONE); strBar.setEnabled(has && fits); strBar.setAlpha(has && fits ? 1f : .4f); strText.setEnabled(has && fits);
-        strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20));
+        strBar.setProgress(Math.round(Math.min(loraStr(), 5f) * 20));
         if (!strText.hasFocus()) strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
     }
     float loraStr() { return prefs().getFloat(lp() + "lora_str", 1f); }
     /** typed strength (0..3; the slider shows 0..2) */
     void applyStrText() {
-        try { float v = Float.parseFloat(strText.getText().toString().trim().replace(',', '.')); v = Math.max(0f, Math.min(3f, v)); prefs().edit().putFloat(lp() + "lora_str", v).apply(); } catch (NumberFormatException ignored) { }
-        strBar.setProgress(Math.round(Math.min(loraStr(), 2f) * 20)); strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
+        try { float v = Float.parseFloat(strText.getText().toString().trim().replace(',', '.')); v = Math.max(0f, Math.min(5f, v));   /* some LoRAs ask for 4-5 */ prefs().edit().putFloat(lp() + "lora_str", v).apply(); } catch (NumberFormatException ignored) { }
+        strBar.setProgress(Math.round(Math.min(loraStr(), 5f) * 20)); strText.setText(String.format(java.util.Locale.US, "%.2f", loraStr()));
     }
 
     /** a section whose body folds away; the header keeps a one-line summary; the open state is kept in prefs (fold_<key>) */
