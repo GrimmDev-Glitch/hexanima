@@ -93,3 +93,5 @@ sd15/out/
 detect/out_*/
 tagger/out_*/
 pose/out_*/
+flux3/hexagon/mega/out/
+mage/magerun/out/
