@@ -183,6 +183,17 @@ abstract class MainEdit extends MainTools {
             public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.1f + p * 0.05f; initStrVal.setText(Math.round(v * 100) + " %"); if (u) prefs().edit().putString("x_strength", String.format(java.util.Locale.US, "%.2f", v)).apply(); refreshAnimaInfo(); }
             public void onStartTrackingTouch(SeekBar sb) { } public void onStopTrackingTouch(SeekBar sb) { } });
         initStrVal.setText(Math.round(pf("x_strength", .6f) * 100) + " %");
+        initStrVal.setPadding(dp(6), dp(8), dp(2), dp(8)); initStrVal.setBackground(bg(FIELD, 10)); initStrVal.setGravity(Gravity.CENTER);
+        initStrVal.setOnClickListener(v -> {   // type the amount instead of sliding
+            final EditText f = field("60"); f.setInputType(android.text.InputType.TYPE_CLASS_NUMBER); f.setText(String.valueOf(Math.round(pf("x_strength", .6f) * 100))); f.selectAll();
+            LinearLayout box = new LinearLayout(this); box.setPadding(dp(20), dp(8), dp(20), 0); box.addView(f, new LinearLayout.LayoutParams(-1, -2));
+            builder().setTitle(L.s("Cuánto cambia (%)", "How much it changes (%)")).setMessage(L.s("De 10 a 100.", "From 10 to 100.")).setView(box).setNegativeButton(L.s("Отмена", "Cancel"), null)
+                .setPositiveButton("OK", (d, k) -> {
+                    try { int pc = Math.max(10, Math.min(100, Integer.parseInt(f.getText().toString().trim())));
+                        prefs().edit().putString("x_strength", String.format(java.util.Locale.US, "%.2f", pc / 100f)).apply();
+                        initStr.setProgress(Math.round((pc / 100f - 0.1f) / 0.05f)); initStrVal.setText(pc + " %"); refreshAnimaInfo(); } catch (NumberFormatException ignored) { }
+                }).show();
+        });
         ib.addView(r3);
         TextView note = text(L.s("Poco: la foto casi igual con el estilo del modelo. Mucho: una imagen nueva que solo conserva la composición.", "Low: the photo almost unchanged, in the model's style. High: a new picture that keeps only the composition."), 11, DIM, false);
         note.setPadding(dp(4), dp(2), dp(4), 0); ib.addView(note);

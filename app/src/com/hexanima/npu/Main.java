@@ -47,7 +47,7 @@ import org.json.JSONObject;
 public class Main extends MainEdit {
     /** popular sizes, all valid for the NPU pipeline (multiples of 16, patch count divisible by 32, at most 6144); grouped by aspect ratio, a portrait and its landscape twin next to each other */
     static final int[][] SIZES = {{512, 512}, {640, 640}, {768, 768}, {1024, 1024}, {512, 768}, {768, 512}, {768, 1152}, {1152, 768}, {1024, 1536}, {1536, 1024}, {768, 1024}, {1024, 768}, {960, 1280}, {1280, 960},
-        {576, 1024}, {1024, 576}, {640, 1152}, {1152, 640}, {960, 1536}, {1536, 960}};
+        {576, 1024}, {1024, 576}, {640, 1152}, {1152, 640}, {960, 1536}, {1536, 960}, {960, 1280}, {1280, 960}, {1280, 1280}, {1152, 1536}, {1536, 1152}, {1536, 1536}, {1536, 2048}, {2048, 1536}, {2048, 2048}};
     static volatile boolean visible;   // the main screen is in front (otherwise a finished picture is announced by a notification)
 
     final Object batchLock = new Object();
@@ -1147,7 +1147,9 @@ public class Main extends MainEdit {
         int learned = prefs().getInt(timeKey(), 0); if (learned > 0) return learned;
         double sm = isMoss() || isQwen() || isMage() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;
         if (Moss.isRs(model) && prefs().getString("rs_mode", "4").equals("8") && Moss.installed8(getFilesDir()) && !loraOn()) sm = 1.65;
-        return Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0 * ((isQwen() || isMage()) && editBm != null ? 1.3 : 1)));
+        // Anima: the attention grows with the square of the token count above the old sizes (upstream: ~2.35 s per block at 16384 tokens, 24 s at 65536)
+        final double tk = (resW / 16) * (resH / 16), quad = !isMoss() && !isQwen() && !isMage() ? 28 * Math.max(1, Settings.steps(this) - 2) * 4.6e-9 * Math.max(0, tk * tk - 6144.0 * 6144.0) : 0;
+        return Math.max(3, Math.round(store.speed(model) * sm * tk / 1536.0 * ((isQwen() || isMage()) && editBm != null ? 1.3 : 1) + quad));
     }
     /** key of the measured time per model, size, edit / text-to-image and (Anima) step count */
     String timeKey() { return "t_" + model + "_" + resW + "x" + resH + (editBm != null && (isQwen() || isMage()) ? "_e" : "") + (isMoss() || isQwen() || isMage() ? "" : "_" + Settings.calls(this)); }

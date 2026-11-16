@@ -91,7 +91,7 @@ abstract class MainRun extends MainLora {
         if (w % 16 != 0 || h % 16 != 0) return L.s("Ширина и высота должны быть кратны 16", "Width and height must be multiples of 16");
         int t = (w / 16) * (h / 16);
         if (t % 32 != 0) return L.f("Число патчей (%d) должно делиться на 32, например 640×640, 1024×1024, 704×832", "Patch count (%d) must be divisible by 32, e.g. 640×640, 1024×1024, 704×832", t);
-        if (t > 6144) return L.s("Слишком большой размер: максимум 6144 патча (например 1536×960)", "Too large: at most 6144 patches (e.g. 1536×960)");
+        if (t > 65536) return L.s("Слишком большой размер: максимум 65536 патчей (например 4096×4096)", "Too large: at most 65536 patches (e.g. 4096×4096)");   // chunked attention and windows (upstream 1.7.1 port): only the time grows
         return null;
     }
     abstract String su(String cmd, boolean poll);
@@ -182,7 +182,12 @@ abstract class MainRun extends MainLora {
         final boolean[] done = {false};
         final long[] tStep1 = {0}; remainS = -1;
         final int[] base = count();
-        final int steps = stepsOv > 0 ? stepsOv : Settings.steps(this), calls = Math.max(1, (steps + (cfgOnNow() ? Settings.cfgSteps(steps, cutNow()) : 0)) * (Settings.twoCalls(Settings.sampler(this)) ? 2 : 1));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
+        // img2img ("Edit a photo", similar variations): sd.cpp runs only the last steps*strength steps, and the CFG ones among them are what is left of the CFG part
+        final int stepsAll = stepsOv > 0 ? stepsOv : Settings.steps(this);
+        final File i2iSrc = varInit != null ? varInit : initSrc(); final float i2iStr = varInit != null ? 0.45f : pf("x_strength", .6f);
+        final int steps = i2iSrc.exists() ? Math.max(1, Math.min(stepsAll, (int) (stepsAll * i2iStr))) : stepsAll;
+        final int cfgRun = cfgOnNow() ? Math.max(0, Settings.cfgSteps(stepsAll, cutNow()) - (stepsAll - steps)) : 0;
+        final int calls = Math.max(1, (steps + cfgRun) * (Settings.twoCalls(Settings.sampler(this)) ? 2 : 1));   // animad logs one "step" line per DiT call: CFG / 2nd-order samplers make several per step
         Thread poll = new Thread(() -> {
             while (!done[0]) {
                 try { Thread.sleep(700); } catch (InterruptedException e) { return; }
@@ -199,7 +204,7 @@ abstract class MainRun extends MainLora {
         });
         poll.start();
         final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) + " CFG_CUT=" + cutNow() : "");
-        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + steps + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
+        su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + stepsAll + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
@@ -208,7 +213,7 @@ abstract class MainRun extends MainLora {
         if (png.length == 0 || BitmapFactory.decodeByteArray(png, 0, png.length) == null) return null;
         try {
             JSONObject meta = new JSONObject().put("prompt", fullPrompt).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0)
-                .put("steps", steps).put("cfg", cfgNow()).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
+                .put("steps", stepsAll).put("cfg", cfgNow()).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
             if (cfgOnNow() && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
             if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
