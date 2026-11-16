@@ -224,6 +224,7 @@ abstract class MainTools extends MainRun {
         });
     }
     /** writes the template's values back and restarts the screen so every field shows them; a model that is no longer installed is left as it is */
+    boolean skipSave;   // set while the screen restarts after a template was loaded
     void applyTemplate(String n, JSONObject t) {
         if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
         JSONObject v = t.optJSONObject("v"), ty = t.optJSONObject("t"); if (v == null || ty == null) return;
@@ -240,7 +241,7 @@ abstract class MainTools extends MainRun {
                 default: e.putString(k, v.optString(k));
             }
         }
-        e.apply();
+        e.apply(); skipSave = true;
         Toast.makeText(this, have ? L.f("Plantilla «%s» cargada", "Template \"%s\" loaded", n) : L.f("Plantilla «%s» cargada; su modelo ya no está instalado", "Template \"%s\" loaded; its model is no longer installed", n), Toast.LENGTH_LONG).show();
         if (loaded && !m.equals(model)) { final String D0 = D; ex.submit(() -> { su("sh " + D0 + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; ui.post(this::recreate); }); }
         else recreate();

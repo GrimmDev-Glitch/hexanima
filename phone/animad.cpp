@@ -555,6 +555,34 @@ int main(int argc, char** argv) {
         for (int gy = 0; gy < gh; gy++) for (int gx = 0; gx < gw; gx++) for (int c = 0; c < 16; c++) for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++)
             pt[(size_t)(gy * gw + gx) * 68 + c * 4 + a * 2 + b] = xin[((size_t)c * H + gy * 2 + a) * Wd + gx * 2 + b];
         linear(pt.data(), T, 68, w("x_embedder.proj.1.weight"), nullptr, xtok.data());
+        // pose control (Anima Control, Claquasse): tokens = strength * (Wc . patchify(control latent) + bc) are added to the patch-embed output.
+        // $ANIMAD_HOME/control.bin = {int32 'CTL1', Hc, Wc, float strength} + latent fp32 [16][Hc][Wc] (the VAE-encoded skeleton, written by the app per job;
+        // no file = no control); control_w.bin = proj.weight [2048][64] + proj.bias [2048] fp32. A step on the downsampled latent average-pools the control latent.
+        if (const char* ah = getenv("ANIMAD_HOME")) {
+            static std::vector<f32> cw, clat; static int cH = 0, cW = 0; static float cs = 0; static long cmt = -1;
+            const std::string cf = std::string(ah) + "/control.bin"; struct stat cst;
+            if (stat(cf.c_str(), &cst) != 0) { cmt = -1; clat.clear(); }
+            else if ((long)cst.st_mtim.tv_sec * 1000000000L + cst.st_mtim.tv_nsec != cmt || clat.empty()) {
+                cmt = (long)cst.st_mtim.tv_sec * 1000000000L + cst.st_mtim.tv_nsec; clat.clear();
+                FILE* f = fopen(cf.c_str(), "rb"); int hd[3] = {0, 0, 0}; float st = 0;
+                if (f && fread(hd, 4, 3, f) == 3 && fread(&st, 4, 1, f) == 1 && hd[0] == 0x314C5443 && hd[1] > 0 && hd[2] > 0 && hd[1] <= 512 && hd[2] <= 512) {
+                    clat.resize((size_t)16 * hd[1] * hd[2]); if (fread(clat.data(), 4, clat.size(), f) != clat.size()) clat.clear(); cH = hd[1]; cW = hd[2]; cs = st; }
+                if (f) fclose(f);
+                if (cw.empty()) { FILE* g = fopen((std::string(ah) + "/control_w.bin").c_str(), "rb"); if (g) { cw.resize((size_t)D * 64 + D); if (fread(cw.data(), 4, cw.size(), g) != cw.size()) cw.clear(); fclose(g); } }
+                fprintf(stderr, "animad: control %dx%d strength %.2f %s\n", cW, cH, cs, clat.empty() || cw.empty() ? "(not usable)" : "loaded");
+            }
+            if (!clat.empty() && !cw.empty() && cH % H == 0 && cW % Wd == 0 && cH / H == cW / Wd) {
+                const int k = cH / H; std::vector<f32> pc((size_t)T * 64, 0.f), ct((size_t)T * D);
+                for (int gy = 0; gy < gh; gy++) for (int gx = 0; gx < gw; gx++) for (int c = 0; c < 16; c++) for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++) {
+                    double sm = 0; for (int u = 0; u < k; u++) for (int v = 0; v < k; v++) sm += clat[((size_t)c * cH + (gy * 2 + a) * k + u) * cW + (gx * 2 + b) * k + v];
+                    pc[(size_t)(gy * gw + gx) * 64 + c * 4 + a * 2 + b] = (f32)(sm / (k * k)); }
+                static std::vector<__fp16> cwh; static Tn cwt;
+                if (cwh.empty()) { cwh.resize((size_t)D * 64); for (size_t i = 0; i < cwh.size(); i++) cwh[i] = (__fp16)cw[i]; cwt.d = {D, 64}; cwt.p = (const uint16_t*)cwh.data(); }
+                linear(pc.data(), T, 64, cwt, nullptr, ct.data());
+                const f32* cb = cw.data() + (size_t)D * 64;
+                for (int i = 0; i < T; i++) for (int c = 0; c < D; c++) xtok[(size_t)i * D + c] += cs * (ct[(size_t)i * D + c] + cb[c]);
+            }
+        }
         std::vector<f32> xt((size_t)D * T);
         for (int i = 0; i < T; i++) for (int c = 0; c < D; c++) xt[(size_t)c * T + i] = xtok[(size_t)i * D + c];
         if (getenv("ANIMAD_DBG")) { writefile(dir + "/dbg_x_" + sn + ".bin", xtok.data(), xtok.size() * 4); writefile(dir + "/dbg_emb_" + sn + ".bin", emb.data(), D * 4); writefile(dir + "/dbg_lora_" + sn + ".bin", lora.data(), 6144 * 4); }

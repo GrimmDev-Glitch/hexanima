@@ -591,7 +591,7 @@ public class Main extends MainEdit {
         super.onPause();
         visible = false;
         ui.removeCallbacks(ramTick);
-        prefs().edit().putString("prompt", prompt.getText().toString()).putString("seed", seed.getText().toString()).putString("model", model).putInt("w", resW).putInt("h", resH).apply();
+        if (!skipSave) prefs().edit().putString("prompt", prompt.getText().toString()).putString("seed", seed.getText().toString()).putString("model", model).putInt("w", resW).putInt("h", resH).apply();   // a template just wrote its own values: keep them
     }
 
     @Override protected void onResume() {
