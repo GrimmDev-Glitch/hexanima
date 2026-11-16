@@ -965,3 +965,4 @@ Done. To leave the face and background alone, paint the clothes with "✎ Area t
 Done: generate to change the pose. You can touch up the prompt.	Listo: genera para cambiar la pose. Puedes retocar el prompt.
 Could not read image 2: %s	No se pudo leer la imagen 2: %s
 Refining the picture…	Repasando la imagen…
+The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory. With reference pictures it is always on.	La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria. Con imágenes de referencia se activa sola.

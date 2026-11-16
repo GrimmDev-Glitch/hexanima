@@ -285,7 +285,7 @@ abstract class MainRun extends MainLora {
         int drop; String edArg = "";
         try {
             if (edit) {
-                boolean hifi = prefs().getBoolean("qwen_hifi", false);
+                boolean hifi = prefs().getBoolean("qwen_hifi", false) || nRefs > 1;   // with a reference picture always: its clothes and details are copied much closer
                 Qwen.Edit e = nRefs > 1 ? Qwen.prepareEditMulti(home, pics, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA) : Qwen.prepareEdit(home, condition, prE, runW, runH, ids, hifi ? Qwen.COND_AREA_HI : Qwen.COND_AREA); drop = e.drop; edArg = " " + q(Qwen.editDir(home).getPath());
                 int keys = (runW / 16) * (runH / 16) + e.nc + (e.tokens - e.drop - e.nm);
                 if (hifi && keys > Qwen.MAX_KEYS) {   // too many tokens for one attention pass: fall back to the standard reference size
@@ -328,7 +328,7 @@ abstract class MainRun extends MainLora {
             int finalW = edit && maskFile.isFile() ? src.getWidth() : runW, finalH = edit && maskFile.isFile() ? src.getHeight() : runH;
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", finalW).put("h", finalH).put("model", modelName()).put("id", model).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             if (nRefs > 1) meta.put("refs", nRefs);
-            if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null).put("hifi", prefs().getBoolean("qwen_hifi", false));
+            if (edit) meta.put("edit", true).put("masked_edit", maskFile.isFile()).put("detail_crop", detail != null).put("hifi", prefs().getBoolean("qwen_hifi", false) || nRefs > 1);
             File out = Gallery.save(this, PngMeta.embed(png, meta), meta);
             if (edit && out != null) {
                 Qwen.saveBefore(home, src, out);

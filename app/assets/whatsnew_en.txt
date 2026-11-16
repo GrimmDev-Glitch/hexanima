@@ -1,5 +1,5 @@
 # New in 1.9.3
-Outfit swaps that keep the quality (Qwen and Mage): add the photo and the picture with the clothes, paint the clothes with "✎ Area to edit" and generate; only the painted area changes, the body, hands and pose stay. "👗 Copy its outfit" and "🧍 Copy its pose" read image 2 and write the prompt.
+Outfit swaps that keep the quality (Qwen and Mage): add the photo and the picture with the clothes, paint the clothes with "✎ Area to edit" and generate; only the painted area changes, the body, hands and pose stay. "👗 Copy its outfit" and "🧍 Copy its pose" read image 2 and write the prompt. With a reference picture Qwen always uses "High fidelity": the garment is copied much closer (name its colour and pattern in the prompt).
 Anima's "Edit a photo" and "Pose" fold away to take less room.
 Prompt from a picture: "Character only" keeps nudity and body traits. LoRAs: the button opens each model's library and the strength goes up to 5.
 # From 1.9.2

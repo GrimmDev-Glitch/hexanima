@@ -516,7 +516,7 @@ public class Main extends MainEdit {
         editBox.addView(em);
         editOpts = new LinearLayout(this); editOpts.setOrientation(LinearLayout.VERTICAL);
         sw(editOpts, L.s("Forma de la foto", "Photo's shape"), L.s("La edición sale vertical, horizontal o cuadrada como la foto, con un tamaño parecido al elegido. Desactívalo para usar exactamente el tamaño elegido.", "The edit comes out portrait, landscape or square like the photo, at about the size you picked. Turn it off to use exactly the picked size."), "qwen_keep_aspect", true);
-        sw(editOpts, L.s("Alta fidelidad", "High fidelity"), L.s("La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria.", "The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory."), "qwen_hifi", false);
+        sw(editOpts, L.s("Alta fidelidad", "High fidelity"), L.s("La foto de referencia sigue el tamaño de salida (hasta 1 Mpx) en vez de 0,4 Mpx: conserva más detalle, tarda más y usa más memoria. Con imágenes de referencia se activa sola.", "The reference photo follows the output size (up to 1 Mpx) instead of 0.4 Mpx: keeps more detail, takes longer and uses more memory. With reference pictures it is always on."), "qwen_hifi", false);
         sw(editOpts, L.s("Guardar comparación", "Save a comparison"), L.s("Además de la edición, guarda la original y la editada lado a lado; usa ‹ › sobre la imagen para verla.", "Besides the edit, saves the original and the edit side by side; use ‹ › above the picture to see it."), "qwen_compare", false);
         editBox.addView(editOpts);
         root.addView(editBox);
