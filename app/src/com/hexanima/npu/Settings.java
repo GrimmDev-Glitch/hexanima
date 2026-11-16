@@ -143,6 +143,10 @@ public class Settings extends Base {
         TextView logNote = text(L.s("Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.", "Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key."), 12, DIM, false);
         logNote.setPadding(dp(2), 0, 0, dp(4)); c2.addView(logNote);
 
+        String ver = "?"; try { ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
+        c2.addView(choice("GitHub", L.f("Versión %s", "Version %s", ver), v -> startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/GrimmDev-Glitch/hexanima")))));
+        TextView ghNote = text(L.s("GrimmDev-Glitch/hexanima: novedades, descargas y reportes. El proyecto original es ayanoby/hexanima.", "GrimmDev-Glitch/hexanima: news, downloads and reports. The original project is ayanoby/hexanima."), 12, DIM, false);
+        ghNote.setPadding(dp(2), 0, 0, dp(4)); c2.addView(ghNote);
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
         c3.addView(toggle(L.s("Guardar metadatos en la imagen", "Keep metadata in the picture"), L.s("Prompt, semilla y modelo dentro del PNG. Desactivado, el PNG no los lleva; el historial de la app guarda su propia copia.", "Prompt, seed and model inside the PNG. Off, the PNG carries none of them; the app's History keeps its own copy."), keepMeta(this), on -> { p.edit().putBoolean("keep_meta", on).apply(); PngMeta.keep = on; }));

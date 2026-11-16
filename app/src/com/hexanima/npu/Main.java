@@ -342,6 +342,7 @@ public class Main extends MainEdit {
         LinearLayout negHead = new LinearLayout(this); negHead.setGravity(Gravity.CENTER_VERTICAL);
         negHead.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ", "NEGATIVE PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
         TextView negDef = link(L.s("По умолчанию", "Default")); negDef.setOnClickListener(v -> negEdit.setText(Settings.turbo(this) ? "" : Settings.NEG_DEFAULT)); negHead.addView(negDef);
+        TextView negTpl = link(L.s("Plantillas", "Templates")); negTpl.setOnClickListener(v -> negTemplates()); negHead.addView(negTpl);
         TextView negClr = link(L.s("Очистить", "Clear")); negClr.setOnClickListener(v -> negEdit.setText("")); negHead.addView(negClr);
         negBox.addView(negHead);
         negEdit = field("lowres, worst quality, bad anatomy…");
@@ -1336,6 +1337,48 @@ public class Main extends MainEdit {
         else ex2.submit(() -> ctlSh.run("touch " + D + "/cancel; sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1"));
     }
 
+    /** templates for the negative prompt: save the current one, pick a saved or a recently used one (from the History), remove saved ones */
+    void negTemplates() {
+        final LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14), dp(14), dp(14), dp(10));
+        final AlertDialog[] dlg = new AlertDialog[1]; final Runnable[] fill = new Runnable[1];
+        fill[0] = () -> {
+            box.removeAllViews();
+            box.addView(text(L.s("Plantillas del prompt negativo", "Negative prompt templates"), 18, TXT, true));
+            Button save = button(L.s("Guardar el negativo actual", "Save the current negative"), ACC, ON_ACC); save.setTextSize(14);
+            save.setOnClickListener(v -> {
+                String t = negEdit.getText().toString().trim();
+                if (t.isEmpty()) { Toast.makeText(this, L.s("El prompt negativo está vacío", "The negative prompt is empty"), Toast.LENGTH_SHORT).show(); return; }
+                List<String> l = savedNegs(); l.remove(t); l.add(0, t); while (l.size() > 100) l.remove(l.size() - 1);
+                prefs().edit().putString("saved_neg", new JSONArray(l).toString()).apply(); fill[0].run();
+            });
+            LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, dp(44)); sl.topMargin = dp(8); box.addView(save, sl);
+            List<String> sv = savedNegs();
+            if (!sv.isEmpty()) { box.addView(sect(L.s("Сохранённые", "Saved"))); for (String t : sv) box.addView(negRow(t, true, dlg, fill)); }
+            List<String> rc = new ArrayList<>();
+            for (File f : Gallery.list(this, Gallery.ALL)) { if (rc.size() >= 30) break; String n = Gallery.meta(f).optString("negative").trim(); if (!n.isEmpty() && !rc.contains(n) && !sv.contains(n)) rc.add(n); }
+            if (!rc.isEmpty()) { box.addView(sect(L.s("Недавние", "Recent"))); for (String t : rc) box.addView(negRow(t, false, dlg, fill)); }
+            if (sv.isEmpty() && rc.isEmpty()) { TextView e = text(L.s("Aún no hay negativos guardados ni usados.", "No saved or used negatives yet."), 13, DIM, false); e.setPadding(dp(2), dp(10), 0, 0); box.addView(e); }
+        };
+        fill[0].run();
+        ScrollView sv = new ScrollView(this); sv.addView(box);
+        dlg[0] = builder().setView(sv).setNegativeButton(L.s("Закрыть", "Close"), null).show();
+    }
+    List<String> savedNegs() {
+        List<String> l = new ArrayList<>();
+        try { JSONArray a = new JSONArray(prefs().getString("saved_neg", "[]")); for (int i = 0; i < a.length(); i++) l.add(a.getString(i)); } catch (Exception ignored) { }
+        return l;
+    }
+    View negRow(String t, boolean saved, AlertDialog[] dlg, Runnable[] fill) {
+        LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setBackground(bg(FIELD, 12)); r.setPadding(dp(12), dp(10), dp(8), dp(10));
+        TextView tv = text(t, 13, TXT, false); tv.setMaxLines(2); tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        r.addView(tv, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView act = text(saved ? "✕" : "☆", saved ? 16 : 18, DIM, false); act.setPadding(dp(12), dp(4), dp(8), dp(4));
+        act.setOnClickListener(v -> { List<String> l = savedNegs(); if (saved) l.remove(t); else { l.remove(t); l.add(0, t); } prefs().edit().putString("saved_neg", new JSONArray(l).toString()).apply(); fill[0].run(); });
+        r.addView(act);
+        r.setOnClickListener(v -> { negEdit.setText(t); dlg[0].dismiss(); });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.topMargin = dp(4); r.setLayoutParams(lp);
+        return r;
+    }
     void generate(boolean newSeed) {
         if (model.isEmpty()) { openModels(); return; }
         int cw = 0, ch = 0;
