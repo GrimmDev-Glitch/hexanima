@@ -44,6 +44,8 @@ fi
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
 # "Detailed" upscaler: 4x-UltraSharp (Kim2091, CC BY-NC-SA 4.0; MODEL=ultrasharp upscale/build.sh 256 ARCH), same runner; offered only where its context exists
 for a in v69 v73 v79; do [ -f upscale/out_$a/ultrasharp_256.bin ] && cp upscale/out_$a/ultrasharp_256.bin $J/libultrasharp_$a.so; done
+# face / hand detectors for Corrections (face_yolov8n / hand_yolov8n, Bingsu/adetailer, Apache-2.0; detect/build.sh face|hand ARCH)
+for a in v69 v73 v79; do for k in face hand; do [ -f detect/out_$a/${k}_640.bin ] && cp detect/out_$a/${k}_640.bin $J/lib${k}det_$a.so; done; done
 # LTX-Video (video, experimental): the T5 text runner, the NPU runner and the QAIRT 2.50 runtime its contexts need, renamed so they do not clash with the 2.28 runtime above
 # (Ltx.prepare links files/ltx/lib/libQnnHtp.so etc. to these). Built in ~/Hexanima-dev/ltx (ltx/t5enc/build.sh, ltx/ltxrun/build.sh; runtime from com.qualcomm.qti:qnn-runtime:2.50.0)
 LTX=${LTX_DIR:-$HOME/Hexanima-dev/ltx}; R=$LTX/qnn250/jni/arm64-v8a

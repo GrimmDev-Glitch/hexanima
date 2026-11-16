@@ -846,3 +846,10 @@ Delete "%s" (%s)? This cannot be undone.	¿Borrar «%s» (%s)? No se puede desha
 Freed: %s	Liberado: %s
 %s free	%s libres
 Free up	Liberar
+🔍 Detect faces automatically	🔍 Detectar caras automáticamente
+🔍 Detect hands automatically	🔍 Detectar manos automáticamente
+No face found: paint it by hand	No encontré caras: píntala a mano
+No hands found: paint them by hand	No encontré manos: píntalas a mano
+Faces found: %d. Check the area with ✎ if you like, then generate.	Caras encontradas: %d. Revisa la zona con ✎ si quieres y genera.
+Hands found: %d. Check the area with ✎ if you like, then generate.	Manos encontradas: %d. Revisa la zona con ✎ si quieres y genera.
+Detection failed: %s	No se pudo detectar: %s

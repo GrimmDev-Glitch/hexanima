@@ -148,6 +148,12 @@ public class Corrections extends Base {
             Button paint = button(has ? L.s("✎ Zona pintada · editar", "✎ Painted area · edit") : L.s("✎ Pintar la zona", "✎ Paint the area"), has ? CARD : ACC, has ? ACC : ON_ACC);
             paint.setOnClickListener(v -> paintArea());
             LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(-1, dp(44)); pl.topMargin = dp(8); panel.addView(paint, pl);
+            final String dk = cat.equals("face") ? Detector.FACE : cat.equals("hands") ? Detector.HAND : null;
+            if (dk != null && Detector.available(this, dk)) {   // the face / hand detector paints the area instead of the finger
+                Button auto = button(dk.equals(Detector.FACE) ? L.s("🔍 Detectar caras automáticamente", "🔍 Detect faces automatically") : L.s("🔍 Detectar manos automáticamente", "🔍 Detect hands automatically"), CARD, ACC);
+                auto.setOnClickListener(v -> autoMask(dk));
+                LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, dp(44)); al.topMargin = dp(6); panel.addView(auto, al);
+            }
             final EditText pe = field(cat.equals("face") ? L.s("Opcional: p. ej. ojos azules, sonrisa suave", "Optional: e.g. blue eyes, a soft smile") : cat.equals("hands") ? L.s("Opcional: p. ej. manos naturales con cinco dedos", "Optional: e.g. natural hands with five fingers") : L.s("Qué debe cambiar en la zona pintada", "What should change in the painted area"));
             pe.setText(qPrompt); pe.setTextSize(14); pe.setMinLines(2); pe.addTextChangedListener(new android.text.TextWatcher() {
                 public void beforeTextChanged(CharSequence a, int b, int c, int d) { } public void onTextChanged(CharSequence a, int b, int c, int d) { }
@@ -165,6 +171,27 @@ public class Corrections extends Base {
         float sc = Math.min(1f, 1024f / Math.max(b0.getWidth(), b0.getHeight()));
         Bitmap shown = sc < 1 ? Bitmap.createScaledBitmap(b0, Math.round(b0.getWidth() * sc), Math.round(b0.getHeight() * sc), true) : b0; if (shown != b0) b0.recycle();
         showMaskEditor(shown, maskFile(), L.s("Zona a corregir", "Area to correct"), L.s("Pinta solo lo que quieres cambiar; el resto de la imagen se queda exactamente igual.", "Paint only what you want to change; the rest of the picture stays exactly the same."), this::buildPanel, null);
+    }
+    /** finds faces or hands on the current base with the NPU detector and writes the mask (at the same size the painter uses), then shows the panel again */
+    void autoMask(final String kind) {
+        if (Upscaler.npuBusy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        final Toast t0 = Toast.makeText(this, L.s("Buscando…", "Searching…"), Toast.LENGTH_SHORT); t0.show();
+        new Thread(() -> {
+            try {
+                File b = base(); int[] s = size(b); BitmapFactory.Options o = new BitmapFactory.Options(); o.inSampleSize = 1; while (Math.max(s[0], s[1]) / o.inSampleSize > 2048) o.inSampleSize *= 2;
+                Bitmap b0 = BitmapFactory.decodeFile(b.getPath(), o); if (b0 == null) throw new java.io.IOException("decode");
+                float sc = Math.min(1f, 1024f / Math.max(b0.getWidth(), b0.getHeight()));
+                Bitmap shown = sc < 1 ? Bitmap.createScaledBitmap(b0, Math.round(b0.getWidth() * sc), Math.round(b0.getHeight() * sc), true) : b0; if (shown != b0) b0.recycle();
+                java.util.List<android.graphics.RectF> boxes = Detector.detect(this, shown, kind, kind.equals(Detector.FACE) ? 0.35f : 0.30f);
+                final int n = boxes.size();
+                if (n > 0) Detector.writeMask(boxes, shown.getWidth(), shown.getHeight(), kind, kind.equals(Detector.FACE) ? 1.15f : 1.25f, maskFile());
+                shown.recycle();
+                ui.post(() -> {
+                    if (n == 0) Toast.makeText(this, kind.equals(Detector.FACE) ? L.s("No encontré caras: píntala a mano", "No face found: paint it by hand") : L.s("No encontré manos: píntalas a mano", "No hands found: paint them by hand"), Toast.LENGTH_LONG).show();
+                    else { Toast.makeText(this, kind.equals(Detector.FACE) ? L.f("Caras encontradas: %d. Revisa la zona con ✎ si quieres y genera.", "Faces found: %d. Check the area with ✎ if you like, then generate.", n) : L.f("Manos encontradas: %d. Revisa la zona con ✎ si quieres y genera.", "Hands found: %d. Check the area with ✎ if you like, then generate.", n), Toast.LENGTH_LONG).show(); buildPanel(); }
+                });
+            } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("No se pudo detectar: %s", "Detection failed: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show()); }
+        }).start();
     }
     static int stepOf(String ph) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d)/4").matcher(ph); return m.find() ? Integer.parseInt(m.group(1)) : 0; }
 
