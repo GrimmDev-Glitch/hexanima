@@ -89,7 +89,9 @@ final class Tagger {
     static final String[] LOOK = {"hair", "eyes", "ears", "tail", "wings", "horns", "halo", "skin", "freckles", "mole", "fang", "pupils", "eyelashes", "eyebrows", "bangs", "ponytail", "twintails", "braid", "bun", "ahoge", "sidelocks",
         "dress", "shirt", "uniform", "skirt", "jacket", "coat", "kimono", "hoodie", "sweater", "pants", "jeans", "shorts", "swimsuit", "bikini", "armor", "suit", "bowtie", "bow", "ribbon", "hat", "gloves", "boots", "sneakers", "shoes",
         "thighhighs", "socks", "pantyhose", "scarf", "apron", "cape", "glasses", "necktie", "vest", "leotard", "sleeves", "collar", "earrings", "necklace", "choker", "hairband", "headband", "hairclip", "hair ornament", "crown", "mask",
-        "belt", "robe", "cloak", "raincoat", "serafuku", "sailor", "headwear", "jewelry", "bracelet", "nail polish", "tattoo", "makeup", "lipstick", "elf", "animal", "cat", "fox", "wolf", "rabbit"};
+        "belt", "robe", "cloak", "raincoat", "serafuku", "sailor", "headwear", "jewelry", "bracelet", "nail polish", "tattoo", "makeup", "lipstick", "elf", "animal", "cat", "fox", "wolf", "rabbit",
+        "nude", "naked", "topless", "bottomless", "breasts", "nipples", "areolae", "pussy", "penis", "testicles", "pubic hair", "navel", "abs", "muscular", "thighs", "ass", "cleavage", "lingerie", "panties", "bra", "underwear",
+        "curvy", "plump", "petite", "skinny", "toned", "tan", "tanlines", "piercing", "body", "chest"};
     static final String[] NOT_LOOK = {"background", "looking", "smile", "open mouth", "closed mouth", "blush", "standing", "sitting", "lying", "walking", "full body", "upper body", "cowboy shot", "portrait", "close-up", "solo", "realistic", "shadow", "lips", "holding", "arms", "hand", "from ", "outdoors", "indoors"};
     static boolean isLook(Tag t) {
         if (t.cat == 4) return true;
@@ -140,6 +142,11 @@ final class Tagger {
         int nw = len == MEDIUM ? 3 : wear.size();
         List<String> wa = new ArrayList<>(); for (String x : wear.subList(0, Math.min(nw, wear.size()))) wa.add(article(x));
         if (!wa.isEmpty()) s.append(", wearing ").append(list(wa));
+        String nud = first(n, used, "completely nude", "nude", "naked", "topless", "bottomless");   // nudity is part of the description, not a detail
+        if (nud != null) s.append(wa.isEmpty() ? ", " : " and ").append(nud.equals("completely nude") ? "completely nude" : nud);
+        String[] body = {"huge breasts", "large breasts", "medium breasts", "small breasts", "flat chest", "nipples", "pussy", "penis", "pubic hair", "abs", "muscular", "curvy", "thick thighs", "wide hips", "cleavage", "navel"};
+        List<String> bd = new ArrayList<>(); for (String a : body) if (n.contains(a)) { bd.add(a); used.add(a); }
+        if (!bd.isEmpty()) s.append(", ").append(list(bd.subList(0, Math.min(len == MEDIUM ? 4 : bd.size(), bd.size()))));
         String[] acts = {"smile", "open mouth", "blush", "standing", "sitting", "lying", "walking", "running", "holding", "arms at sides", "hand up", "looking back", "from side", "full body", "upper body", "cowboy shot", "portrait", "close-up"};
         List<String> act = new ArrayList<>(); for (String a : acts) if (n.contains(a)) { act.add(a.equals("smile") ? "smiling" : a); used.add(a); }
         if (!act.isEmpty()) s.append(", ").append(list(act.subList(0, Math.min(len == MEDIUM ? 2 : act.size(), act.size()))));

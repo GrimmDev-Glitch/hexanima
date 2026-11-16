@@ -947,3 +947,6 @@ Pose found (%d of 17 body points)	Pose encontrada (%d de 17 puntos del cuerpo)
 Pose on: it is applied to every Anima picture.	Pose activa: se aplica a cada imagen de Anima.
 Pick a picture to copy its pose.	Elige una imagen para copiar su pose.
 Preparing the pose…	Preparando la pose…
+on · %.2f	activa · %.2f
+photo · changes %d %%	foto · cambia %d %%
+ · area	 · zona

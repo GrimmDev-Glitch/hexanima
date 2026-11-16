@@ -144,7 +144,8 @@ abstract class MainEdit extends MainTools {
     }
     void buildAnimaInit() {
         animaInitBox = new LinearLayout(this); animaInitBox.setOrientation(LinearLayout.VERTICAL);
-        animaInitBox.addView(label(L.s("EDITAR UNA FOTO  ·  opcional", "EDIT A PHOTO  ·  optional")));
+        initFold = fold(animaInitBox, L.s("EDITAR UNA FOTO  ·  opcional", "EDIT A PHOTO  ·  optional"), "ainit");   // folds away like Sampling; the header sums it up
+        final LinearLayout ib = initFold.body;
         LinearLayout er = new LinearLayout(this); er.setGravity(Gravity.CENTER_VERTICAL);
         initThumb = new ImageView(this); initThumb.setScaleType(ImageView.ScaleType.CENTER_CROP); initThumb.setBackground(bg(CARD, 16)); initThumb.setClipToOutline(true);
         er.addView(initThumb, new LinearLayout.LayoutParams(dp(64), dp(64)));
@@ -153,13 +154,13 @@ abstract class MainEdit extends MainTools {
         LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-2, dp(44)); ep.leftMargin = dp(8); er.addView(pick, ep);
         initDrop = button("✕", CARD, TXT); initDrop.setContentDescription(L.s("Quitar la foto", "Remove the photo")); initDrop.setOnClickListener(v -> { initSrc().delete(); maskSrc().delete(); refreshExtras(); });
         LinearLayout.LayoutParams ed2 = new LinearLayout.LayoutParams(dp(48), dp(44)); ed2.leftMargin = dp(8); er.addView(initDrop, ed2);
-        animaInitBox.addView(er);
+        ib.addView(er);
         LinearLayout r2 = new LinearLayout(this); r2.setPadding(0, dp(6), 0, 0);
         Button last = button(L.s("↳ Последняя картинка", "↳ Last picture"), FIELD, ACC); last.setTextSize(12); last.setAllCaps(false); last.setOnClickListener(v -> useResultAsInit());
         r2.addView(last, new LinearLayout.LayoutParams(0, dp(38), 1));
         initMaskB = button(L.s("✎ Zona a cambiar", "✎ Area to change"), FIELD, ACC); initMaskB.setTextSize(12); initMaskB.setAllCaps(false); initMaskB.setOnClickListener(v -> paintMask());
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, dp(38), 1); ml.leftMargin = dp(6); r2.addView(initMaskB, ml);
-        animaInitBox.addView(r2);
+        ib.addView(r2);
         LinearLayout r3 = new LinearLayout(this); r3.setGravity(Gravity.CENTER_VERTICAL); r3.setPadding(0, dp(8), 0, 0);
         r3.addView(text(L.s("Cuánto cambia", "How much it changes"), 13, TXT, false));
         initStr = new SeekBar(this); initStr.setMax(18); initStr.setProgressTintList(ColorStateList.valueOf(ACC)); initStr.setThumbTintList(ColorStateList.valueOf(ACC));
@@ -170,12 +171,13 @@ abstract class MainEdit extends MainTools {
             public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.1f + p * 0.05f; initStrVal.setText(Math.round(v * 100) + " %"); if (u) prefs().edit().putString("x_strength", String.format(java.util.Locale.US, "%.2f", v)).apply(); refreshAnimaInfo(); }
             public void onStartTrackingTouch(SeekBar sb) { } public void onStopTrackingTouch(SeekBar sb) { } });
         initStrVal.setText(Math.round(pf("x_strength", .6f) * 100) + " %");
-        animaInitBox.addView(r3);
+        ib.addView(r3);
         TextView note = text(L.s("Poco: la foto casi igual con el estilo del modelo. Mucho: una imagen nueva que solo conserva la composición.", "Low: the photo almost unchanged, in the model's style. High: a new picture that keeps only the composition."), 11, DIM, false);
-        note.setPadding(dp(4), dp(2), dp(4), 0); animaInitBox.addView(note);
+        note.setPadding(dp(4), dp(2), dp(4), 0); ib.addView(note);
         // pose control: the pose of a picture guides the new one (Pose.java)
         if (Pose.supported()) {
-            animaInitBox.addView(label(L.s("POSE  ·  opcional", "POSE  ·  optional")));
+            poseFold = fold(animaInitBox, L.s("POSE  ·  opcional", "POSE  ·  optional"), "apose");
+            final LinearLayout pb = poseFold.body;
             LinearLayout pr = new LinearLayout(this); pr.setGravity(Gravity.CENTER_VERTICAL);
             poseThumb = new ImageView(this); poseThumb.setScaleType(ImageView.ScaleType.CENTER_CROP); poseThumb.setBackground(bg(CARD, 16)); poseThumb.setClipToOutline(true);
             pr.addView(poseThumb, new LinearLayout.LayoutParams(dp(64), dp(64)));
@@ -184,9 +186,9 @@ abstract class MainEdit extends MainTools {
             LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, dp(44)); pp.leftMargin = dp(8); pr.addView(ppick, pp);
             poseDrop = button("✕", CARD, TXT); poseDrop.setContentDescription(L.s("Quitar la pose", "Remove the pose")); poseDrop.setOnClickListener(v -> { Pose.clear(this); refreshPose(); });
             LinearLayout.LayoutParams pd = new LinearLayout.LayoutParams(dp(48), dp(44)); pd.leftMargin = dp(8); pr.addView(poseDrop, pd);
-            animaInitBox.addView(pr);
+            pb.addView(pr);
             Button plast = button(L.s("↳ Pose de la última imagen", "↳ Pose of the last picture"), FIELD, ACC); plast.setTextSize(12); plast.setAllCaps(false); plast.setOnClickListener(v -> posePick(true));
-            LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(38)); ll.topMargin = dp(6); animaInitBox.addView(plast, ll);
+            LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(38)); ll.topMargin = dp(6); pb.addView(plast, ll);
             poseStrRow = new LinearLayout(this); poseStrRow.setGravity(Gravity.CENTER_VERTICAL); poseStrRow.setPadding(0, dp(8), 0, 0);
             TextView psl = text(L.s("Fuerza de la pose", "Pose strength"), 13, TXT, false); poseStrRow.addView(psl);
             psl.setOnLongClickListener(v -> { boolean n = !prefs().getBoolean("pose_norm", true); prefs().edit().putBoolean("pose_norm", n).apply();   // test switch: how the control latent is scaled
@@ -196,15 +198,15 @@ abstract class MainEdit extends MainTools {
             final TextView pv = text("", 13, ACC, true); poseStrRow.addView(pv, new LinearLayout.LayoutParams(dp(52), -2));
             ps.setProgress(Math.round((Pose.strength(this) - 0.5f) / 0.05f)); pv.setText(String.format(java.util.Locale.US, "%.2f", Pose.strength(this)));
             ps.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.5f + p * 0.05f; pv.setText(String.format(java.util.Locale.US, "%.2f", v)); if (u) prefs().edit().putFloat("pose_strength", v).apply(); }
+                public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.5f + p * 0.05f; pv.setText(String.format(java.util.Locale.US, "%.2f", v)); if (u) { prefs().edit().putFloat("pose_strength", v).apply(); if (poseFold != null) poseFold.sum.setText(L.f("activa · %.2f", "on · %.2f", v)); } }
                 public void onStartTrackingTouch(SeekBar sb) { } public void onStopTrackingTouch(SeekBar sb) { } });
-            animaInitBox.addView(poseStrRow);
+            pb.addView(poseStrRow);
             TextView pn = text(L.s("Copia la postura de una persona (una sola, de cuerpo visible) sin copiar su aspecto. Hecho para Anima Base 1.0; con otros modelos Anima puede seguirla peor. Adaptador de Claquasse, uso no comercial.", "Copies the posture of a person (one, with the body in view) without copying the look. Made for Anima Base 1.0; other Anima models may follow it less. Adapter by Claquasse, non-commercial use."), 11, DIM, false);
-            pn.setPadding(dp(4), dp(2), dp(4), 0); animaInitBox.addView(pn);
+            pn.setPadding(dp(4), dp(2), dp(4), 0); pb.addView(pn);
         }
         animaInitBox.setVisibility(View.GONE);
     }
-    ImageView poseThumb; TextView poseInfo; Button poseDrop; LinearLayout poseStrRow;
+    ImageView poseThumb; TextView poseInfo; Button poseDrop; LinearLayout poseStrRow; Fold initFold, poseFold;
     static final int REQ_POSE_PICK = 33;
     /** the pose files are downloaded once (asks first); then the photo picker, or the last picture */
     void posePick(final boolean last) {
@@ -251,6 +253,7 @@ abstract class MainEdit extends MainTools {
         boolean on = Pose.active(this); Bitmap tb = on ? Pose.render(this, 192, 256) : null;
         poseThumb.setImageBitmap(tb); poseThumb.setVisibility(tb != null ? View.VISIBLE : View.GONE);
         poseDrop.setVisibility(on ? View.VISIBLE : View.GONE); poseStrRow.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (poseFold != null) { poseFold.sum.setText(on ? L.f("activa · %.2f", "on · %.2f", Pose.strength(this)) : L.s("ninguna", "none")); poseFold.sum.setTextColor(on ? ACC : DIM); }
         poseInfo.setText(on ? L.s("Pose activa: se aplica a cada imagen de Anima.", "Pose on: it is applied to every Anima picture.") : L.s("Elige una imagen para copiar su pose.", "Pick a picture to copy its pose."));
     }
     void refreshAnimaInit() {
@@ -268,6 +271,7 @@ abstract class MainEdit extends MainTools {
     }
     void refreshAnimaInfo() {
         if (initInfo == null) return;
+        if (initFold != null) { boolean has = initSrc().exists(); initFold.sum.setText(has ? L.f("foto · cambia %d %%", "photo · changes %d %%", Math.round(pf("x_strength", .6f) * 100)) + (maskSrc().exists() ? L.s(" · zona", " · area") : "") : L.s("ninguna", "none")); initFold.sum.setTextColor(has ? ACC : DIM); }
         if (!initSrc().exists()) { initInfo.setText(L.s("Elige una foto para cambiarla con el prompt (img2img). Sin foto, el modelo dibuja desde cero.", "Pick a photo to change it by the prompt (img2img). Without one the model draws from scratch.")); return; }
         BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true; BitmapFactory.decodeFile(initSrc().getPath(), o);
         initInfo.setText(L.f("Foto %d×%d · cambia %d %%", "Photo %d×%d · changes %d %%", o.outWidth, o.outHeight, Math.round(pf("x_strength", .6f) * 100))
