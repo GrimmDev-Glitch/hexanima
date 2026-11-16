@@ -880,3 +880,6 @@ What's new in %s	Novedades de la %s
 ✨ Detect and fix every hand	✨ Detectar y corregir todas las manos
 %d of %d · %s	%d de %d · %s
 Fixed: %d. Compare, and pick "Use this one" if you like it.	Corregidas: %d. Compara y elige «Usar esta» si te gusta.
+Qwen-Image LoRA library	Biblioteca de LoRAs de Qwen
+Choose a LoRA converted for Qwen-Image 2.1. Set its strength in the LoRA section.	Elige una LoRA convertida para Qwen-Image 2.1. Su fuerza se ajusta en la sección LoRA.
+Empty: download Qwen-Image 2.1 LoRAs from Civitai or import a .safetensors file.	Vacía: descarga LoRAs de Qwen-Image 2.1 desde Civitai o importa un archivo .safetensors.

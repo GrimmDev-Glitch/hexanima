@@ -2233,41 +2233,70 @@ public class Main extends Base {
         });
     }
 
+    /** Qwen LoRA library, laid out like the Anima and MOSS ones: filter, categories, one row per converted LoRA (name, trigger words, size), ✎ to rename,
+     *  Select / Clear selection, long-press for the trigger-word and delete menu; Civitai, Import and Done at the bottom */
     void pickQwenLora() {
-        File root = Qwen.lorasDir(getFilesDir());
-        File[] dirs = root.listFiles(File::isDirectory);
-        List<String> names = new ArrayList<>();
-        if (dirs != null) {
-            Arrays.sort(dirs, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
-            for (File f : dirs) if (Qwen.validOverlay(f)) names.add(f.getName());
+        final File root = Qwen.lorasDir(getFilesDir());
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
+        v.addView(text(L.s("Biblioteca de LoRAs de Qwen", "Qwen-Image LoRA library"), 20, TXT, true));
+        v.addView(text(L.s("Elige una LoRA convertida para Qwen-Image 2.1. Su fuerza se ajusta en la sección LoRA.", "Choose a LoRA converted for Qwen-Image 2.1. Set its strength in the LoRA section."), 12, DIM, false));
+        EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
+        LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
+        final HorizontalScrollView catScroll = new HorizontalScrollView(this); catScroll.setHorizontalScrollBarEnabled(false); final LinearLayout catRow = new LinearLayout(this); catScroll.addView(catRow);
+        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, -2); crl.bottomMargin = dp(8); v.addView(catScroll, crl);
+        final List<String> rowCats = new ArrayList<>(); final String[] catSel = {""};
+        ScrollView sv = new ScrollView(this); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, dp(340)));
+        LinearLayout bot = new LinearLayout(this); bot.setPadding(0, dp(10), 0, 0);
+        Button civ = button("Civitai", FIELD, ACC); bot.addView(civ, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button imp = button(L.s("Импорт", "Import"), FIELD, ACC); LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(0, dp(44), 1); il.leftMargin = dp(8); bot.addView(imp, il);
+        Button done = button(L.s("Готово", "Done"), ACC, ON_ACC); LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(0, dp(44), 1); dl.leftMargin = dp(8); bot.addView(done, dl); v.addView(bot);
+        final AlertDialog dlg = dialog(v);
+        civ.setOnClickListener(x -> { dlg.dismiss(); startActivityForResult(new Intent(this, CivitaiActivity.class), 14); });
+        done.setOnClickListener(x -> dlg.dismiss());
+        imp.setOnClickListener(x -> { dlg.dismiss(); try { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 16); } catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el selector de archivos", "Could not open the file picker"), Toast.LENGTH_LONG).show(); } });
+        final Runnable reopen = () -> { dlg.dismiss(); refreshQwenLora(); pickQwenLora(); };
+        List<View> rows = new ArrayList<>(); List<String> keys = new ArrayList<>();
+        File[] dirs = root.listFiles(File::isDirectory); List<File> ovs = new ArrayList<>();
+        if (dirs != null) for (File f : dirs) if (Qwen.validOverlay(f)) ovs.add(f);
+        ovs.sort((a, b) -> qwenOverlayTitle(a).compareToIgnoreCase(qwenOverlayTitle(b)));
+        if (ovs.isEmpty()) list.addView(text(L.s("Vacía: descarga LoRAs de Qwen-Image 2.1 desde Civitai o importa un archivo .safetensors.", "Empty: download Qwen-Image 2.1 LoRAs from Civitai or import a .safetensors file."), 14, DIM, false));
+        final String cur = prefs().getString("qwen_lora_dir", "");
+        for (final File ov : ovs) {
+            final String nm = ov.getName(), name = qwenOverlayTitle(ov), words = Qwen.overlayTriggers(ov);
+            final boolean active = nm.equals(cur);
+            File src = Qwen.srcFile(getFilesDir(), nm); long bytes = src.isFile() ? src.length() : 0;
+            LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10), dp(8), dp(10), dp(8));
+            row.setBackground(bg(active ? SEL : FIELD, 12));
+            LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+            TextView title = text((active ? "✓  " : "") + name, 15, TXT, true); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(title);
+            TextView detail = text(words.isEmpty() ? L.s("Sin palabras activadoras declaradas", "No trigger words declared") : words, 12, DIM, false); detail.setSingleLine(true); detail.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(detail);
+            if (bytes > 0) col.addView(text(String.format(java.util.Locale.US, "%.0f MB", bytes / 1048576.0), 11, DIM, false));
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView pen = text("✎", 16, DIM, false); pen.setPadding(dp(6), dp(4), dp(8), dp(4));
+            pen.setOnClickListener(x -> renameDialog(true, "qwen/" + nm, Qwen.overlayName(ov), reopen));
+            row.addView(pen);
+            Button choose = button(active ? L.s("Quitar selección", "Clear selection") : L.s("Elegir", "Select"), CARD, active ? WARN : ACC); choose.setTextSize(12); row.addView(choose, new LinearLayout.LayoutParams(dp(112), dp(40)));
+            View.OnClickListener select = z -> {
+                SharedPreferences.Editor edit = prefs().edit();
+                if (active) edit.remove("qwen_lora_dir"); else edit.putString("qwen_lora_dir", nm);
+                edit.apply(); refreshQwenLora(); dlg.dismiss();
+            };
+            row.setOnClickListener(select); choose.setOnClickListener(select);
+            row.setOnLongClickListener(z -> { qwenLoraMenu(nm, ov, reopen); return true; });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp); rows.add(row);
+            keys.add((name + " " + words + " " + nm).toLowerCase(java.util.Locale.ROOT)); rowCats.add(src.isFile() ? Civitai.category(src) : "");
         }
-        if (names.isEmpty()) {
-            builder().setTitle(L.s("LoRAs de Qwen", "Qwen LoRAs"))
-                .setMessage(L.s("No hay paquetes LoRA Qwen V73 instalados. Los archivos safetensors de Civitai deben convertirse a overlays compatibles antes de usarlos.", "No Qwen V73 LoRA packs are installed. Civitai safetensors must be converted to compatible overlays before use."))
-                .setPositiveButton("OK", null).show();
-            return;
-        }
-        List<String> choices = new ArrayList<>(); choices.add(L.s("Ninguna", "None")); for (String n : names) choices.add(qwenOverlayTitle(new File(root, n)));
-        ListView list = new ListView(this);
-        list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, choices));
-        LinearLayout picker = new LinearLayout(this); picker.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = text(L.s("Mantén pulsada una LoRA para sus activadores, para cambiarle el nombre o para eliminarla", "Long-press a LoRA for its trigger words, to rename it or to delete it"), 13, DIM, false);
-        hint.setPadding(dp(20), dp(8), dp(20), dp(4)); picker.addView(hint);
-        picker.addView(list, new LinearLayout.LayoutParams(-1, Math.min(dp(420), (names.size() + 1) * dp(66))));   // as tall as its rows, not a fixed empty block
-        AlertDialog dialog = builder().setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
-            .setView(picker).setNegativeButton(L.s("Cancelar", "Cancel"), null).create();
-        list.setOnItemClickListener((parent, view, which, id) -> {
-            SharedPreferences.Editor edit = prefs().edit();
-            if (which == 0) edit.remove("qwen_lora_dir"); else edit.putString("qwen_lora_dir", names.get(which - 1));
-            edit.apply(); refreshQwenLora(); dialog.dismiss();
-        });
-        list.setOnItemLongClickListener((parent, view, which, id) -> {   // copy trigger words, or delete the overlay (and the original file it was converted from)
-            if (which == 0) return true;
-            final String nm = names.get(which - 1); final File ov = new File(root, nm);
+        final Runnable applyF = () -> { String q = filter.getText().toString().trim().toLowerCase(java.util.Locale.ROOT); for (int i = 0; i < rows.size(); i++) rows.get(i).setVisibility((q.isEmpty() || keys.get(i).contains(q)) && catMatch(rowCats.get(i), catSel[0]) ? View.VISIBLE : View.GONE); };
+        fillCatChips(catRow, rowCats, catSel, applyF);
+        filter.addTextChangedListener(watch(s -> applyF.run()));
+    }
+    /** long-press menu of a Qwen LoRA: trigger words, rename, delete */
+    void qwenLoraMenu(final String nm, final File ov, final Runnable reopen) {
             builder().setTitle(qwenOverlayTitle(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Editar palabras activadoras…", "Edit trigger words…"), L.s("Añadir activadoras al prompt", "Add trigger words to the prompt"), L.s("Cambiar nombre", "Rename"), L.s("Eliminar", "Delete")}, (d2, k) -> {
-                if (k == 3) renameDialog(true, "qwen/" + nm, Qwen.overlayName(ov), () -> { dialog.dismiss(); refreshQwenLora(); pickQwenLora(); });
+                if (k == 3) renameDialog(true, "qwen/" + nm, Qwen.overlayName(ov), () -> { reopen.run(); });
                 else if (k == 1) editTriggers(Qwen.overlayName(ov), Qwen.overlayTriggers(ov), s -> Qwen.setOverlayTriggers(ov, s));
-                else if (k == 2) { String t = Qwen.overlayTriggers(ov); if (t.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else { appendPromptWords(t); dialog.dismiss(); } }
+                else if (k == 2) { String t = Qwen.overlayTriggers(ov); if (t.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else { appendPromptWords(t); reopen.run(); } }
                 else if (k == 0) {
                     String trigger = Qwen.overlayTriggers(ov);
                     if (trigger.isEmpty()) Toast.makeText(this, L.s("Este overlay no tiene palabras activadoras guardadas", "This overlay has no saved trigger words"), Toast.LENGTH_LONG).show();
@@ -2277,12 +2306,9 @@ public class Main extends Base {
                         MossLora.deleteTree(ov); Qwen.srcFile(getFilesDir(), nm).delete(); Civitai.metaFile(Qwen.srcFile(getFilesDir(), nm)).delete();
                         if (nm.equals(prefs().getString("qwen_lora_dir", ""))) prefs().edit().remove("qwen_lora_dir").apply();
                         setAlias(true, "qwen/" + nm, "");   // a later overlay with the same folder name starts without the old name
-                        dialog.dismiss(); refreshQwenLora();
+                        reopen.run();
                     }).show();
             }).show();
-            return true;
-        });
-        dialog.show();
     }
 
     void importQwenOverlay() {
