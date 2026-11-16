@@ -922,3 +922,14 @@ Use only its pose (silhouette)	Usar solo su pose (silueta)
 Reference picture	Imagen de referencia
 The figure does not stand out: use a picture with a plain background	No se distingue la figura: usa una imagen con el fondo liso
 Now it is a silhouette: write, for example, "the character from image 1 in the pose of image 2"	Ahora es una silueta: escribe, por ejemplo, «el personaje de la imagen 1 en la pose de la imagen 2»
+Configuration templates	Plantillas de configuración
+Saves the model, prompt, negative, steps, CFG, sampler, size, seed, LoRAs and extras under a name, and loads it all back with one tap.	Guarda modelo, prompt, negativo, pasos, CFG, sampler, tamaño, semilla, LoRAs y extras con un nombre, y vuelve a cargarlo todo con un toque.
+＋ Save the current configuration	＋ Guardar la configuración actual
+No templates yet.	Aún no hay plantillas.
+Delete the template "%s"?	¿Borrar la plantilla «%s»?
+Name, e.g. 3D Style	Nombre, p. ej. 3D Style
+Save template	Guardar plantilla
+Template %d	Plantilla %d
+Template "%s" saved	Plantilla «%s» guardada
+Template "%s" loaded	Plantilla «%s» cargada
+Template "%s" loaded; its model is no longer installed	Plantilla «%s» cargada; su modelo ya no está instalado

@@ -53,7 +53,6 @@ abstract class MainEdit extends MainTools {
     boolean customOpen;
     ImageButton dlBtn, shareBtn, favBtn, againBtn, upBtn, fixBtn; Button editGeneratedBtn;
     Fold sampFold, loraFold, extFold;
-    Models store;
     abstract EditText numField(LinearLayout row, String title, String value, boolean decimal, OnText cb);
     void refreshEdit() {
         if (editBm == null && prefs().getBoolean("qwen_edit_on", false) && Qwen.editSrc(getFilesDir()).exists()) editBm = BitmapFactory.decodeFile(Qwen.editSrc(getFilesDir()).getPath());

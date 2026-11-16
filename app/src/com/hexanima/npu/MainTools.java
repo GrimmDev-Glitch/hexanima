@@ -45,6 +45,8 @@ import org.json.JSONObject;
 
 /** part of the main screen (split out of Main.java): MainTools */
 abstract class MainTools extends MainRun {
+    Models store;
+    abstract String shownModel(String id);
     int gridKind;          // 0 off, 1 seeds, 2 CFG, 3 steps, 4 CFG cutoff (set for one generate() call)
     volatile double appGb; volatile boolean appBusy;
     int tick;
@@ -164,41 +166,84 @@ abstract class MainTools extends MainRun {
     abstract void setModel(String m);
     abstract void setModelUi(boolean isLoaded, boolean working, String msg);
     abstract void setRes(int w, int h);
+    /** configuration templates: a named snapshot of everything that shapes a picture - model, prompt, negative, steps, CFG, sampler, scheduler, size, seed,
+     *  pictures per run, quality prefix, LoRAs (Anima tags live in the prompt; the MOSS and Qwen LoRA selection), extras, edit options - loaded back with one tap */
+    static final String[] CFG_SKIP = {"civitai_key", "saved", "saved_neg", "presets_anima", "config_templates", "queue", "lang", "theme", "welcomed", "seen_version", "recent_cleared", "wall", "fold_", "t_", "alias", "model_names", "tag_", "var_count", "upscale_model", "cool", "keepon", "idle", "hidden_last"};
+    static boolean cfgKey(String k, String model) {
+        for (String x : CFG_SKIP) if (k.equals(x) || k.startsWith(x)) return false;
+        if (k.contains("@")) return k.endsWith("@" + model);   // per-model values: only the template's model
+        return k.equals("model") || k.equals("prompt") || k.equals("seed") || k.equals("w") || k.equals("h") || k.equals("count") || k.startsWith("x_") || k.startsWith("moss_lora") || k.startsWith("qwen_") || k.startsWith("anima_lora") || k.equals("rs_mode") || k.equals("prefix");
+    }
     void presets() {
-        JSONObject all; try { all = new JSONObject(prefs().getString("presets_anima", "{}")); } catch (Exception e) { all = new JSONObject(); }
+        prefs().edit().putString("prompt", prompt.getText().toString()).putString("seed", seed.getText().toString()).putString("model", model).putInt("w", resW).putInt("h", resH).putInt("count", count).apply();   // the fields as they are now
+        JSONObject all; try { all = new JSONObject(prefs().getString("config_templates", "{}")); } catch (Exception e) { all = new JSONObject(); }
         final JSONObject ps = all;
-        List<String> names = new ArrayList<>(); for (Iterator<String> it = ps.keys(); it.hasNext(); ) names.add(it.next()); java.util.Collections.sort(names);
-        String[] items = new String[names.size() + 1]; items[0] = "＋  " + L.s("Сохранить текущие настройки…", "Save the current settings…");
-        for (int i = 0; i < names.size(); i++) items[i + 1] = names.get(i);
-        builder().setTitle(L.s("Пресеты", "Presets")).setItems(items, (d, i) -> {
-            if (i == 0) {
-                EditText nm = field(L.s("Название", "Name"));
-                builder().setTitle(L.s("Сохранить пресет", "Save a preset")).setView(nm).setPositiveButton("OK", (d2, k) -> {
-                    try {
-                        JSONObject p = new JSONObject();
-                        for (String key : PRESET_KEYS) { String fk = Settings.key(this, key); if (prefs().getAll().containsKey(fk)) p.put(key, String.valueOf(prefs().getAll().get(fk))); }
-                        p.put("prefix", Settings.rawPrefix(this));
-                        for (String x : new String[]{"x_hires", "x_ad"}) p.put(x, prefs().getBoolean(x, false));
-                        for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) p.put(x, prefs().getString(x, ""));
-                        String n = nm.getText().toString().trim(); if (n.isEmpty()) n = "preset " + (ps.length() + 1);
-                        ps.put(n, p); prefs().edit().putString("presets_anima", ps.toString()).apply();
-                    } catch (Exception ignored) { }
-                }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
-            } else {
-                String n = names.get(i - 1);
-                builder().setTitle(n).setItems(new String[]{L.s("Применить", "Apply"), L.s("Удалить", "Delete")}, (d3, k) -> {
-                    if (k == 1) { ps.remove(n); prefs().edit().putString("presets_anima", ps.toString()).apply(); return; }
-                    JSONObject p = ps.optJSONObject(n); if (p == null) return;
-                    SharedPreferences.Editor e = prefs().edit();
-                    for (String key : PRESET_KEYS) if (p.has(key)) { String fk = Settings.key(this, key); if (key.equals("steps")) e.putInt(fk, p.optInt(key)); else e.putString(fk, p.optString(key)); }
-                    if (p.has("prefix")) e.putString(Settings.key(this, "prefix"), p.optString("prefix"));
-                    for (String x : new String[]{"x_hires", "x_ad"}) if (p.has(x)) e.putBoolean(x, p.optBoolean(x));
-                    for (String x : new String[]{"x_hires_scale", "x_hires_den", "x_hires_steps", "x_strength"}) if (p.has(x) && !p.optString(x).isEmpty()) e.putString(x, p.optString(x));
-                    e.apply();
-                    recreate();   // every field shows the preset
-                }).show();
+        List<String> names = new ArrayList<>(); for (Iterator<String> it = ps.keys(); it.hasNext(); ) names.add(it.next()); java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
+        v.addView(text(L.s("Plantillas de configuración", "Configuration templates"), 20, TXT, true));
+        v.addView(text(L.s("Guarda modelo, prompt, negativo, pasos, CFG, sampler, tamaño, semilla, LoRAs y extras con un nombre, y vuelve a cargarlo todo con un toque.", "Saves the model, prompt, negative, steps, CFG, sampler, size, seed, LoRAs and extras under a name, and loads it all back with one tap."), 12, DIM, false));
+        Button save = button(L.s("＋ Guardar la configuración actual", "＋ Save the current configuration"), ACC, ON_ACC); save.setAllCaps(false);
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, dp(46)); sl.topMargin = dp(10); v.addView(save, sl);
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); ScrollView sv = new ScrollView(this); sv.addView(list);
+        v.addView(sv, new LinearLayout.LayoutParams(-1, -2, 1));
+        final AlertDialog dlg = dialog(v);
+        if (names.isEmpty()) { TextView e = text(L.s("Aún no hay plantillas.", "No templates yet."), 13, DIM, false); e.setPadding(dp(2), dp(10), 0, 0); list.addView(e); }
+        for (final String n : names) {
+            JSONObject t = ps.optJSONObject(n); if (t == null) continue;
+            LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setBackground(bg(FIELD, 12)); r.setPadding(dp(12), dp(10), dp(8), dp(10));
+            LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+            col.addView(text(n, 15, TXT, true));
+            String m = t.optJSONObject("v") != null ? t.optJSONObject("v").optString("model") : "";
+            TextView sub = text(shownModel(m) + "  ·  " + t.optJSONObject("v").optString("prompt").replace('\n', ' '), 12, DIM, false); sub.setSingleLine(true); sub.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(sub);
+            r.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView x = text("✕", 16, DIM, false); x.setPadding(dp(12), dp(4), dp(8), dp(4)); r.addView(x);
+            x.setOnClickListener(z -> builder().setMessage(L.f("¿Borrar la plantilla «%s»?", "Delete the template \"%s\"?", n)).setNegativeButton(L.s("Отмена", "Cancel"), null)
+                .setPositiveButton(L.s("Удалить", "Delete"), (a, b) -> { ps.remove(n); prefs().edit().putString("config_templates", ps.toString()).apply(); dlg.dismiss(); presets(); }).show());
+            r.setOnClickListener(z -> { dlg.dismiss(); applyTemplate(n, t); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.topMargin = dp(6); list.addView(r, lp);
+        }
+        save.setOnClickListener(z -> {
+            final EditText nm = field(L.s("Nombre, p. ej. 3D Style", "Name, e.g. 3D Style")); nm.setSingleLine(true);
+            LinearLayout box = new LinearLayout(this); box.setPadding(dp(20), dp(8), dp(20), 0); box.addView(nm, new LinearLayout.LayoutParams(-1, -2));
+            builder().setTitle(L.s("Guardar plantilla", "Save template")).setView(box).setNegativeButton(L.s("Отмена", "Cancel"), null).setPositiveButton("OK", (d2, k) -> {
+                try {
+                    JSONObject vals = new JSONObject(), types = new JSONObject();
+                    for (java.util.Map.Entry<String, ?> en : prefs().getAll().entrySet()) {
+                        if (!cfgKey(en.getKey(), model) || en.getValue() == null) continue;
+                        Object o = en.getValue(); vals.put(en.getKey(), o instanceof java.util.Set ? new JSONArray((java.util.Set<?>) o) : o);
+                        types.put(en.getKey(), o instanceof Boolean ? "b" : o instanceof Integer ? "i" : o instanceof Long ? "l" : o instanceof Float ? "f" : o instanceof java.util.Set ? "s" : "t");
+                    }
+                    vals.put("model", model);
+                    String n = nm.getText().toString().trim(); if (n.isEmpty()) n = L.f("Plantilla %d", "Template %d", ps.length() + 1);
+                    ps.put(n, new JSONObject().put("v", vals).put("t", types).put("time", System.currentTimeMillis()));
+                    prefs().edit().putString("config_templates", ps.toString()).apply();
+                    Toast.makeText(this, L.f("Plantilla «%s» guardada", "Template \"%s\" saved", n), Toast.LENGTH_SHORT).show();
+                    dlg.dismiss(); presets();
+                } catch (Exception ignored) { }
+            }).show();
+        });
+    }
+    /** writes the template's values back and restarts the screen so every field shows them; a model that is no longer installed is left as it is */
+    void applyTemplate(String n, JSONObject t) {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        JSONObject v = t.optJSONObject("v"), ty = t.optJSONObject("t"); if (v == null || ty == null) return;
+        String m = v.optString("model"); boolean have = m.isEmpty() || store.installed().contains(m);
+        SharedPreferences.Editor e = prefs().edit();
+        for (Iterator<String> it = v.keys(); it.hasNext(); ) {
+            String k = it.next(); if (k.equals("model") && !have) continue;
+            switch (ty.optString(k, "t")) {
+                case "b": e.putBoolean(k, v.optBoolean(k)); break;
+                case "i": e.putInt(k, v.optInt(k)); break;
+                case "l": e.putLong(k, v.optLong(k)); break;
+                case "f": e.putFloat(k, (float) v.optDouble(k)); break;
+                case "s": { java.util.Set<String> st = new java.util.HashSet<>(); JSONArray a = v.optJSONArray(k); if (a != null) for (int i = 0; i < a.length(); i++) st.add(a.optString(i)); e.putStringSet(k, st); break; }
+                default: e.putString(k, v.optString(k));
             }
-        }).show();
+        }
+        e.apply();
+        Toast.makeText(this, have ? L.f("Plantilla «%s» cargada", "Template \"%s\" loaded", n) : L.f("Plantilla «%s» cargada; su modelo ya no está instalado", "Template \"%s\" loaded; its model is no longer installed", n), Toast.LENGTH_LONG).show();
+        if (loaded && !m.equals(model)) { final String D0 = D; ex.submit(() -> { su("sh " + D0 + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; ui.post(this::recreate); }); }
+        else recreate();
     }
     // queue: prompt + seed + size + count are captured now; the settings are the ones in effect when the queue runs
     void enqueue() {
@@ -229,6 +274,7 @@ abstract class MainTools extends MainRun {
         items.add(L.s("Модели", "Models")); acts.add(this::openModels);
         if (video) { items.add(L.s("Видео (экспериментально)", "Video (experimental)")); acts.add(() -> { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }); }
         items.add("Civitai"); acts.add(() -> startActivityForResult(new Intent(this, CivitaiActivity.class), 14));
+        items.add(L.s("Plantillas de configuración", "Configuration templates")); acts.add(this::presets);
         items.add(L.s("Ampliar una imagen de la galería", "Enlarge a picture from the gallery")); acts.add(() -> pickImage(REQ_UPSCALE_PICK));
         if (Tagger.supported()) { items.add(L.s("Prompt desde una imagen", "Prompt from a picture")); acts.add(this::promptFromPicture); }
         items.add(L.s("Открыть настройки из PNG", "Load settings from a PNG")); acts.add(() -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8));
