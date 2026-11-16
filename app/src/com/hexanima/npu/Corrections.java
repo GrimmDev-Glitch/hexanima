@@ -153,6 +153,10 @@ public class Corrections extends Base {
                 Button auto = button(dk.equals(Detector.FACE) ? L.s("🔍 Detectar caras automáticamente", "🔍 Detect faces automatically") : L.s("🔍 Detectar manos automáticamente", "🔍 Detect hands automatically"), CARD, ACC);
                 auto.setOnClickListener(v -> autoMask(dk));
                 LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, dp(44)); al.topMargin = dp(6); panel.addView(auto, al);
+                // optional one-tap detailer: find every face / hand and redraw each one on its own, one after the other; the result is an alternative to compare, not accepted by itself
+                Button all = button(dk.equals(Detector.FACE) ? L.s("✨ Detectar y corregir todas las caras", "✨ Detect and fix every face") : L.s("✨ Detectar y corregir todas las manos", "✨ Detect and fix every hand"), CARD, ACC);
+                all.setOnClickListener(v -> fixAll(dk));
+                LinearLayout.LayoutParams all2 = new LinearLayout.LayoutParams(-1, dp(44)); all2.topMargin = dp(6); panel.addView(all, all2);
             }
             final EditText pe = field(cat.equals("face") ? L.s("Opcional: p. ej. ojos azules, sonrisa suave", "Optional: e.g. blue eyes, a soft smile") : cat.equals("hands") ? L.s("Opcional: p. ej. manos naturales con cinco dedos", "Optional: e.g. natural hands with five fingers") : L.s("Qué debe cambiar en la zona pintada", "What should change in the painted area"));
             pe.setText(qPrompt); pe.setTextSize(14); pe.setMinLines(2); pe.addTextChangedListener(new android.text.TextWatcher() {
@@ -191,6 +195,53 @@ public class Corrections extends Base {
                     else { Toast.makeText(this, kind.equals(Detector.FACE) ? L.f("Caras encontradas: %d. Revisa la zona con ✎ si quieres y genera.", "Faces found: %d. Check the area with ✎ if you like, then generate.", n) : L.f("Manos encontradas: %d. Revisa la zona con ✎ si quieres y genera.", "Hands found: %d. Check the area with ✎ if you like, then generate.", n), Toast.LENGTH_LONG).show(); buildPanel(); }
                 });
             } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("No se pudo detectar: %s", "Detection failed: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show()); }
+        }).start();
+    }
+    /** one tap: detect, then a masked Qwen edit per face / hand (each from the previous result), saved as one alternative */
+    void fixAll(final String kind) {
+        if (running) return;
+        if (Upscaler.npuBusy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_LONG).show(); return; }
+        final File b = base(); final String c = cat, qp = qPrompt.trim();
+        running = true; final boolean[] stop = {false}; final long t0 = System.currentTimeMillis();
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(22), dp(8), dp(22), 0);
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(1000); bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACC)); box.addView(bar);
+        final TextView tv = text(L.s("Buscando…", "Searching…"), 13, DIM, false); tv.setPadding(0, dp(6), 0, 0); box.addView(tv);
+        final android.app.AlertDialog dlg = builder().setTitle(L.f("Alternativa %d", "Alternative %d", alts.size() + 1)).setView(box).setCancelable(false)
+            .setNegativeButton(L.s("Отмена", "Cancel"), (d, i) -> stop[0] = true).show();
+        new Thread(() -> {
+            File tmpMask = new File(work, "fixall_mask.png");
+            try {
+                Bitmap cur = BitmapFactory.decodeFile(b.getPath()); if (cur == null) throw new java.io.IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
+                float sc = Math.min(1f, 1024f / Math.max(cur.getWidth(), cur.getHeight()));
+                Bitmap shown = sc < 1 ? Bitmap.createScaledBitmap(cur, Math.round(cur.getWidth() * sc), Math.round(cur.getHeight() * sc), true) : cur;
+                final java.util.List<android.graphics.RectF> boxes = Detector.detect(this, shown, kind, kind.equals(Detector.FACE) ? 0.35f : 0.30f);
+                final int sw = shown.getWidth(), sh = shown.getHeight(); if (shown != cur) shown.recycle();
+                if (boxes.isEmpty()) { cur.recycle(); ui.post(() -> { dlg.dismiss(); running = false; Toast.makeText(this, kind.equals(Detector.FACE) ? L.s("No encontré caras: píntala a mano", "No face found: paint it by hand") : L.s("No encontré manos: píntalas a mano", "No hands found: paint them by hand"), Toast.LENGTH_LONG).show(); }); return; }
+                String prompt = kind.equals(Detector.FACE) ? "Fix the face: a clean, well-drawn face with symmetric, detailed eyes and natural proportions, keeping the same art style, hair, skin tone and expression" + (qp.isEmpty() ? "" : ", " + qp) + ". Keep everything else exactly the same."
+                    : (qp.isEmpty() ? "Fix the hands: natural, well-formed hands with five fingers each, correct anatomy. Keep everything else exactly the same." : qp + ". Keep everything else exactly the same.");
+                File ad = new File(getFilesDir(), "anima");
+                new ProcessBuilder("/system/bin/sh", "-c", "sh " + ad + "/anima.sh stop < /dev/null > /dev/null 2>&1").directory(ad).start().waitFor();   // Qwen needs the RAM
+                freedAnima = true;
+                String seed = String.valueOf(new java.util.Random().nextInt(Integer.MAX_VALUE));
+                final int n = boxes.size();
+                for (int i = 0; i < n && !stop[0]; i++) {
+                    final int k = i;
+                    Detector.writeMask(java.util.Collections.singletonList(boxes.get(i)), sw, sh, kind, kind.equals(Detector.FACE) ? 1.15f : 1.25f, tmpMask);
+                    byte[] png = Qwen.runMaskedEdit(this, cur, tmpMask, prompt, seed, () -> stop[0], ph -> ui.post(() -> { tv.setText(L.f("%d de %d · %s", "%d of %d · %s", k + 1, n, ph)); bar.setProgress((1000 * k + 150 + 200 * stepOf(ph)) / n); }));
+                    Bitmap next = BitmapFactory.decodeByteArray(png, 0, png.length); if (next == null) throw new java.io.IOException("decode");
+                    cur.recycle(); cur = next;
+                }
+                if (stop[0]) { cur.recycle(); throw new InterruptedException(); }
+                ui.post(() -> tv.setText(L.s("Guardando…", "Saving…")));
+                File f = new File(work, "alt_" + System.currentTimeMillis() + ".png");
+                try (FileOutputStream fo = new FileOutputStream(f)) { cur.compress(Bitmap.CompressFormat.PNG, 100, fo); }
+                cur.recycle();
+                final JSONObject step = new JSONObject().put("type", c).put("auto", n).put("prompt", qp).put("seed", seed).put("sec", Math.round((System.currentTimeMillis() - t0) / 100.0) / 10.0);
+                ui.post(() -> { dlg.dismiss(); running = false; alts.add(f); altSteps.add(step); sel = alts.size() - 1; refresh();
+                    Toast.makeText(this, L.f("Corregidas: %d. Compara y elige «Usar esta» si te gusta.", "Fixed: %d. Compare, and pick \"Use this one\" if you like it.", n), Toast.LENGTH_LONG).show(); });
+            } catch (InterruptedException e) { ui.post(() -> { dlg.dismiss(); running = false; });
+            } catch (Throwable e) { ui.post(() -> { dlg.dismiss(); running = false; builder().setMessage(L.f("No se pudo corregir: %s", "Could not correct: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
+            finally { tmpMask.delete(); }
         }).start();
     }
     static int stepOf(String ph) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d)/4").matcher(ph); return m.find() ? Integer.parseInt(m.group(1)) : 0; }
