@@ -284,7 +284,23 @@ final class Qwen {
     static final int MAX_REFS = 3;
     static File refFile(File home, int k) { return new File(dir(home), "edit_ref" + k + ".png"); }
     static java.util.List<File> extraRefs(File home) { java.util.List<File> out = new java.util.ArrayList<>(); for (int k = 2; k <= MAX_REFS; k++) if (refFile(home, k).isFile()) out.add(refFile(home, k)); return out; }
-    static void clearRefs(File home) { for (int k = 2; k <= MAX_REFS; k++) refFile(home, k).delete(); }
+    /** "only the pose": the figure of a reference picture as a flat dark silhouette on white, so an edit takes its pose and not its clothes or face.
+     *  The background is the median colour of the picture's border; it works best with a plain background. Returns null when no figure stands out. */
+    static Bitmap silhouette(Bitmap src) {
+        int w = src.getWidth(), h = src.getHeight(); int[] px = new int[w * h]; src.getPixels(px, 0, w, 0, 0, w, h);
+        int bw = Math.max(2, Math.min(w, h) / 40); java.util.List<Integer> rs = new java.util.ArrayList<>(), gs = new java.util.ArrayList<>(), bs = new java.util.ArrayList<>();
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) if (x < bw || y < bw || x >= w - bw || y >= h - bw) { int q = px[y * w + x]; rs.add((q >> 16) & 255); gs.add((q >> 8) & 255); bs.add(q & 255); }
+        java.util.Collections.sort(rs); java.util.Collections.sort(gs); java.util.Collections.sort(bs);
+        int br = rs.get(rs.size() / 2), bg = gs.get(gs.size() / 2), bb = bs.get(bs.size() / 2);
+        boolean[] m = new boolean[w * h]; int on = 0;
+        for (int i = 0; i < px.length; i++) { int q = px[i]; int dd = Math.abs(((q >> 16) & 255) - br) + Math.abs(((q >> 8) & 255) - bg) + Math.abs((q & 255) - bb); if (dd > 40) { m[i] = true; on++; } }
+        if (on < px.length / 50) return null;
+        boolean[] o = new boolean[w * h]; int r = Math.max(1, Math.min(w, h) / 200);   // majority filter: drops speckles, closes small holes
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) { int c = 0, n = 0; for (int dy = -r; dy <= r; dy++) for (int dx = -r; dx <= r; dx++) { int yy = y + dy, xx = x + dx; if (yy < 0 || xx < 0 || yy >= h || xx >= w) continue; n++; if (m[yy * w + xx]) c++; } o[y * w + x] = c * 2 > n; }
+        for (int i = 0; i < px.length; i++) px[i] = o[i] ? 0xFF3C3C46 : 0xFFFFFFFF;
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+    }
+    static void clearRefs(File home) { for (int k = 2; k <= MAX_REFS; k++) { refFile(home, k).delete(); new File(refFile(home, k).getPath() + ".orig").delete(); } }
     /** stores a picked picture as the next free reference slot; null when all slots are used */
     static File importRef(android.content.ContentResolver cr, Uri uri, File home) throws Exception {
         int k = 2; while (k <= MAX_REFS && refFile(home, k).isFile()) k++; if (k > MAX_REFS) return null;

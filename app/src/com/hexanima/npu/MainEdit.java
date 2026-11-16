@@ -77,8 +77,9 @@ abstract class MainEdit extends MainTools {
                 TextView num = text(String.valueOf(i + 2), 12, ON_ACC, true); num.setGravity(Gravity.CENTER); num.setBackground(bg(ACC, 9));
                 fr.addView(num, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.START));
                 TextView x = text("✕", 12, TXT, true); x.setGravity(Gravity.CENTER); x.setBackground(bg(FIELD, 9));
-                x.setOnClickListener(v -> { rf.delete(); java.util.List<File> left = Qwen.extraRefs(getFilesDir()); for (int k = 0; k < left.size(); k++) left.get(k).renameTo(Qwen.refFile(getFilesDir(), k + 2)); refreshEdit(); });
+                x.setOnClickListener(v -> { rf.delete(); new File(rf.getPath() + ".orig").delete(); java.util.List<File> left = Qwen.extraRefs(getFilesDir()); for (int k = 0; k < left.size(); k++) left.get(k).renameTo(Qwen.refFile(getFilesDir(), k + 2)); refreshEdit(); });
                 fr.addView(x, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.TOP | Gravity.END));
+                fr.setOnClickListener(v -> refMenu(rf));   // tap: use only its pose (silhouette)
                 LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(56), dp(56)); fl.rightMargin = dp(8); refsRow.addView(fr, fl);
             }
             if (!refs.isEmpty()) { TextView how = text(L.s("Escribe, por ejemplo: «el personaje de la imagen 1 con la ropa de la imagen 2».", "Write, for example: \"the character of image 1 wearing the outfit of image 2\"."), 12, DIM, false); refsRow.addView(how, new LinearLayout.LayoutParams(0, -2, 1)); }
@@ -194,6 +195,21 @@ abstract class MainEdit extends MainTools {
         BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true; BitmapFactory.decodeFile(initSrc().getPath(), o);
         initInfo.setText(L.f("Foto %d×%d · cambia %d %%", "Photo %d×%d · changes %d %%", o.outWidth, o.outHeight, Math.round(pf("x_strength", .6f) * 100))
             + (maskSrc().exists() ? L.s("\nSolo se redibuja la zona pintada.", "\nOnly the painted area is redrawn.") : ""));
+    }
+    /** a reference picture's options: keep only its pose as a silhouette (its clothes and face no longer leak into the edit), or back to the picture */
+    void refMenu(final File rf) {
+        final File orig = new File(rf.getPath() + ".orig");
+        java.util.List<String> it = new java.util.ArrayList<>();
+        it.add(orig.isFile() ? L.s("Volver a la imagen completa", "Back to the whole picture") : L.s("Usar solo su pose (silueta)", "Use only its pose (silhouette)"));
+        builder().setTitle(L.s("Imagen de referencia", "Reference picture")).setItems(it.toArray(new String[0]), (d, k) -> {
+            if (orig.isFile()) { rf.delete(); orig.renameTo(rf); refreshEdit(); return; }
+            Bitmap b = BitmapFactory.decodeFile(rf.getPath()); if (b == null) return;
+            Bitmap s = Qwen.silhouette(b); b.recycle();
+            if (s == null) { Toast.makeText(this, L.s("No se distingue la figura: usa una imagen con el fondo liso", "The figure does not stand out: use a picture with a plain background"), Toast.LENGTH_LONG).show(); return; }
+            try { rf.renameTo(orig); try (FileOutputStream o = new FileOutputStream(rf)) { s.compress(Bitmap.CompressFormat.PNG, 100, o); } } catch (Exception e) { orig.renameTo(rf); }
+            s.recycle(); refreshEdit();
+            Toast.makeText(this, L.s("Ahora es una silueta: escribe, por ejemplo, «el personaje de la imagen 1 en la pose de la imagen 2»", "Now it is a silhouette: write, for example, \"the character from image 1 in the pose of image 2\""), Toast.LENGTH_LONG).show();
+        }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
     }
     void useResultAsInit() {
         File src = lastFile;
