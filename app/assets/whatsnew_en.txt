@@ -1,0 +1,12 @@
+# Generate
+Time left for every model ("~30 s left"), also for the whole batch.
+Prompt wildcards: {red|blue|green} picks a different option for each picture.
+Long-press ↻ for variations: 4 new seeds or 4 similar pictures (Anima).
+Size and quality tags remembered per model.
+Large batches in contact sheets of 9 pictures; ‹ › to go from one to the next.
+# Pictures
+Enlarge a picture from the gallery (⋯ menu).
+Before/after also for enlarged and corrected pictures, and from the History (⇆).
+# Phone
+Temperature next to the RAM and a notice when a batch pauses for heat.
+Settings → Export logs: a ZIP to report problems.

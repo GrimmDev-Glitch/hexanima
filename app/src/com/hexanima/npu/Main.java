@@ -177,7 +177,7 @@ public class Main extends Base {
         Button more = button("⋯", CARD, TXT);
         more.setTextSize(20);
         more.setOnClickListener(v -> menu(v));
-        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(48), dp(40)); ml.leftMargin = dp(6);
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(48), dp(48)); ml.leftMargin = dp(6);
         tr.addView(more, ml);
         root.addView(tr);
         ramTxt.setPadding(dp(4), dp(6), 0, dp(4));
@@ -286,7 +286,7 @@ public class Main extends Base {
                 for (int i = 0; i < getChildCount(); i++) { View c = getChildAt(i); if (c.getVisibility() == View.GONE) continue;
                     if (c == pageBar) { c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED), MeasureSpec.makeMeasureSpec(dp(40), MeasureSpec.EXACTLY)); fixed += c.getMeasuredWidth(); }
                     else if (c instanceof ImageButton || c == clearX) n++; }
-                if (n > 0) { int w = Math.max(dp(30), Math.min(dp(46), (avail - fixed - n * dp(6)) / n)), gap = Math.max(dp(3), Math.min(dp(6), (avail - fixed - n * w) / n));
+                if (n > 0) { int w = Math.max(dp(30), Math.min(dp(48), (avail - fixed - n * dp(6)) / n)), gap = Math.max(dp(3), Math.min(dp(6), (avail - fixed - n * w) / n));
                     for (int i = 0; i < getChildCount(); i++) { View c = getChildAt(i); if (c instanceof ImageButton || c == clearX) { LayoutParams lp = (LayoutParams) c.getLayoutParams(); lp.width = w; lp.leftMargin = gap; } } }
                 super.onMeasure(ws, hs);
             }
@@ -300,7 +300,7 @@ public class Main extends Base {
         pageBar.addView(prevB, new LinearLayout.LayoutParams(-2, dp(40))); pageBar.addView(pageTag); pageBar.addView(nextB, new LinearLayout.LayoutParams(-2, dp(40)));
         imgTools.addView(pageBar, new LinearLayout.LayoutParams(-2, dp(40)));
         imgTools.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
-        clearX = text("✕", 16, TXT, true); clearX.setGravity(Gravity.CENTER); clearX.setBackground(bg(CARD, 14)); clearX.setVisibility(View.GONE);
+        clearX = text("✕", 16, TXT, true); clearX.setGravity(Gravity.CENTER); clearX.setBackground(bg(CARD, 14)); clearX.setVisibility(View.GONE); clearX.setContentDescription(L.s("Quitar la imagen de la pantalla", "Hide the picture"));
         clearX.setOnClickListener(v -> clearShown());
         root.addView(imgTools);
         imgBox.addView(img, new LinearLayout.LayoutParams(-1, -2));
@@ -319,8 +319,8 @@ public class Main extends Base {
         compareBtn.setTextSize(18); compareBtn.setPadding(0, 0, 0, 0); compareBtn.setVisibility(View.GONE);
         compareBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Antes/después", "Before/after"), Toast.LENGTH_SHORT).show(); return true; });
         compareBtn.setOnClickListener(v -> showBeforeAfter(lastFile));
-        LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(dp(46), dp(40)); cmpl.leftMargin = dp(6); resRow.addView(compareBtn, cmpl);
-        LinearLayout.LayoutParams edl = new LinearLayout.LayoutParams(dp(46), dp(40)); edl.leftMargin = dp(6); resRow.addView(editGeneratedBtn, edl);
+        LinearLayout.LayoutParams cmpl = new LinearLayout.LayoutParams(dp(48), dp(48)); cmpl.leftMargin = dp(6); resRow.addView(compareBtn, cmpl);
+        LinearLayout.LayoutParams edl = new LinearLayout.LayoutParams(dp(48), dp(48)); edl.leftMargin = dp(6); resRow.addView(editGeneratedBtn, edl);
         againBtn = icon("ic_refresh", CARD);
         againBtn.setOnClickListener(v -> generate(true));   // the same prompt with a new random seed
         againBtn.setOnLongClickListener(v -> { variations(); return true; });
@@ -340,10 +340,10 @@ public class Main extends Base {
         shareBtn.setOnClickListener(v -> { if (lastFile != null) Gallery.share(this, lastFile); });
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) {
             x.setVisibility(View.GONE);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(40)); lp.leftMargin = dp(6);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(48), dp(48)); lp.leftMargin = dp(6);
             if (x == againBtn) resRow.addView(x, lp); else imgTools.addView(x, lp);   // "again" stays by the seed; the file actions go to the toolbar
         }
-        LinearLayout.LayoutParams cxl = new LinearLayout.LayoutParams(dp(46), dp(40)); cxl.leftMargin = dp(6); imgTools.addView(clearX, cxl);
+        LinearLayout.LayoutParams cxl = new LinearLayout.LayoutParams(dp(48), dp(48)); cxl.leftMargin = dp(6); imgTools.addView(clearX, cxl);
         editRow.setVisibility(View.GONE); root.addView(resRow);
 
         // prompt
@@ -623,7 +623,8 @@ public class Main extends Base {
         refreshModels();
         setRes(p.getInt("w", 512), p.getInt("h", 768));
         refreshState();
-        if (!p.getBoolean("welcomed", false)) startActivity(new Intent(this, Welcome.class));
+        if (!p.getBoolean("welcomed", false)) { startActivity(new Intent(this, Welcome.class)); try { p.edit().putString("seen_version", getPackageManager().getPackageInfo(getPackageName(), 0).versionName).apply(); } catch (Exception ignored) { } }   // a new install has nothing "new"
+        else ui.postDelayed(this::whatsNew, 600);   // an update: what changed (once per version)
     }
 
     /** the tag list for the suggestions is read in the background (8000 lines in assets/tags.txt) */
@@ -1417,9 +1418,9 @@ public class Main extends Base {
         Button qa = button(L.s("+ В очередь", "+ Queue"), FIELD, ACC); qa.setTextSize(13); qa.setOnClickListener(v -> enqueue());
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(0, dp(40), 1); ql.leftMargin = dp(8); pr.addView(qa, ql);
         Button cmp = button("⊞", FIELD, ACC); cmp.setOnClickListener(v -> compare());
-        LinearLayout.LayoutParams cml = new LinearLayout.LayoutParams(dp(48), dp(40)); cml.leftMargin = dp(8); pr.addView(cmp, cml);
+        LinearLayout.LayoutParams cml = new LinearLayout.LayoutParams(dp(48), dp(48)); cml.leftMargin = dp(8); pr.addView(cmp, cml);
         Button qr = button("▶", FIELD, ACC); qr.setOnClickListener(v -> runQueue());
-        LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(dp(48), dp(40)); rl.leftMargin = dp(8); pr.addView(qr, rl);
+        LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(dp(48), dp(48)); rl.leftMargin = dp(8); pr.addView(qr, rl);
         c.addView(pr);
         queueText = text("", 12, DIM, false); queueText.setPadding(dp(2), dp(6), 0, 0); queueText.setOnClickListener(v -> showQueue()); c.addView(queueText);
         root.addView(extrasBox);
@@ -1819,6 +1820,24 @@ public class Main extends Base {
         items.add(L.s("Настройки", "Settings")); acts.add(() -> startActivity(new Intent(this, Settings.class)));
         items.add("Info"); acts.add(() -> startActivity(new Intent(this, Info.class)));
         popup(anchor, items.toArray(new String[0]), i -> acts.get(i).run());
+    }
+    /** "What's new" once after an update: assets/whatsnew_<lang>.txt, one item per line ("#" lines are headings) */
+    void whatsNew() {
+        String ver = "?"; try { ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
+        String seen = prefs().getString("seen_version", "");
+        prefs().edit().putString("seen_version", ver).apply();
+        if (seen.equals(ver) || isFinishing()) return;
+        String txt;
+        try (java.io.InputStream in = getAssets().open("whatsnew_" + (L.lang.equals("es") ? "es" : "en") + ".txt")) { java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream(); byte[] buf = new byte[8192]; for (int r; (r = in.read(buf)) > 0; ) bo.write(buf, 0, r); txt = bo.toString("UTF-8"); } catch (Exception e) { return; }
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(16), dp(20), dp(8));
+        v.addView(text(L.f("Novedades de la %s", "What's new in %s", ver), 21, HEAD, true));
+        for (String line : txt.split("\n")) {
+            line = line.trim(); if (line.isEmpty()) continue;
+            TextView t = line.startsWith("#") ? text(line.substring(1).trim(), 15, ACC, true) : text("•  " + line, 14, TXT, false);
+            t.setPadding(0, dp(line.startsWith("#") ? 12 : 5), 0, 0); v.addView(t);
+        }
+        ScrollView sv = new ScrollView(this); sv.addView(v);
+        builder().setView(sv).setPositiveButton("OK", null).show();
     }
     static final int REQ_UPSCALE_PICK = 31;
     /** the system photo picker (the app sees only the picture the user picks) */

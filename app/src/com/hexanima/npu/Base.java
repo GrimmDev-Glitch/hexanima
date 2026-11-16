@@ -327,7 +327,23 @@ abstract class Base extends Activity {
         ImageButton b = new ImageButton(this); b.setImageResource(getResources().getIdentifier(name, "drawable", getPackageName()));
         b.setBackground(bg(color, 14)); b.setPadding(dp(10), dp(10), dp(10), dp(10)); b.setScaleType(ImageView.ScaleType.FIT_CENTER);
         if (!name.equals("ic_star") && !name.equals("ic_delete")) b.setImageTintList(ColorStateList.valueOf(TXT));   // star / trash keep their own colours
+        String cd = iconLabel(name); if (cd != null) { b.setContentDescription(cd); if (android.os.Build.VERSION.SDK_INT >= 26) b.setTooltipText(cd); }   // TalkBack and long-press tooltip
+        b.setMinimumHeight(dp(48));   // the width may shrink in a full toolbar (the ✕ must stay visible)
         return b;
+    }
+    /** what an icon button does, for TalkBack and the long-press tooltip */
+    static String iconLabel(String name) {
+        switch (name) {
+            case "ic_download": return L.s("Guardar en la galería", "Save to the gallery");
+            case "ic_share": return L.s("Compartir", "Share");
+            case "ic_star": case "ic_star_off": return L.s("Favorita", "Favourite");
+            case "ic_delete": return L.s("Mover a la papelera", "Move to trash");
+            case "ic_refresh": return L.s("Otra vez", "Again");
+            case "ic_upscale": return L.s("Ampliar en la NPU", "Enlarge on the NPU");
+            case "ic_tune": return L.s("Correcciones", "Corrections");
+            case "ic_dice": return L.s("Semilla aleatoria", "Random seed");
+            default: return null;
+        }
     }
 
     EditText field(String hint) {

@@ -1,0 +1,12 @@
+# Generar
+Tiempo restante en todos los modelos («quedan ~30 s»), también para toda la tanda.
+Comodines en el prompt: {rojo|azul|verde} elige una opción distinta en cada imagen.
+Mantén pulsado ↻ para variaciones: 4 semillas nuevas o 4 imágenes parecidas (Anima).
+Tamaño y etiquetas de calidad recordados por modelo.
+Tandas grandes en cuadrículas de 9 imágenes; ‹ › para pasar de una a otra.
+# Imágenes
+Ampliar una imagen de la galería (menú ⋯).
+Antes/después también para imágenes ampliadas y corregidas, y desde el Historial (⇆).
+# Teléfono
+Temperatura junto a la RAM y aviso cuando una tanda se pausa por calor.
+Ajustes → Exportar registros: un ZIP para reportar fallos.
