@@ -91,11 +91,12 @@ abstract class MainTools extends MainRun {
                 final long ms = System.currentTimeMillis() - t;
                 ui.post(() -> {
                     final boolean[] sent = {prefs().getBoolean("tag_sentence", isMoss() || isQwen() || isMage())}; final int[] len = {prefs().getInt("tag_len", Tagger.MEDIUM)};
+                    final boolean[] look = {prefs().getBoolean("tag_char_only", false)}; final List<Tagger.Tag> lookTags = Tagger.characterOnly(tags);
                     LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(8));
                     v.addView(text(L.s("Prompt desde una imagen", "Prompt from a picture"), 20, TXT, true));
                     v.addView(text(L.f("%d etiquetas en %.1f s", "%d tags in %.1f s", tags.size(), ms / 1000.0), 12, DIM, false));
                     final EditText out = field(""); out.setTextSize(15); out.setMinLines(3); out.setGravity(Gravity.TOP);
-                    final Runnable fill = () -> out.setText(sent[0] ? Tagger.sentence(tags, len[0]) : Tagger.tags(tags, len[0]));
+                    final Runnable fill = () -> { List<Tagger.Tag> use = look[0] ? lookTags : tags; out.setText(sent[0] ? Tagger.sentence(use, len[0]) : Tagger.tags(use, len[0])); };
                     LinearLayout kind = new LinearLayout(this); kind.setPadding(0, dp(10), 0, 0);
                     LinearLayout size = new LinearLayout(this); size.setPadding(0, dp(6), 0, 0);
                     final Button[] kb = {button(L.s("Etiquetas", "Tags"), FIELD, ACC), button(L.s("Frase", "Sentence"), FIELD, ACC)};
@@ -107,6 +108,10 @@ abstract class MainTools extends MainRun {
                     for (int i = 0; i < 3; i++) { final int k = i; sb[i].setTextSize(13); sb[i].setAllCaps(false); sb[i].setOnClickListener(x -> { len[0] = k; prefs().edit().putInt("tag_len", k).apply(); paint.run(); });
                         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1); if (i > 0) lp.leftMargin = dp(6); size.addView(sb[i], lp); }
                     v.addView(kind); v.addView(size);
+                    android.widget.CheckBox only = new android.widget.CheckBox(this); only.setText(L.s("Solo el personaje (sin pose ni fondo): añade tú el estilo, la pose o el lugar", "Character only (no pose or background): add the style, pose or place yourself"));
+                    only.setTextColor(TXT); only.setTextSize(13); only.setButtonTintList(ColorStateList.valueOf(ACC)); only.setChecked(look[0]);
+                    only.setOnCheckedChangeListener((b2, on) -> { look[0] = on; prefs().edit().putBoolean("tag_char_only", on).apply(); fill.run(); });
+                    LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-1, -2); cl.topMargin = dp(6); v.addView(only, cl);
                     LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(-1, -2); ol.topMargin = dp(10); v.addView(out, ol);
                     TextView hint = text(L.s("Puedes editar el texto antes de usarlo. Anima entiende mejor las etiquetas; MOSS, Qwen y Mage, la frase.", "You can edit the text before using it. Anima understands tags best; MOSS, Qwen and Mage, the sentence."), 11, DIM, false);
                     hint.setPadding(dp(2), dp(4), 0, 0); v.addView(hint);

@@ -84,6 +84,22 @@ final class Tagger {
         return t;
     }
 
+    /** "character only": the tags that describe who it is (subject, hair, eyes, body traits, clothes, accessories, character names), not the pose,
+     *  the framing, the place or the picture's style, so a new pose / style / scene can be written around them (for Anima and MOSS, which take no reference picture) */
+    static final String[] LOOK = {"hair", "eyes", "ears", "tail", "wings", "horns", "halo", "skin", "freckles", "mole", "fang", "pupils", "eyelashes", "eyebrows", "bangs", "ponytail", "twintails", "braid", "bun", "ahoge", "sidelocks",
+        "dress", "shirt", "uniform", "skirt", "jacket", "coat", "kimono", "hoodie", "sweater", "pants", "jeans", "shorts", "swimsuit", "bikini", "armor", "suit", "bowtie", "bow", "ribbon", "hat", "gloves", "boots", "sneakers", "shoes",
+        "thighhighs", "socks", "pantyhose", "scarf", "apron", "cape", "glasses", "necktie", "vest", "leotard", "sleeves", "collar", "earrings", "necklace", "choker", "hairband", "headband", "hairclip", "hair ornament", "crown", "mask",
+        "belt", "robe", "cloak", "raincoat", "serafuku", "sailor", "headwear", "jewelry", "bracelet", "nail polish", "tattoo", "makeup", "lipstick", "elf", "animal", "cat", "fox", "wolf", "rabbit"};
+    static final String[] NOT_LOOK = {"background", "looking", "smile", "open mouth", "closed mouth", "blush", "standing", "sitting", "lying", "walking", "full body", "upper body", "cowboy shot", "portrait", "close-up", "solo", "realistic", "shadow", "lips", "holding", "arms", "hand", "from ", "outdoors", "indoors"};
+    static boolean isLook(Tag t) {
+        if (t.cat == 4) return true;
+        String n = clean(t.name);
+        for (String s : SUBJECTS) if (n.equals(s)) return true;
+        for (String x : NOT_LOOK) if (n.contains(x)) return false;
+        for (String x : LOOK) if (n.equals(x) || n.endsWith(" " + x) || n.startsWith(x + " ") || n.contains(" " + x + " ")) return true;
+        return false;
+    }
+    static List<Tag> characterOnly(List<Tag> t) { List<Tag> o = new ArrayList<>(); for (Tag x : t) if (isLook(x)) o.add(x); return o; }
     static String clean(String n) { return n.length() <= 3 ? n : n.replace('_', ' '); }   // "silver_hair" -> "silver hair"; short emoticons like ^_^ stay
     static final int SHORT = 0, MEDIUM = 1, LONG = 2;
     static final String[] SUBJECTS = {"1girl", "2girls", "3girls", "multiple girls", "1boy", "2boys", "multiple boys", "1other", "no humans"};
