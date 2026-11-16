@@ -88,3 +88,7 @@ mage/hexagon/mega/out/
 mage/hexagon/mega/syslib/
 mage/magerun/out/
 sd15/out/
+
+# converted NPU contexts (hosted on Hugging Face / staged into jnilibs, too large for git)
+detect/out_*/
+tagger/out_*/
