@@ -166,7 +166,7 @@ final class Pose {
         File cf = controlFile(c);
         if (!active(c)) { cf.delete(); lastKey = ""; return prompt; }
         try {
-            float st = strength(c); boolean norm = c.getSharedPreferences("anima", 0).getBoolean("pose_norm", false);
+            float st = strength(c); boolean norm = c.getSharedPreferences("anima", 0).getBoolean("pose_norm", true);
             String key = w + "x" + h + ":" + st + ":" + norm + ":" + poseFile(c).lastModified();
             if (!key.equals(lastKey) || !cf.isFile()) {
                 Bitmap sk = render(c, w, h); if (sk == null) { cf.delete(); return prompt; }

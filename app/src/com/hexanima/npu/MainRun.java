@@ -163,6 +163,8 @@ abstract class MainRun extends MainLora {
         if (isQwen()) return runOneQwen(pr, seedS, w, h, t0);
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
+        if (Pose.active(this)) setProgressUi(0, L.s("Preparando la pose…", "Preparing the pose…"), t0);
+        pr = Pose.apply(this, pr, w, h);   // pose control: writes the control latent for this size and adds the adapter's LoRA
         AnimaLora.Tags tg = AnimaLora.tags(getFilesDir(), pr);
         pr = tg.prompt; tagLoras = tg.items;
         if (!tg.missing.isEmpty()) { final String miss = String.join(", ", tg.missing); ui.post(() -> Toast.makeText(this, L.f("LoRA не найдена: %s", "LoRA not found: %s", miss), Toast.LENGTH_LONG).show()); }

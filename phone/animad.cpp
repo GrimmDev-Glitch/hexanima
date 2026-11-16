@@ -423,7 +423,9 @@ int main(int argc, char** argv) {
     // low-res first steps (ANIMAD_LOWRES=K): the first K steps run the DiT on a 2x downsampled latent (4x fewer tokens); the full-res x0 estimate is the upsampled low-res one,
     // and the full-res state is rebuilt as (1-t')*up(x0_low) + t'*noise, so sd.cpp's Euler update lands exactly there.
     std::vector<int> lowF;   // per-step downsample factor (1 = full res); ANIMAD_LOWRES="2,2" or "4,2"; default for the HMX path: 2,2 for 4+ steps (the first two at half size), 2 for 3 steps; never the second-to-last step: the last step (t~0) cannot add detail
-    { std::string cfg = !plain ? "" : getenv("ANIMAD_LOWRES") ? getenv("ANIMAD_LOWRES") : (hmx ? (steps >= 4 ? "2,2" : steps == 3 ? "2" : "") : "");
+    // a pose control job runs every step at full size: the pose is laid down in the first steps, and a half-size step blurs the skeleton away
+    bool ctlJob = false; { const char* ah = getenv("ANIMAD_HOME"); struct stat cst; ctlJob = ah && stat((std::string(ah) + "/control.bin").c_str(), &cst) == 0; }
+    { std::string cfg = !plain || ctlJob ? "" : getenv("ANIMAD_LOWRES") ? getenv("ANIMAD_LOWRES") : (hmx ? (steps >= 4 ? "2,2" : steps == 3 ? "2" : "") : "");
       for (size_t p = 0; p < cfg.size();) { size_t q = cfg.find(',', p); if (q == std::string::npos) q = cfg.size(); int f = atoi(cfg.substr(p, q - p).c_str()); if (f > 0) lowF.push_back(f); p = q + 1; } }
     std::vector<double> sig(steps + 1);   // sd.cpp flow schedule: s = linspace(1, 0.001), sigma = 3s/(1+2s), final 0
     for (int i = 0; i < steps; i++) { double sv = steps > 1 ? 1.0 - (1.0 - 0.001) * i / (steps - 1) : 1.0; sig[i] = 3 * sv / (1 + 2 * sv); }

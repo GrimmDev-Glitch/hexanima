@@ -933,3 +933,17 @@ Template %d	Plantilla %d
 Template "%s" saved	Plantilla «%s» guardada
 Template "%s" loaded	Plantilla «%s» cargada
 Template "%s" loaded; its model is no longer installed	Plantilla «%s» cargada; su modelo ya no está instalado
+POSE  ·  optional	POSE  ·  opcional
+Remove the pose	Quitar la pose
+↳ Pose of the last picture	↳ Pose de la última imagen
+Pose strength	Fuerza de la pose
+Copies the posture of a person (one, with the body in view) without copying the look. Made for Anima Base 1.0; other Anima models may follow it less. Adapter by Claquasse, non-commercial use.	Copia la postura de una persona (una sola, de cuerpo visible) sin copiar su aspecto. Hecho para Anima Base 1.0; con otros modelos Anima puede seguirla peor. Adaptador de Claquasse, uso no comercial.
+Pose control	Control de pose
+Copies the pose of a picture into Anima pictures. It uses a pose detector and the adapter "Anima Control – Pose" by Claquasse (non-commercial) on the NPU. It is downloaded once: 227 MB.	Copia la pose de una imagen en las imágenes de Anima. Usa un detector de pose y el adaptador «Anima Control – Pose» de Claquasse (no comercial) en la NPU. Hay que descargarlo una vez: 227 MB.
+Download (227 MB)	Descargar (227 MB)
+Finding the pose…	Buscando la pose…
+Nobody found: use a picture with one person and the body in view	No encontré a nadie: usa una imagen con una persona de cuerpo visible
+Pose found (%d of 17 body points)	Pose encontrada (%d de 17 puntos del cuerpo)
+Pose on: it is applied to every Anima picture.	Pose activa: se aplica a cada imagen de Anima.
+Pick a picture to copy its pose.	Elige una imagen para copiar su pose.
+Preparing the pose…	Preparando la pose…

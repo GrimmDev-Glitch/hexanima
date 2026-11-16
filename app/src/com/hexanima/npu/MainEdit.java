@@ -173,7 +173,83 @@ abstract class MainEdit extends MainTools {
         animaInitBox.addView(r3);
         TextView note = text(L.s("Poco: la foto casi igual con el estilo del modelo. Mucho: una imagen nueva que solo conserva la composición.", "Low: the photo almost unchanged, in the model's style. High: a new picture that keeps only the composition."), 11, DIM, false);
         note.setPadding(dp(4), dp(2), dp(4), 0); animaInitBox.addView(note);
+        // pose control: the pose of a picture guides the new one (Pose.java)
+        if (Pose.supported()) {
+            animaInitBox.addView(label(L.s("POSE  ·  opcional", "POSE  ·  optional")));
+            LinearLayout pr = new LinearLayout(this); pr.setGravity(Gravity.CENTER_VERTICAL);
+            poseThumb = new ImageView(this); poseThumb.setScaleType(ImageView.ScaleType.CENTER_CROP); poseThumb.setBackground(bg(CARD, 16)); poseThumb.setClipToOutline(true);
+            pr.addView(poseThumb, new LinearLayout.LayoutParams(dp(64), dp(64)));
+            poseInfo = text("", 13, DIM, false); poseInfo.setPadding(dp(12), 0, dp(8), 0); pr.addView(poseInfo, new LinearLayout.LayoutParams(0, -2, 1));
+            Button ppick = button(L.s("Выбрать", "Choose"), CARD, TXT); ppick.setOnClickListener(v -> posePick(false));
+            LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, dp(44)); pp.leftMargin = dp(8); pr.addView(ppick, pp);
+            poseDrop = button("✕", CARD, TXT); poseDrop.setContentDescription(L.s("Quitar la pose", "Remove the pose")); poseDrop.setOnClickListener(v -> { Pose.clear(this); refreshPose(); });
+            LinearLayout.LayoutParams pd = new LinearLayout.LayoutParams(dp(48), dp(44)); pd.leftMargin = dp(8); pr.addView(poseDrop, pd);
+            animaInitBox.addView(pr);
+            Button plast = button(L.s("↳ Pose de la última imagen", "↳ Pose of the last picture"), FIELD, ACC); plast.setTextSize(12); plast.setAllCaps(false); plast.setOnClickListener(v -> posePick(true));
+            LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(38)); ll.topMargin = dp(6); animaInitBox.addView(plast, ll);
+            poseStrRow = new LinearLayout(this); poseStrRow.setGravity(Gravity.CENTER_VERTICAL); poseStrRow.setPadding(0, dp(8), 0, 0);
+            poseStrRow.addView(text(L.s("Fuerza de la pose", "Pose strength"), 13, TXT, false));
+            SeekBar ps = new SeekBar(this); ps.setMax(30); ps.setProgressTintList(ColorStateList.valueOf(ACC)); ps.setThumbTintList(ColorStateList.valueOf(ACC));
+            poseStrRow.addView(ps, new LinearLayout.LayoutParams(0, -2, 1));
+            final TextView pv = text("", 13, ACC, true); poseStrRow.addView(pv, new LinearLayout.LayoutParams(dp(52), -2));
+            ps.setProgress(Math.round((Pose.strength(this) - 0.5f) / 0.05f)); pv.setText(String.format(java.util.Locale.US, "%.2f", Pose.strength(this)));
+            ps.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.5f + p * 0.05f; pv.setText(String.format(java.util.Locale.US, "%.2f", v)); if (u) prefs().edit().putFloat("pose_strength", v).apply(); }
+                public void onStartTrackingTouch(SeekBar sb) { } public void onStopTrackingTouch(SeekBar sb) { } });
+            animaInitBox.addView(poseStrRow);
+            TextView pn = text(L.s("Copia la postura de una persona (una sola, de cuerpo visible) sin copiar su aspecto. Hecho para Anima Base 1.0; con otros modelos Anima puede seguirla peor. Adaptador de Claquasse, uso no comercial.", "Copies the posture of a person (one, with the body in view) without copying the look. Made for Anima Base 1.0; other Anima models may follow it less. Adapter by Claquasse, non-commercial use."), 11, DIM, false);
+            pn.setPadding(dp(4), dp(2), dp(4), 0); animaInitBox.addView(pn);
+        }
         animaInitBox.setVisibility(View.GONE);
+    }
+    ImageView poseThumb; TextView poseInfo; Button poseDrop; LinearLayout poseStrRow;
+    static final int REQ_POSE_PICK = 33;
+    /** the pose files are downloaded once (asks first); then the photo picker, or the last picture */
+    void posePick(final boolean last) {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        if (Pose.installed(this)) { if (last) poseFromLast(); else pickImage(REQ_POSE_PICK); return; }
+        builder().setTitle(L.s("Control de pose", "Pose control"))
+            .setMessage(L.s("Copia la pose de una imagen en las imágenes de Anima. Usa un detector de pose y el adaptador «Anima Control – Pose» de Claquasse (no comercial) en la NPU. Hay que descargarlo una vez: 227 MB.",
+                "Copies the pose of a picture into Anima pictures. It uses a pose detector and the adapter \"Anima Control – Pose\" by Claquasse (non-commercial) on the NPU. It is downloaded once: 227 MB."))
+            .setNegativeButton(L.s("Отмена", "Cancel"), null)
+            .setPositiveButton(L.s("Descargar (227 MB)", "Download (227 MB)"), (x, y) -> {
+                final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+                final ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(1000);
+                final TextView pt = text("", 12, DIM, false);
+                LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(12), dp(20), 0); v.addView(pb); v.addView(pt);
+                final AlertDialog dl = builder().setTitle(L.s("Загрузка", "Downloading")).setView(v).setCancelable(false).setNegativeButton(L.s("Отмена", "Cancel"), (a, b) -> stop.set(true)).show();
+                ex2.submit(() -> {
+                    try {
+                        Pose.install(this, (done, total) -> ui.post(() -> { if (total > 0) pb.setProgress((int) (1000 * done / total)); pt.setText(String.format(java.util.Locale.US, "%.0f / %.0f MB", done / 1048576.0, total / 1048576.0)); }), stop);
+                        ui.post(() -> { dl.dismiss(); if (last) poseFromLast(); else pickImage(REQ_POSE_PICK); });
+                    } catch (Exception e) { ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setMessage(L.f("No se pudo descargar: %s", "Could not download: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
+                });
+            }).show();
+    }
+    void poseFromLast() {
+        File src = lastFile;
+        if (src != null && (Gallery.meta(src).has("grid") || Gallery.meta(src).optBoolean("compare"))) src = batchFiles.isEmpty() ? null : batchFiles.get(batchFiles.size() - 1);
+        if (src == null || !src.exists()) { Toast.makeText(this, L.s("Сначала создайте картинку", "Make a picture first"), Toast.LENGTH_SHORT).show(); return; }
+        poseDetect(src, false);
+    }
+    /** runs the detector on a picture file (deleted afterwards when it is a temporary copy) and shows the skeleton */
+    void poseDetect(final File pic, final boolean temp) {
+        final Toast t0 = Toast.makeText(this, L.s("Buscando la pose…", "Finding the pose…"), Toast.LENGTH_SHORT); t0.show();
+        ex2.submit(() -> {
+            try {
+                Bitmap b = BitmapFactory.decodeFile(pic.getPath()); if (temp) pic.delete();
+                if (b == null) throw new IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
+                final int n = Pose.detect(this, b); b.recycle();
+                ui.post(() -> { refreshPose(); Toast.makeText(this, n == 0 ? L.s("No encontré a nadie: usa una imagen con una persona de cuerpo visible", "Nobody found: use a picture with one person and the body in view") : L.f("Pose encontrada (%d de 17 puntos del cuerpo)", "Pose found (%d of 17 body points)", n), Toast.LENGTH_LONG).show(); });
+            } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("No se pudo detectar: %s", "Detection failed: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show()); }
+        });
+    }
+    void refreshPose() {
+        if (poseThumb == null) return;
+        boolean on = Pose.active(this); Bitmap tb = on ? Pose.render(this, 192, 256) : null;
+        poseThumb.setImageBitmap(tb); poseThumb.setVisibility(tb != null ? View.VISIBLE : View.GONE);
+        poseDrop.setVisibility(on ? View.VISIBLE : View.GONE); poseStrRow.setVisibility(on ? View.VISIBLE : View.GONE);
+        poseInfo.setText(on ? L.s("Pose activa: se aplica a cada imagen de Anima.", "Pose on: it is applied to every Anima picture.") : L.s("Elige una imagen para copiar su pose.", "Pick a picture to copy its pose."));
     }
     void refreshAnimaInit() {
         if (animaInitBox == null) return;
@@ -186,7 +262,7 @@ abstract class MainEdit extends MainTools {
         initDrop.setVisibility(has ? View.VISIBLE : View.GONE); initMaskB.setEnabled(has); initMaskB.setAlpha(has ? 1f : .45f);
         initMaskB.setText(maskSrc().exists() ? L.s("✎ Zona pintada · editar", "✎ Painted area · edit") : L.s("✎ Zona a cambiar", "✎ Area to change"));
         ((View) initStr.getParent()).setVisibility(has ? View.VISIBLE : View.GONE);
-        refreshAnimaInfo();
+        refreshAnimaInfo(); refreshPose();
     }
     void refreshAnimaInfo() {
         if (initInfo == null) return;

@@ -637,6 +637,12 @@ public class Main extends MainEdit {
     /** every 2 s: RAM strip, thermal / battery / chip warnings; every 10 s the model state (the idle watchdog may have unloaded it) */
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == REQ_POSE_PICK) {
+            if (res != RESULT_OK || d == null || d.getData() == null) return;
+            final android.net.Uri u = d.getData();
+            ex2.submit(() -> { try { final File f = importPicked(u, "picked_pose.png"); ui.post(() -> poseDetect(f, true)); } catch (Exception e) { ui.post(() -> Toast.makeText(this, String.valueOf(e.getMessage()), Toast.LENGTH_LONG).show()); } });
+            return;
+        }
         if (req == REQ_TAG_PICK) {
             if (res != RESULT_OK || d == null || d.getData() == null) return;
             final android.net.Uri u = d.getData();
