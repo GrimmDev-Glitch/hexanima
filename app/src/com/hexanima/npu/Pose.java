@@ -56,7 +56,7 @@ final class Pose {
     static boolean active(Context c) { return poseFile(c).isFile() && installed(c); }
     static void clear(Context c) { poseFile(c).delete(); controlFile(c).delete(); }
     static File controlFile(Context c) { return new File(new File(c.getFilesDir(), "anima"), "control.bin"); }
-    static float strength(Context c) { return c.getSharedPreferences("anima", 0).getFloat("pose_strength", 1f); }
+    static float strength(Context c) { return c.getSharedPreferences("anima", 0).getFloat("pose_strength", 2f); }
 
     static Process runner(Context c, String ctxName) throws IOException {
         String lib = c.getApplicationInfo().nativeLibraryDir;

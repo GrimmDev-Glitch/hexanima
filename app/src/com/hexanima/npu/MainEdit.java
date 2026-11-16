@@ -188,8 +188,10 @@ abstract class MainEdit extends MainTools {
             Button plast = button(L.s("↳ Pose de la última imagen", "↳ Pose of the last picture"), FIELD, ACC); plast.setTextSize(12); plast.setAllCaps(false); plast.setOnClickListener(v -> posePick(true));
             LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(38)); ll.topMargin = dp(6); animaInitBox.addView(plast, ll);
             poseStrRow = new LinearLayout(this); poseStrRow.setGravity(Gravity.CENTER_VERTICAL); poseStrRow.setPadding(0, dp(8), 0, 0);
-            poseStrRow.addView(text(L.s("Fuerza de la pose", "Pose strength"), 13, TXT, false));
-            SeekBar ps = new SeekBar(this); ps.setMax(30); ps.setProgressTintList(ColorStateList.valueOf(ACC)); ps.setThumbTintList(ColorStateList.valueOf(ACC));
+            TextView psl = text(L.s("Fuerza de la pose", "Pose strength"), 13, TXT, false); poseStrRow.addView(psl);
+            psl.setOnLongClickListener(v -> { boolean n = !prefs().getBoolean("pose_norm", true); prefs().edit().putBoolean("pose_norm", n).apply();   // test switch: how the control latent is scaled
+                Toast.makeText(this, n ? "Pose latent: normalised" : "Pose latent: raw (as ComfyUI)", Toast.LENGTH_SHORT).show(); return true; });
+            SeekBar ps = new SeekBar(this); ps.setMax(40); ps.setProgressTintList(ColorStateList.valueOf(ACC)); ps.setThumbTintList(ColorStateList.valueOf(ACC));
             poseStrRow.addView(ps, new LinearLayout.LayoutParams(0, -2, 1));
             final TextView pv = text("", 13, ACC, true); poseStrRow.addView(pv, new LinearLayout.LayoutParams(dp(52), -2));
             ps.setProgress(Math.round((Pose.strength(this) - 0.5f) / 0.05f)); pv.setText(String.format(java.util.Locale.US, "%.2f", Pose.strength(this)));
