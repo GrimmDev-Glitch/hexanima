@@ -310,11 +310,11 @@ public class Main extends Base {
         saved = text("", 12, DIM, false);
         saved.setPadding(dp(4), dp(8), dp(8), 0);
         resRow.addView(saved, new LinearLayout.LayoutParams(0, -2, 1));
-        editGeneratedBtn = button("✎", CARD, ACC); editGeneratedBtn.setContentDescription(L.s("Editar con Qwen", "Edit with Qwen"));
+        editGeneratedBtn = button("✎", CARD, ACC); editGeneratedBtn.setContentDescription(L.s("Editar esta imagen", "Edit this picture"));
         editGeneratedBtn.setTextSize(18); editGeneratedBtn.setPadding(0, 0, 0, 0); editGeneratedBtn.setVisibility(View.GONE);
         editGeneratedBtn.setOnClickListener(v -> useShownImageAsQwenSource());
         editRow = new LinearLayout(this); editRow.setGravity(Gravity.CENTER_VERTICAL); editRow.setPadding(0, dp(6), 0, 0);   // own row: the seed text and the icons keep their width
-        editGeneratedBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Editar con Qwen", "Edit with Qwen"), Toast.LENGTH_SHORT).show(); return true; });
+        editGeneratedBtn.setOnLongClickListener(v -> { Toast.makeText(this, isMage() ? L.s("Editar con Mage", "Edit with Mage") : L.s("Editar con Qwen", "Edit with Qwen"), Toast.LENGTH_SHORT).show(); return true; });
         compareBtn = button("⇆", CARD, ACC); compareBtn.setContentDescription(L.s("Antes/después", "Before/after"));
         compareBtn.setTextSize(18); compareBtn.setPadding(0, 0, 0, 0); compareBtn.setVisibility(View.GONE);
         compareBtn.setOnLongClickListener(v -> { Toast.makeText(this, L.s("Antes/después", "Before/after"), Toast.LENGTH_SHORT).show(); return true; });
@@ -842,8 +842,9 @@ public class Main extends Base {
         if (busy) { Toast.makeText(this, L.s("Espera a que termine la tanda", "Wait for the batch to finish"), Toast.LENGTH_SHORT).show(); return; }
         final File chosen = lastFile;
         if (chosen == null || !chosen.isFile() || chosen == batchGridFile) return;
-        String qwenId = "";
-        for (String id : store.installed()) if (Qwen.is(id)) { qwenId = id; break; }
+        final boolean mage = isMage() && Mage.installed(getFilesDir());   // with Mage selected, the picture is edited by Mage; otherwise by Qwen-Image
+        String qwenId = mage ? model : "";
+        if (!mage) for (String id : store.installed()) if (Qwen.is(id)) { qwenId = id; break; }
         if (qwenId.isEmpty()) { Toast.makeText(this, L.s("Instala Qwen-Image antes de editar con él", "Install Qwen-Image before editing with it"), Toast.LENGTH_LONG).show(); return; }
         final String targetModel = qwenId;
         editGeneratedBtn.setEnabled(false);
@@ -858,7 +859,7 @@ public class Main extends Base {
                 ui.post(() -> {
                     editGeneratedBtn.setEnabled(true); editBm = next; setModel(targetModel); refreshEdit();
                     double aspect = (double) next.getWidth() / next.getHeight(), best = 1e9; int[] pick = null;
-                    for (int[] z : Qwen.PRESETS) { if (z[0] * z[1] > 800000) continue; double d = Math.abs(Math.log((double) z[0] / z[1] / aspect)) + Math.abs(z[0] * z[1] - 393216) / 5e7; if (d < best) { best = d; pick = z; } }
+                    if (!mage) for (int[] z : Qwen.PRESETS) { if (z[0] * z[1] > 800000) continue; double d = Math.abs(Math.log((double) z[0] / z[1] / aspect)) + Math.abs(z[0] * z[1] - 393216) / 5e7; if (d < best) { best = d; pick = z; } }
                     if (pick != null) { customOpen = false; setRes(pick[0], pick[1]); }
                     paintQwenMask();
                 });

@@ -26,7 +26,7 @@ Open the app, pick a model, write a prompt and press **Generate**. The models do
 | **Anima** (MiaoMiao Harem, 3D Harem, your own checkpoints) | Anime and illustration from tags | 2B turbo ~7 s, 2.9B turbo ~10–12 s, 20-step base models ~85–100 s (512×768) |
 | **MOSS-Image** (base 5B, RealSkin, Harem) | Realistic pictures from plain sentences, text in the picture | ~30–45 s at 512×768, 4 steps |
 | **Qwen-Image 2.1 Turbo** | Text to image, and **editing your own photos with words**, with up to 3 reference pictures | ~45–55 s for a picture or an edit, ~70 s with two references |
-| **Mage-Flow-Edit-Turbo** (new in 1.8) | Fast text to image and photo edits from plain sentences, with an area to edit | ~10 s at 512×512 |
+| **Mage-Flow-Edit-Turbo** (new in 1.8) | Fast text to image and photo edits from plain sentences, with an area to edit | ~10 s at 512×512, ~19 s at 768×1024, ~36 s for an edit |
 
 Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower, with the CPU around 60 °C instead of 90 °C on long runs. By default it is automatic: full speed while the phone is cool, the lower clock once the battery reaches 40 °C (43 °C while charging).
 
@@ -41,7 +41,7 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 | **Civitai** | Search and download LoRAs and checkpoints for Anima, MOSS and Qwen, filtered by category; a ✓ marks what you already have. Optional API key for 18+ (sent only to civitai.com). |
 | **Enlarge on the NPU** | ×2 or ×4, from the picture or the History, saved as a new picture. **Fast** (Real-ESRGAN General x4v3): about 2 s for ×2 and 5 s for ×4 on a 512×768 picture. **Detailed** (4x-UltraSharp, new in 1.8): about 10 times slower, keeps textures, eyes and thin lines better (×2 of a 768×1024 picture in about 9 s). |
 | **Corrections** | A screen to fix a finished picture without touching it: make alternatives from the accepted version, compare them with a slider (double-tap to zoom), keep one or discard it, undo / redo, and save the result as a new picture. **Noise** (cleans grain and artefacts at the same size, with a strength) and **Resolution** (×2 / ×4) run on the NPU in 1–5 s. **Face, Hands, Details and Other**: paint an area and Qwen-Image redraws only that area (about a minute; needs Qwen-Image installed). **Detect faces / hands automatically** (new in 1.8) paints the area for you: face_yolov8n and hand_yolov8n run on the NPU in 6 ms. |
-| **Mage-Flow on the 8 Gen 2** (new in 1.8) | ayanoby's Mage-Flow kernels ported to Hexagon V73: a 512×512 picture in about 10 s. Photo edits keep the original (before/after slider, side by side), keep the photo's shape, and can be limited to a painted area: the rest keeps its exact pixels. |
+| **Mage-Flow on the 8 Gen 2** (new in 1.8) | ayanoby's Mage-Flow kernels ported to Hexagon V73: a 512×512 picture in about 10 s, 768×1024 in about 19 s. Photo edits keep the original (before/after slider, side by side), keep the photo's shape, and can be limited to a painted area: the rest keeps its exact pixels. |
 | **ChatGPT style** (new in 1.8) | One tap in the Anima LoRA panel downloads the gpt-image-2 style LoRA (23 MB, checked by SHA-256) and adds its trigger and tag to the prompt; tap again to remove it. Qwen and MOSS can use the GPT-Image style LoRAs from Civitai too. |
 | **Storage** (new in 1.8) | Settings → Storage: free space, the size of every model, cache and picture folder; free up caches, empty the trash and the before/after originals. |
 | **Your own checkpoints** | Any Anima `.safetensors` checkpoint becomes an NPU model on the phone. |
@@ -67,7 +67,8 @@ Times at full speed. Cool mode runs the NPU at a lower clock: about 17 % slower,
 </tr>
 <tr>
 <td align="center" width="33%"><img src="docs/screens/v73/48-qwen-lora-rename.jpg" width="220"><br><b>New: rename Qwen LoRAs</b></td>
-<!--MAGE-->
+<td align="center" width="33%"><img src="docs/screens/v73/50-mage-generate.jpg" width="220"><br><b>New: Mage-Flow on the 8 Gen 2, 768×1024 in 19 s</b></td>
+<td align="center" width="33%"><img src="docs/screens/v73/51-mage-edit.jpg" width="220"><br><b>Mage edit with an area: "change the red bow into a blue bow", 36 s</b></td>
 </tr>
 <tr>
 <td align="center" width="33%"><img src="docs/screens/v73/21-welcome.jpg" width="220"><br><b>Welcome · checks your phone</b></td>
