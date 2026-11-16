@@ -816,3 +816,4 @@ the downloaded file does not match (SHA-256)	el archivo descargado no coincide (
 Could not download: %s	No se pudo descargar: %s
 ChatGPT style added to the prompt (strength 0.8). Tap it again to remove it.	Estilo ChatGPT añadido al prompt (fuerza 0.8). Tócalo otra vez para quitarlo.
 Downloads the LoRA "Style > gpt-image-2" by AgileNumbers from Civitai (22 MB) and adds it to the prompt. It gives the illustration finish of today's ChatGPT: thin lines, detailed eyes and soft light.	Descarga la LoRA «Style > gpt-image-2» de AgileNumbers desde Civitai (22 MB) y la añade al prompt. Da el acabado de ilustración del ChatGPT actual: líneas finas, ojos detallados y luz suave.
+Long-press a LoRA for its trigger words, to rename it or to delete it	Mantén pulsada una LoRA para sus activadores, para cambiarle el nombre o para eliminarla

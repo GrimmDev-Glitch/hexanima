@@ -1909,6 +1909,8 @@ public class Main extends Base {
     File namesFile(boolean lora) { return new File(getFilesDir(), lora ? "lora_names.json" : "model_names.json"); }
     JSONObject names(boolean lora) { try { return new JSONObject(Models.read(namesFile(lora))); } catch (Exception e) { return new JSONObject(); } }
     String alias(boolean lora, String key) { return names(lora).optString(key, ""); }
+    /** a Qwen overlay as shown to the user: the name given with Rename, else the adapter name from its manifest */
+    String qwenOverlayTitle(File ov) { String a = alias(true, "qwen/" + ov.getName()); return a.isEmpty() ? Qwen.overlayName(ov) : a; }
     void setAlias(boolean lora, String key, String name) {
         JSONObject j = names(lora);
         try { if (name == null || name.trim().isEmpty()) j.remove(key); else j.put(key, name.trim()); try (java.io.FileWriter w = new java.io.FileWriter(namesFile(lora))) { w.write(j.toString()); } } catch (Exception ignored) { }
@@ -2095,8 +2097,8 @@ public class Main extends Base {
         String name = prefs().getString("qwen_lora_dir", "");
         File selected = Qwen.selectedOverlay(getFilesDir(), name);
         if (selected == null && !name.isEmpty()) { prefs().edit().remove("qwen_lora_dir").apply(); name = ""; }
-        qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : Qwen.overlayName(selected));
-        if (qwenFold != null) { qwenFold.sum.setText(name.isEmpty() ? L.s("Ninguna", "None") : Qwen.overlayName(selected) + (Qwen.hasSource(getFilesDir(), name) ? String.format(java.util.Locale.US, " · %.2f", Qwen.overlayStrength(selected)) : "")); qwenFold.sum.setTextColor(name.isEmpty() ? DIM : ACC); }
+        qwenLoraName.setText(name.isEmpty() ? L.s("Ninguna", "None") : qwenOverlayTitle(selected));
+        if (qwenFold != null) { qwenFold.sum.setText(name.isEmpty() ? L.s("Ninguna", "None") : qwenOverlayTitle(selected) + (Qwen.hasSource(getFilesDir(), name) ? String.format(java.util.Locale.US, " · %.2f", Qwen.overlayStrength(selected)) : "")); qwenFold.sum.setTextColor(name.isEmpty() ? DIM : ACC); }
         qwenLoraDrop.setEnabled(!name.isEmpty()); qwenLoraDrop.setAlpha(name.isEmpty() ? .45f : 1f);
         boolean src = selected != null && Qwen.hasSource(getFilesDir(), name);
         if (qwenStrRow != null) { qwenStrRow.setVisibility(src ? View.VISIBLE : View.GONE); if (src && !qwenFolding) { float s = Qwen.overlayStrength(selected); qwenStr.setProgress(Math.round(s / 0.05f)); qwenStrVal.setText(String.format(java.util.Locale.US, "%.2f", s)); } }
@@ -2160,11 +2162,11 @@ public class Main extends Base {
                 .setPositiveButton("OK", null).show();
             return;
         }
-        List<String> choices = new ArrayList<>(); choices.add(L.s("Ninguna", "None")); choices.addAll(names);
+        List<String> choices = new ArrayList<>(); choices.add(L.s("Ninguna", "None")); for (String n : names) choices.add(qwenOverlayTitle(new File(root, n)));
         ListView list = new ListView(this);
         list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, choices));
         LinearLayout picker = new LinearLayout(this); picker.setOrientation(LinearLayout.VERTICAL);
-        TextView hint = text(L.s("Mantén pulsada una LoRA para sus activadores o para eliminarla", "Long-press a LoRA for its trigger words or to delete it"), 13, DIM, false);
+        TextView hint = text(L.s("Mantén pulsada una LoRA para sus activadores, para cambiarle el nombre o para eliminarla", "Long-press a LoRA for its trigger words, to rename it or to delete it"), 13, DIM, false);
         hint.setPadding(dp(20), dp(8), dp(20), dp(4)); picker.addView(hint);
         picker.addView(list, new LinearLayout.LayoutParams(-1, Math.min(dp(420), (names.size() + 1) * dp(66))));   // as tall as its rows, not a fixed empty block
         AlertDialog dialog = builder().setTitle(L.s("LoRA de Qwen", "Qwen LoRA"))
@@ -2177,8 +2179,9 @@ public class Main extends Base {
         list.setOnItemLongClickListener((parent, view, which, id) -> {   // copy trigger words, or delete the overlay (and the original file it was converted from)
             if (which == 0) return true;
             final String nm = names.get(which - 1); final File ov = new File(root, nm);
-            builder().setTitle(Qwen.overlayName(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Editar palabras activadoras…", "Edit trigger words…"), L.s("Añadir activadoras al prompt", "Add trigger words to the prompt"), L.s("Eliminar", "Delete")}, (d2, k) -> {
-                if (k == 1) editTriggers(Qwen.overlayName(ov), Qwen.overlayTriggers(ov), s -> Qwen.setOverlayTriggers(ov, s));
+            builder().setTitle(qwenOverlayTitle(ov)).setItems(new String[]{L.s("Copiar palabras activadoras", "Copy trigger words"), L.s("Editar palabras activadoras…", "Edit trigger words…"), L.s("Añadir activadoras al prompt", "Add trigger words to the prompt"), L.s("Cambiar nombre", "Rename"), L.s("Eliminar", "Delete")}, (d2, k) -> {
+                if (k == 3) renameDialog(true, "qwen/" + nm, Qwen.overlayName(ov), () -> { dialog.dismiss(); refreshQwenLora(); pickQwenLora(); });
+                else if (k == 1) editTriggers(Qwen.overlayName(ov), Qwen.overlayTriggers(ov), s -> Qwen.setOverlayTriggers(ov, s));
                 else if (k == 2) { String t = Qwen.overlayTriggers(ov); if (t.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else { appendPromptWords(t); dialog.dismiss(); } }
                 else if (k == 0) {
                     String trigger = Qwen.overlayTriggers(ov);
@@ -2188,6 +2191,7 @@ public class Main extends Base {
                     .setPositiveButton(L.s("Eliminar", "Delete"), (d3, k3) -> {
                         MossLora.deleteTree(ov); Qwen.srcFile(getFilesDir(), nm).delete(); Civitai.metaFile(Qwen.srcFile(getFilesDir(), nm)).delete();
                         if (nm.equals(prefs().getString("qwen_lora_dir", ""))) prefs().edit().remove("qwen_lora_dir").apply();
+                        setAlias(true, "qwen/" + nm, "");   // a later overlay with the same folder name starts without the old name
                         dialog.dismiss(); refreshQwenLora();
                     }).show();
             }).show();
