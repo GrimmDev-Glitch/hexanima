@@ -87,7 +87,7 @@ public class Main extends Base {
     ImageView img;
     File lastFile;
     List<File> batchFiles = new ArrayList<>();
-    File batchGridFile;
+    File batchGridFile; final List<File> extraGrids = new ArrayList<>();   // a large batch: its first contact sheet, then the others (9 pictures each at most)
     int batchDisplayIndex;
     android.view.GestureDetector batchGestures;
     boolean customOpen;
@@ -675,7 +675,7 @@ public class Main extends Base {
         BitmapFactory.Options opt = new BitmapFactory.Options(); opt.inSampleSize = sample;
         Bitmap b = BitmapFactory.decodeFile(f.getPath(), opt);
         if (b == null) return;
-        lastFile = f; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
+        lastFile = f; batchFiles.clear(); batchGridFile = null; extraGrids.clear(); batchDisplayIndex = 0;
         img.setImageBitmap(b); showImg(true); placeholder.setVisibility(View.GONE);
         setFavIcon(Gallery.fav(f));
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) x.setVisibility(View.VISIBLE);
@@ -831,7 +831,7 @@ public class Main extends Base {
         if (busy) { Toast.makeText(this, L.s("Espera a que termine la generación", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
         File[] recent = Gallery.list(this, Gallery.ALL);
         prefs().edit().putString("hidden_last", recent.length > 0 ? recent[0].getName() : "").apply();
-        lastFile = null; batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0;
+        lastFile = null; batchFiles.clear(); batchGridFile = null; extraGrids.clear(); batchDisplayIndex = 0;
         img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE);
         for (ImageButton x : new ImageButton[]{againBtn, favBtn, dlBtn, upBtn, fixBtn, shareBtn}) x.setVisibility(View.GONE);
         saved.setText(""); refreshGeneratedEditAction();
@@ -841,11 +841,11 @@ public class Main extends Base {
             int n = batchFiles.size(); boolean grid = batchGridFile != null && batchGridFile.isFile();
             boolean show = lastFile != null && img.getVisibility() == View.VISIBLE && (n > 1 || (n == 1 && grid));
             pageBar.setVisibility(show ? View.VISIBLE : View.GONE);
-            if (show) pageTag.setText(batchDisplayIndex >= n ? (n == 1 ? L.s("Original | editada", "Original | edited") : L.f("Cuadrícula · %d", "Grid · %d", n)) : (batchDisplayIndex + 1) + " / " + n);
+            if (show) pageTag.setText(batchDisplayIndex >= n ? (n == 1 ? L.s("Original | editada", "Original | edited") : extraGrids.isEmpty() ? L.f("Cuadrícula · %d", "Grid · %d", n) : L.f("Cuadrícula %d/%d", "Grid %d/%d", batchDisplayIndex - n + 1, extraGrids.size() + 1)) : (batchDisplayIndex + 1) + " / " + n);
         }
         boolean sheet = lastFile != null && (lastFile == batchGridFile || Gallery.meta(lastFile).has("grid") || Gallery.meta(lastFile).optBoolean("compare"));   // a contact sheet or a comparison is not a picture to edit
         if (editGeneratedBtn != null) editGeneratedBtn.setVisibility(lastFile != null && lastFile.isFile() && !sheet ? View.VISIBLE : View.GONE);
-        if (compareBtn != null) compareBtn.setVisibility(lastFile != null && lastFile != batchGridFile && Qwen.beforeFile(getFilesDir(), lastFile).isFile() ? View.VISIBLE : View.GONE);
+        if (compareBtn != null) compareBtn.setVisibility(lastFile != null && lastFile != batchGridFile && originalOf(lastFile) != null ? View.VISIBLE : View.GONE);
         if (editRow != null) editRow.setVisibility(editGeneratedBtn.getVisibility() == View.VISIBLE || compareBtn.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
     }
 
@@ -2385,7 +2385,7 @@ public class Main extends Base {
         final int n = gk != 0 ? 4 : countOv > 0 ? countOv : count, w = resW, h = resH; countOv = 0;
         final long gridSeed = randomSeed ? new Random().nextInt(1 << 30) : baseSeed;
         final List<Bitmap> gridBms = new ArrayList<>(); final List<String> gridLabels = new ArrayList<>();
-        batchFiles.clear(); batchGridFile = null; batchDisplayIndex = 0; lastFile = null; pendingCompare = null; refreshGeneratedEditAction();
+        batchFiles.clear(); batchGridFile = null; extraGrids.clear(); batchDisplayIndex = 0; lastFile = null; pendingCompare = null; refreshGeneratedEditAction();
         busy = true; Upscaler.npuBusy = true; cancelled = false; curIdx = 0; curN = n; batchAdjustable = gk == 0;
         setModelUi(loaded, false, "");
         View f0 = getCurrentFocus(); if (f0 != null) ((android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(f0.getWindowToken(), 0);
@@ -2426,7 +2426,7 @@ public class Main extends Base {
                 lastBm = bm;
                 final List<File> fileSnapshot = new ArrayList<>(madeFiles);
                 ui.post(() -> {
-                    batchFiles = fileSnapshot; batchGridFile = null; batchDisplayIndex = batchFiles.size() - 1;
+                    batchFiles = fileSnapshot; batchGridFile = null; extraGrids.clear(); batchDisplayIndex = batchFiles.size() - 1;
                     lastFile = f; img.setImageBitmap(bm); showImg(true); placeholder.setVisibility(View.GONE);
                     refreshGeneratedEditAction();
                     setFavIcon(false);
@@ -2443,9 +2443,10 @@ public class Main extends Base {
                 final File cf = pendingCompare;
                 ui.post(() -> { batchGridFile = cf; batchDisplayIndex = 0; saved.setText(L.s("Edición · usa ‹ › para ver la comparación", "Edit · ‹ › to see the comparison")); refreshGeneratedEditAction(); });
             } else if (gk == 0 && madeFiles.size() > 1) {
-                final File gf = saveBatchGrid(madeFiles, pr, w, h);
+                final List<File> gs = saveBatchGrids(madeFiles, pr, w, h);
+                final File gf = gs.isEmpty() ? null : gs.get(0);
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
-                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · ‹ › to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
+                if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; extraGrids.clear(); extraGrids.addAll(gs.subList(1, gs.size())); batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(gs.size() > 1 ? L.f("Cuadrícula 1/%d · %d imágenes · ‹ › para ver más", "Grid 1/%d · %d pictures · ‹ › for more", gs.size(), madeFiles.size()) : L.f("Cuadrícula · %d imágenes", "Grid · %d pictures", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
             picStart = 0; varInit = null;
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
@@ -2490,6 +2491,7 @@ public class Main extends Base {
     void showBatchPage(int page) {
         List<File> pages = new ArrayList<>(batchFiles);
         if (batchGridFile != null && batchGridFile.isFile()) pages.add(batchGridFile);
+        for (File g : extraGrids) if (g.isFile()) pages.add(g);
         if (pages.size() < 2) return;
         batchDisplayIndex = (page % pages.size() + pages.size()) % pages.size();
         File f = pages.get(batchDisplayIndex);
@@ -2525,8 +2527,15 @@ public class Main extends Base {
     /** Contact sheet of a batch, at most 2048 px on its long side. The layout keeps the pictures as large as possible and avoids empty
      *  cells when that costs little (3 portraits sit in one row instead of 2×2 with a hole); an incomplete last row is centred.
      *  Each picture gets its number on a dark badge, with a thin gap between the cells. */
-    File saveBatchGrid(List<File> files, String prompt, int w, int h) {
-        if (files == null || files.size() < 2) return null;
+    /** contact sheets of a batch, 9 pictures each at most (balanced: 10 pictures make two sheets of 5); the numbers go on from sheet to sheet */
+    List<File> saveBatchGrids(List<File> files, String prompt, int w, int h) {
+        List<File> out = new ArrayList<>(); if (files == null || files.size() < 2) return out;
+        int pages = (files.size() + 8) / 9, per = (files.size() + pages - 1) / pages;
+        for (int i = 0; i < files.size(); i += per) { File g = saveBatchGrid(files.subList(i, Math.min(files.size(), i + per)), prompt, w, h, i, files.size()); if (g != null) out.add(g); }
+        return out;
+    }
+    File saveBatchGrid(List<File> files, String prompt, int w, int h, int offset, int total) {
+        if (files == null || files.isEmpty()) return null;
         final int n = files.size(), side = 2048, gap = 8;
         BitmapFactory.Options first = new BitmapFactory.Options(); first.inJustDecodeBounds = true; BitmapFactory.decodeFile(files.get(0).getPath(), first);
         float aspect = first.outWidth > 0 && first.outHeight > 0 ? first.outWidth / (float) first.outHeight : 1f;
@@ -2561,11 +2570,11 @@ public class Main extends Base {
             android.graphics.Rect dst = new android.graphics.Rect(x + (cellW - dw) / 2, y + (cellH - dh) / 2, x + (cellW + dw) / 2, y + (cellH + dh) / 2);
             c.drawBitmap(tile, null, dst, paint); tile.recycle();
             float r = label.getTextSize() * .9f, cx = dst.left + r + 14, cy = dst.top + r + 14;
-            c.drawCircle(cx, cy, r, pill); c.drawText(String.valueOf(i + 1), cx, cy + label.getTextSize() * .35f, label);
+            c.drawCircle(cx, cy, r, pill); c.drawText(String.valueOf(offset + i + 1), cx, cy + label.getTextSize() * .35f, label);
         }
         try {
             ByteArrayOutputStream bo = new ByteArrayOutputStream(); grid.compress(Bitmap.CompressFormat.PNG, 100, bo); grid.recycle();
-            JSONObject meta = new JSONObject().put("prompt", prompt).put("seed", "batch").put("w", w).put("h", h).put("model", modelName()).put("id", model).put("grid", "batch " + n).put("count", n);
+            JSONObject meta = new JSONObject().put("prompt", prompt).put("seed", "batch").put("w", w).put("h", h).put("model", modelName()).put("id", model).put("grid", "batch " + total).put("count", n).put("first", offset + 1);
             return Gallery.save(this, PngMeta.embed(bo.toByteArray(), meta), meta);
         } catch (Exception e) { if (!grid.isRecycled()) grid.recycle(); return null; }
     }

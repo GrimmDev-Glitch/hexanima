@@ -239,6 +239,11 @@ public class History extends Base {
         TextView chk = text("✓", 16, ON_ACC, true); chk.setGravity(Gravity.CENTER); chk.setBackground(bg(ACC, 12));
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.TOP | Gravity.START); cp.setMargins(dp(8), dp(8), 0, 0);
         fl.addView(chk, cp);
+        TextView ba = text("⇆", 15, TXT, true); ba.setGravity(Gravity.CENTER); ba.setBackground(bg(0xB0000000, 14)); ba.setContentDescription(L.s("Antes/después", "Before/after"));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(40), dp(32), Gravity.BOTTOM | Gravity.END); bp.setMargins(0, 0, dp(6), dp(6));
+        fl.addView(ba, bp); ba.setVisibility(View.GONE);
+        ba.setOnClickListener(v -> { if (selecting) fl.performClick(); else showBeforeAfter(f); });
+        io.submit(() -> { boolean has = mode != Gallery.TRASH && originalOf(f) != null; if (has) ui.post(() -> ba.setVisibility(View.VISIBLE)); });   // edits, enlarged and corrected pictures
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(cell - dp(6), (int) ((cell - dp(6)) * 1.3f)); lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         fl.setLayoutParams(lp);
         fl.setOnClickListener(v -> { if (selecting) { if (!sel.remove(f)) sel.add(f); refreshSel(); } else { int k = Arrays.asList(cur).indexOf(f); Viewer.open(this, cur, Math.max(0, k), mode, true); } });

@@ -869,3 +869,6 @@ Again (long-press: variations)	Otra vez (mantén pulsado: variaciones)
 4 close to this picture	4 parecidas a esta imagen
 Variations	Variaciones
 Quality tags before the prompt (this Anima model)	Etiquetas de calidad antes del prompt (este modelo Anima)
+Grid %d/%d	Cuadrícula %d/%d
+Grid 1/%d · %d pictures · ‹ › for more	Cuadrícula 1/%d · %d imágenes · ‹ › para ver más
+Grid · %d pictures	Cuadrícula · %d imágenes

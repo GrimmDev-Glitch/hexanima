@@ -258,9 +258,20 @@ abstract class Base extends Activity {
     private static int w(java.io.File f) { android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inJustDecodeBounds = true; android.graphics.BitmapFactory.decodeFile(f.getPath(), o); return o.outWidth; }
     private static int h(java.io.File f) { android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options(); o.inJustDecodeBounds = true; android.graphics.BitmapFactory.decodeFile(f.getPath(), o); return o.outHeight; }
 
+    /** the picture this one was made from: the kept original of an edit, or the History picture it was enlarged / corrected from (null if there is none) */
+    java.io.File originalOf(java.io.File f) {
+        if (f == null) return null;
+        java.io.File b = Qwen.beforeFile(getFilesDir(), f); if (b.isFile()) return b;
+        org.json.JSONObject m = Gallery.meta(f);
+        for (String k : new String[]{"corrected_from", "upscaled_from"}) {
+            String n = m.optString(k, ""); if (n.isEmpty() || n.contains("/")) continue;
+            for (java.io.File d : new java.io.File[]{Gallery.dir(this), Gallery.trashDir(this)}) { java.io.File o = new java.io.File(d, n); if (o.isFile() && !o.equals(f)) return o; }
+        }
+        return null;
+    }
     void showBeforeAfter(final java.io.File after) {
         if (after == null) return;
-        final java.io.File bf = Qwen.beforeFile(getFilesDir(), after); if (!bf.isFile()) return;
+        final java.io.File bf = originalOf(after); if (bf == null) return;
         final android.graphics.Bitmap a = android.graphics.BitmapFactory.decodeFile(after.getPath()), b = android.graphics.BitmapFactory.decodeFile(bf.getPath()); if (a == null || b == null) return;
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(14), dp(16), dp(10));
         v.addView(text(L.s("Antes / después", "Before / after"), 20, TXT, true));
