@@ -540,6 +540,7 @@ public class Main extends Base {
         refreshLora();
 
         // Qwen-Image: a photo to edit (with it the picture is an edit of the photo, guided by the prompt)
+        buildAnimaInit();
         editBox = new LinearLayout(this); editBox.setOrientation(LinearLayout.VERTICAL);
         editBox.addView(label(L.s("РЕДАКТИРОВАНИЕ ФОТО  ·  необязательно", "EDIT A PHOTO  ·  optional")));
         LinearLayout er = new LinearLayout(this); er.setGravity(Gravity.CENTER_VERTICAL);
@@ -611,7 +612,7 @@ public class Main extends Base {
         root.removeView(ramTxt); if (loadBtn.getParent() != null) ((ViewGroup) loadBtn.getParent()).removeView(loadBtn);
         ramRow.addView(ramTxt, new LinearLayout.LayoutParams(0, -2, 1));
         LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, dp(40)); lbl.leftMargin = dp(8); ramRow.addView(loadBtn, lbl);   // load / free stays in sight under the model
-        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, negBox, sampBox, mossStepsBox, editBox, qwenLoraBox, loraBox, extrasBox, imageSet};
+        View[] order = {tr, warnTxt, head, ramRow, ramBar, state, imgTools, imgBox, resRow, pl, prompt, tb, negBox, sampBox, mossStepsBox, editBox, animaInitBox, qwenLoraBox, loraBox, extrasBox, imageSet};
         java.util.List<View> rest = new java.util.ArrayList<>();
         for (int i = 0; i < root.getChildCount(); i++) { View v = root.getChildAt(i); if (!java.util.Arrays.asList(order).contains(v)) rest.add(v); }
         root.removeAllViews(); for (View v : order) root.addView(v); for (View v : rest) root.addView(v);
@@ -1404,22 +1405,6 @@ public class Main extends Base {
         Button adPick = button(L.s("Детектор…", "Detector…"), FIELD, ACC); adPick.setTextSize(12);
         adPick.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), 12));
         ar.addView(adPick, new LinearLayout.LayoutParams(-2, dp(36))); c.addView(ar);
-        c.addView(label(L.s("ИСХОДНАЯ КАРТИНКА (img2img)", "INIT IMAGE (img2img)")));
-        LinearLayout ir = new LinearLayout(this); ir.setGravity(Gravity.CENTER_VERTICAL);
-        initText = text("", 13, TXT, false); ir.addView(initText, new LinearLayout.LayoutParams(0, -2, 1));
-        Button ip = button(L.s("Выбрать", "Choose"), FIELD, ACC); ip.setTextSize(12);
-        ip.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), 11));
-        ir.addView(ip, new LinearLayout.LayoutParams(-2, dp(36)));
-        Button ix = button("✕", FIELD, TXT); ix.setOnClickListener(v -> { initSrc().delete(); maskSrc().delete(); refreshExtras(); });
-        LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(dp(40), dp(36)); xl.leftMargin = dp(6); ir.addView(ix, xl);
-        c.addView(ir);
-        LinearLayout ir2 = new LinearLayout(this); ir2.setPadding(0, dp(6), 0, 0);
-        Button useRes = button(L.s("↳ Последняя картинка", "↳ Last picture"), FIELD, ACC); useRes.setTextSize(12); useRes.setOnClickListener(v -> useResultAsInit());
-        ir2.addView(useRes, new LinearLayout.LayoutParams(0, dp(36), 1));
-        Button maskB = button(L.s("✎ Маска", "✎ Mask"), FIELD, ACC); maskB.setTextSize(12); maskB.setOnClickListener(v -> paintMask());
-        LinearLayout.LayoutParams ml2 = new LinearLayout.LayoutParams(0, dp(36), 1); ml2.leftMargin = dp(6); ir2.addView(maskB, ml2);
-        c.addView(ir2);
-        LinearLayout sr = new LinearLayout(this); strEdit = smallField(sr, L.s("СИЛА ИЗМЕНЕНИЯ (0..1)", "DENOISE STRENGTH (0..1)"), "x_strength", "0.6", true); c.addView(sr);
         LinearLayout pr = new LinearLayout(this); pr.setPadding(0, dp(10), 0, 0);
         Button presets = button(L.s("Пресеты", "Presets"), FIELD, ACC); presets.setTextSize(13); presets.setOnClickListener(v -> presets());
         pr.addView(presets, new LinearLayout.LayoutParams(0, dp(40), 1));
@@ -1445,6 +1430,61 @@ public class Main extends Base {
         try { adDir().mkdirs(); File out = new File(adDir(), "face_yolov8n.safetensors"); Models.fetch(AD_URL, out, -1, AD_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); ui.post(this::refreshExtras); return out; }
         catch (Exception e) { ui.post(() -> Toast.makeText(this, "ADetailer: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
     }
+    // ---- Anima "edit a photo" (img2img / inpainting), laid out like the Qwen and Mage photo box ----
+    LinearLayout animaInitBox; ImageView initThumb; TextView initInfo, initStrVal; Button initDrop, initMaskB; SeekBar initStr;
+    void buildAnimaInit() {
+        animaInitBox = new LinearLayout(this); animaInitBox.setOrientation(LinearLayout.VERTICAL);
+        animaInitBox.addView(label(L.s("EDITAR UNA FOTO  ·  opcional", "EDIT A PHOTO  ·  optional")));
+        LinearLayout er = new LinearLayout(this); er.setGravity(Gravity.CENTER_VERTICAL);
+        initThumb = new ImageView(this); initThumb.setScaleType(ImageView.ScaleType.CENTER_CROP); initThumb.setBackground(bg(CARD, 16)); initThumb.setClipToOutline(true);
+        er.addView(initThumb, new LinearLayout.LayoutParams(dp(64), dp(64)));
+        initInfo = text("", 13, DIM, false); initInfo.setPadding(dp(12), 0, dp(8), 0); er.addView(initInfo, new LinearLayout.LayoutParams(0, -2, 1));
+        Button pick = button(L.s("Выбрать", "Choose"), CARD, TXT); pick.setOnClickListener(v -> pickImage(11));
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-2, dp(44)); ep.leftMargin = dp(8); er.addView(pick, ep);
+        initDrop = button("✕", CARD, TXT); initDrop.setContentDescription(L.s("Quitar la foto", "Remove the photo")); initDrop.setOnClickListener(v -> { initSrc().delete(); maskSrc().delete(); refreshExtras(); });
+        LinearLayout.LayoutParams ed2 = new LinearLayout.LayoutParams(dp(48), dp(44)); ed2.leftMargin = dp(8); er.addView(initDrop, ed2);
+        animaInitBox.addView(er);
+        LinearLayout r2 = new LinearLayout(this); r2.setPadding(0, dp(6), 0, 0);
+        Button last = button(L.s("↳ Последняя картинка", "↳ Last picture"), FIELD, ACC); last.setTextSize(12); last.setAllCaps(false); last.setOnClickListener(v -> useResultAsInit());
+        r2.addView(last, new LinearLayout.LayoutParams(0, dp(38), 1));
+        initMaskB = button(L.s("✎ Zona a cambiar", "✎ Area to change"), FIELD, ACC); initMaskB.setTextSize(12); initMaskB.setAllCaps(false); initMaskB.setOnClickListener(v -> paintMask());
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(0, dp(38), 1); ml.leftMargin = dp(6); r2.addView(initMaskB, ml);
+        animaInitBox.addView(r2);
+        LinearLayout r3 = new LinearLayout(this); r3.setGravity(Gravity.CENTER_VERTICAL); r3.setPadding(0, dp(8), 0, 0);
+        r3.addView(text(L.s("Cuánto cambia", "How much it changes"), 13, TXT, false));
+        initStr = new SeekBar(this); initStr.setMax(18); initStr.setProgressTintList(ColorStateList.valueOf(ACC)); initStr.setThumbTintList(ColorStateList.valueOf(ACC));
+        r3.addView(initStr, new LinearLayout.LayoutParams(0, -2, 1));
+        initStrVal = text("", 13, ACC, true); r3.addView(initStrVal, new LinearLayout.LayoutParams(dp(52), -2));
+        initStr.setProgress(Math.round((pf("x_strength", .6f) - 0.1f) / 0.05f));
+        initStr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar sb, int p, boolean u) { float v = 0.1f + p * 0.05f; initStrVal.setText(Math.round(v * 100) + " %"); if (u) prefs().edit().putString("x_strength", String.format(java.util.Locale.US, "%.2f", v)).apply(); refreshAnimaInfo(); }
+            public void onStartTrackingTouch(SeekBar sb) { } public void onStopTrackingTouch(SeekBar sb) { } });
+        initStrVal.setText(Math.round(pf("x_strength", .6f) * 100) + " %");
+        animaInitBox.addView(r3);
+        TextView note = text(L.s("Poco: la foto casi igual con el estilo del modelo. Mucho: una imagen nueva que solo conserva la composición.", "Low: the photo almost unchanged, in the model's style. High: a new picture that keeps only the composition."), 11, DIM, false);
+        note.setPadding(dp(4), dp(2), dp(4), 0); animaInitBox.addView(note);
+        animaInitBox.setVisibility(View.GONE);
+    }
+    void refreshAnimaInit() {
+        if (animaInitBox == null) return;
+        boolean anima = !(isMoss() || isQwen() || isMage() || model.isEmpty());
+        animaInitBox.setVisibility(anima ? View.VISIBLE : View.GONE);
+        boolean has = initSrc().exists();
+        Bitmap tb = null;
+        if (has) { BitmapFactory.Options o = new BitmapFactory.Options(); o.inSampleSize = 4; tb = BitmapFactory.decodeFile(initSrc().getPath(), o); }
+        initThumb.setImageBitmap(tb); initThumb.setVisibility(has ? View.VISIBLE : View.GONE);
+        initDrop.setVisibility(has ? View.VISIBLE : View.GONE); initMaskB.setEnabled(has); initMaskB.setAlpha(has ? 1f : .45f);
+        initMaskB.setText(maskSrc().exists() ? L.s("✎ Zona pintada · editar", "✎ Painted area · edit") : L.s("✎ Zona a cambiar", "✎ Area to change"));
+        ((View) initStr.getParent()).setVisibility(has ? View.VISIBLE : View.GONE);
+        refreshAnimaInfo();
+    }
+    void refreshAnimaInfo() {
+        if (initInfo == null) return;
+        if (!initSrc().exists()) { initInfo.setText(L.s("Elige una foto para cambiarla con el prompt (img2img). Sin foto, el modelo dibuja desde cero.", "Pick a photo to change it by the prompt (img2img). Without one the model draws from scratch.")); return; }
+        BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true; BitmapFactory.decodeFile(initSrc().getPath(), o);
+        initInfo.setText(L.f("Foto %d×%d · cambia %d %%", "Photo %d×%d · changes %d %%", o.outWidth, o.outHeight, Math.round(pf("x_strength", .6f) * 100))
+            + (maskSrc().exists() ? L.s("\nSolo se redibuja la zona pintada.", "\nOnly the painted area is redrawn.") : ""));
+    }
     void refreshExtras() {
         if (extrasBox == null) return;
         extrasBox.setVisibility(isMoss() || isQwen() || isMage() || model.isEmpty() ? View.GONE : View.VISIBLE);
@@ -1452,7 +1492,8 @@ public class Main extends Base {
         if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
         if (initSrc().exists()) on.add(maskSrc().exists() ? "inpaint" : "img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
         extFold.sum.setText(on.isEmpty() ? L.s("выкл.", "off") : android.text.TextUtils.join(" · ", on)); extFold.sum.setTextColor(on.isEmpty() ? DIM : ACC);
-        initText.setText(!initSrc().exists() ? L.s("нет: обычная генерация", "none: normal generation") : maskSrc().exists() ? L.s("✓ выбрана · маска: перерисовать закрашенное", "✓ chosen · mask: redraw the painted part") : L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)"));
+        refreshAnimaInit();
+        if (false) initText.setText(!initSrc().exists() ? L.s("нет: обычная генерация", "none: normal generation") : maskSrc().exists() ? L.s("✓ выбрана · маска: перерисовать закрашенное", "✓ chosen · mask: redraw the painted part") : L.s("✓ выбрана (подгоняется под размер)", "✓ chosen (fitted to the size)"));
         File ad = adModel();
         adText.setText(ad != null ? "✓ " + ad.getName() : L.s("face_yolov8n: загрузится сам (6 МБ)", "face_yolov8n: downloads on first use (6 MB)"));
         queueText.setText(queue.isEmpty() ? L.s("Очередь пуста", "Queue is empty") : L.f("В очереди: %d (нажмите, чтобы посмотреть)", "Queued: %d (tap to see)", queue.size()));

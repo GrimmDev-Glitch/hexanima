@@ -883,3 +883,10 @@ Fixed: %d. Compare, and pick "Use this one" if you like it.	Corregidas: %d. Comp
 Qwen-Image LoRA library	Biblioteca de LoRAs de Qwen
 Choose a LoRA converted for Qwen-Image 2.1. Set its strength in the LoRA section.	Elige una LoRA convertida para Qwen-Image 2.1. Su fuerza se ajusta en la sección LoRA.
 Empty: download Qwen-Image 2.1 LoRAs from Civitai or import a .safetensors file.	Vacía: descarga LoRAs de Qwen-Image 2.1 desde Civitai o importa un archivo .safetensors.
+Remove the photo	Quitar la foto
+✎ Area to change	✎ Zona a cambiar
+How much it changes	Cuánto cambia
+Low: the photo almost unchanged, in the model's style. High: a new picture that keeps only the composition.	Poco: la foto casi igual con el estilo del modelo. Mucho: una imagen nueva que solo conserva la composición.
+Pick a photo to change it by the prompt (img2img). Without one the model draws from scratch.	Elige una foto para cambiarla con el prompt (img2img). Sin foto, el modelo dibuja desde cero.
+Photo %d×%d · changes %d %%	Foto %d×%d · cambia %d %%
+\nOnly the painted area is redrawn.	\nSolo se redibuja la zona pintada.
