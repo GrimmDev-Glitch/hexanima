@@ -101,6 +101,32 @@ final class Tagger {
         for (String x : LOOK) if (n.equals(x) || n.endsWith(" " + x) || n.startsWith(x + " ") || n.contains(" " + x + " ")) return true;
         return false;
     }
+    /** clothes of a picture (with their colours and patterns), for "copy its outfit" */
+    static final String[] CLOTH_WORDS = {"dress", "shirt", "t-shirt", "uniform", "skirt", "jacket", "coat", "kimono", "yukata", "hoodie", "sweater", "pants", "jeans", "shorts", "swimsuit", "bikini", "armor", "suit", "bowtie",
+        "bow", "ribbon", "hat", "cap", "gloves", "boots", "sneakers", "shoes", "sandals", "heels", "thighhighs", "socks", "pantyhose", "leggings", "legwear", "scarf", "apron", "cape", "necktie", "vest", "leotard", "sleeves", "collar",
+        "choker", "belt", "robe", "cloak", "serafuku", "sailor", "headwear", "lingerie", "panties", "bra", "underwear", "bodysuit", "corset", "top", "crop top", "tank top", "camisole", "blouse", "cardigan", "overalls", "frills",
+        "lace", "polka dot", "striped", "plaid", "floral print", "print", "halterneck", "strapless", "string", "side-tie", "o-ring", "bikini top", "bikini bottom", "one-piece", "highleg", "maid", "nurse", "china dress", "gown"};
+    static boolean isClothing(Tag t) {
+        if (t.cat != 0) return false; String n = " " + clean(t.name) + " ";
+        if (n.contains(" hair ") || n.contains(" eyes ")) return false;
+        for (String w : CLOTH_WORDS) if (n.contains(" " + w + " ")) return true;
+        return false;
+    }
+    /** the pose of a picture, for "copy its pose" */
+    static final String[] POSE_WORDS = {"standing", "sitting", "squatting", "kneeling", "lying", "crouching", "jumping", "walking", "running", "leaning", "bent over", "arm", "arms", "hand on", "hands on", "hand up", "hands up",
+        "legs apart", "spread legs", "crossed legs", "legs up", "knees up", "knee up", "on back", "on stomach", "on side", "all fours", "from behind", "looking back", "head tilt", "v", "peace sign", "waving", "salute", "seiza",
+        "wariza", "indian style", "contrapposto", "stretching", "outstretched", "spread arms", "hugging own legs", "fetal position", "one knee", "straddling", "reaching", "pointing", "hand in own hair", "hand on own head"};
+    static boolean isPose(Tag t) {
+        if (t.cat != 0) return false; String n = " " + clean(t.name) + " ";
+        if (n.contains(" armor ") || n.contains("sleeve") || n.contains("band ") || n.contains("warmers") || n.contains("armlet")) return false;
+        for (String w : POSE_WORDS) if (n.contains(" " + w + " ")) return true;
+        return false;
+    }
+    static List<String> pick(List<Tag> t, boolean clothes, int max) {
+        List<String> o = new ArrayList<>(); for (Tag x : t) if (clothes ? isClothing(x) : isPose(x)) { o.add(clean(x.name)); if (o.size() >= max) break; }
+        List<String> keep = new ArrayList<>(); for (String a : o) { boolean sub = false; for (String b : o) if (!a.equals(b) && b.contains(a)) sub = true; if (!sub) keep.add(a); }   // "bikini" goes when "black bikini" is there
+        return keep;
+    }
     static List<Tag> characterOnly(List<Tag> t) { List<Tag> o = new ArrayList<>(); for (Tag x : t) if (isLook(x)) o.add(x); return o; }
     static String clean(String n) { return n.length() <= 3 ? n : n.replace('_', ' '); }   // "silver_hair" -> "silver hair"; short emoticons like ^_^ stay
     static final int SHORT = 0, MEDIUM = 1, LONG = 2;

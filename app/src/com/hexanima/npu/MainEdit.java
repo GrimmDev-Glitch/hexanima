@@ -63,8 +63,8 @@ abstract class MainEdit extends MainTools {
             : L.s("Выберите фото, чтобы изменить его по описанию. Без фото модель просто рисует картинку.", "Pick a photo to change it by the prompt. Without one the model just draws a picture."));
         editDrop.setVisibility(b != null ? View.VISIBLE : View.GONE);
         final java.util.List<File> refs = b != null && (isQwen() || isMage()) ? Qwen.extraRefs(getFilesDir()) : new ArrayList<>();   // Mage takes reference pictures too
-        editMaskBtn.setVisibility(b != null && refs.isEmpty() ? View.VISIBLE : View.GONE);   // the painted area belongs to a single photo
-        editMaskClear.setVisibility(b != null && masked && refs.isEmpty() ? View.VISIBLE : View.GONE);
+        editMaskBtn.setVisibility(b != null ? View.VISIBLE : View.GONE);   // the painted area is on photo 1, with or without reference pictures
+        editMaskClear.setVisibility(b != null && masked ? View.VISIBLE : View.GONE);
         if (refsRow != null) {
             refsRow.removeAllViews(); refsRow.setVisibility(refs.isEmpty() ? View.GONE : View.VISIBLE);
             if (!refs.isEmpty()) { TextView one = text(L.s("1 = esta foto", "1 = this photo"), 12, DIM, false); one.setPadding(dp(2), 0, dp(8), 0); refsRow.addView(one); }
@@ -83,7 +83,23 @@ abstract class MainEdit extends MainTools {
             }
             if (!refs.isEmpty()) { TextView how = text(L.s("Describe lo que tomas de la imagen 2, p. ej.: «la chica de la imagen 1 con el bikini negro de lunares de la imagen 2, mantén su cara y su pelo» o «…agachada con los dos brazos arriba, como en la imagen 2». Solo «la ropa de la imagen 2» no basta.", "Describe what to take from image 2, e.g. \"the girl from image 1 in the black polka-dot bikini from image 2, keep her face and hair\" or \"...squatting with both arms raised, as in image 2\". Just \"the outfit of image 2\" is not enough."), 12, DIM, false); refsRow.addView(how, new LinearLayout.LayoutParams(0, -2, 1)); }
         }
-        if (editAddRef != null) editAddRef.setVisibility(b != null && (isQwen() || isMage()) && 1 + refs.size() < Qwen.MAX_REFS && !masked ? View.VISIBLE : View.GONE);
+        if (refActs != null) {
+            refActs.removeAllViews(); refActs.setVisibility(refs.isEmpty() ? View.GONE : View.VISIBLE);
+            if (!refs.isEmpty()) {
+                LinearLayout br = new LinearLayout(this); br.setPadding(0, dp(6), 0, 0);
+                Button cc = button(L.s("👗 Copiar su ropa", "👗 Copy its outfit"), CARD, ACC); cc.setTextSize(12); cc.setAllCaps(false); cc.setOnClickListener(v -> copyFromRef(true));
+                Button cp = button(L.s("🧍 Copiar su pose", "🧍 Copy its pose"), CARD, ACC); cp.setTextSize(12); cp.setAllCaps(false); cp.setOnClickListener(v -> copyFromRef(false));
+                br.addView(cc, new LinearLayout.LayoutParams(0, dp(40), 1)); LinearLayout.LayoutParams cpl = new LinearLayout.LayoutParams(0, dp(40), 1); cpl.leftMargin = dp(6); br.addView(cp, cpl);
+                refActs.addView(br);
+                TextView ch = text(L.s("Mejor calidad: lee la imagen 2, escribe el prompt y edita solo la foto 1 a tamaño completo.", "Better quality: reads image 2, writes the prompt and edits only photo 1 at full size."), 11, DIM, false);
+                ch.setPadding(dp(4), dp(2), dp(4), 0); refActs.addView(ch);
+                CheckBox rf = new CheckBox(this); rf.setText(L.s("Con las 2 imágenes: repasar al terminar (cara y manos, +1 pasada)", "With both pictures: refine afterwards (face and hands, +1 pass)")); rf.setTextSize(12); rf.setTextColor(TXT);
+                rf.setButtonTintList(ColorStateList.valueOf(ACC)); rf.setChecked(prefs().getBoolean("edit_refine", false));
+                rf.setOnCheckedChangeListener((c, on) -> prefs().edit().putBoolean("edit_refine", on).apply());
+                refActs.addView(rf);
+            }
+        }
+        if (editAddRef != null) editAddRef.setVisibility(b != null && (isQwen() || isMage()) && 1 + refs.size() < Qwen.MAX_REFS ? View.VISIBLE : View.GONE);
         if (editOpts != null) editOpts.setVisibility(b != null && isQwen() ? View.VISIBLE : View.GONE);
         if (editOpts != null && editOpts.getChildCount() > 0) editOpts.getChildAt(0).setVisibility(refs.isEmpty() ? View.VISIBLE : View.GONE);   // "photo's shape": with several pictures the picked size is used
     }
@@ -291,6 +307,33 @@ abstract class MainEdit extends MainTools {
             s.recycle(); refreshEdit();
             Toast.makeText(this, L.s("Ahora es una silueta: escribe, por ejemplo, «el personaje de la imagen 1 en la pose de la imagen 2»", "Now it is a silhouette: write, for example, \"the character from image 1 in the pose of image 2\""), Toast.LENGTH_LONG).show();
         }).setNegativeButton(L.s("Отмена", "Cancel"), null).show();
+    }
+    /** "copy its outfit / pose": the tagger reads reference picture 2, the prompt describes its clothes or pose, and the reference is dropped so photo 1
+     *  is edited alone at full size (two pictures share the NPU's attention memory: smaller, mixed results) */
+    void copyFromRef(final boolean clothes) {
+        if (busy) { Toast.makeText(this, L.s("Espera a que termine la tanda", "Wait for the batch to finish"), Toast.LENGTH_SHORT).show(); return; }
+        if (!Tagger.installed(this)) { Toast.makeText(this, L.s("Primero descarga «Prompt desde una imagen» (menú ⋯): es lo que lee la imagen 2.", "First download \"Prompt from a picture\" (⋯ menu): it is what reads image 2."), Toast.LENGTH_LONG).show(); return; }
+        java.util.List<File> refs = Qwen.extraRefs(getFilesDir()); if (refs.isEmpty()) return;
+        final File rf = refs.get(0); final File src = new File(rf.getPath() + ".orig").isFile() ? new File(rf.getPath() + ".orig") : rf;
+        final Toast t0 = Toast.makeText(this, L.s("Leyendo la imagen 2…", "Reading image 2…"), Toast.LENGTH_SHORT); t0.show();
+        ex2.submit(() -> {
+            try {
+                Bitmap b = BitmapFactory.decodeFile(src.getPath()); if (b == null) throw new IOException(L.s("No se pudo abrir la imagen 2", "Could not open image 2"));
+                java.util.List<Tagger.Tag> tags = Tagger.tag(this, b); b.recycle();
+                final java.util.List<String> got = Tagger.pick(tags, clothes, clothes ? 8 : 6);
+                ui.post(() -> {
+                    if (got.isEmpty()) { Toast.makeText(this, clothes ? L.s("No encontré ropa en la imagen 2", "No clothes found in image 2") : L.s("No encontré una pose clara en la imagen 2", "No clear pose found in image 2"), Toast.LENGTH_LONG).show(); return; }
+                    String list = android.text.TextUtils.join(", ", got);
+                    String p = clothes ? "Change only the outfit of the person in the picture to: " + list + ". Keep the face, hair, body, pose and background exactly the same."
+                        : "Change only the pose of the person in the picture to: " + list + ". Keep the face, hair, outfit and background exactly the same, with natural anatomy and hands.";
+                    prompt.setText(p); prompt.setSelection(p.length());
+                    for (File x : Qwen.extraRefs(getFilesDir())) { x.delete(); new File(x.getPath() + ".orig").delete(); }   // photo 1 alone, at full size
+                    refreshEdit();
+                    Toast.makeText(this, clothes ? L.s("Listo. Para no tocar la cara ni el fondo, pinta la ropa con «✎ Zona a cambiar» y genera.", "Done. To leave the face and background alone, paint the clothes with \"✎ Area to edit\" and generate.")
+                        : L.s("Listo: genera para cambiar la pose. Puedes retocar el prompt.", "Done: generate to change the pose. You can touch up the prompt."), Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("No se pudo leer la imagen 2: %s", "Could not read image 2: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show()); }
+        });
     }
     void useResultAsInit() {
         File src = lastFile;

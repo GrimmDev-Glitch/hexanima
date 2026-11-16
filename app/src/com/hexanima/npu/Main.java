@@ -503,6 +503,7 @@ public class Main extends MainEdit {
         // more reference pictures (Qwen): image 2 and 3 next to the photo, e.g. "the character of image 1 wearing the outfit of image 2"
         refsRow = new LinearLayout(this); refsRow.setGravity(Gravity.CENTER_VERTICAL); refsRow.setPadding(0, dp(8), 0, 0);
         editBox.addView(refsRow);
+        refActs = new LinearLayout(this); refActs.setOrientation(LinearLayout.VERTICAL); editBox.addView(refActs);   // copy outfit / pose (one picture, full size), refine after two
         editAddRef = button(L.s("+ Otra imagen de referencia", "+ Another reference picture"), FIELD, ACC); editAddRef.setTextSize(12); editAddRef.setAllCaps(false);
         editAddRef.setOnClickListener(v -> { if (busy) return; startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE), 17); });
         LinearLayout.LayoutParams arl = new LinearLayout.LayoutParams(-1, dp(38)); arl.topMargin = dp(6); editBox.addView(editAddRef, arl);

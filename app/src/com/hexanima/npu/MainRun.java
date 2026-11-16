@@ -54,7 +54,7 @@ abstract class MainRun extends MainLora {
     LinearLayout editBox; ImageView editThumb; TextView editInfo; Button editPick, editDrop, editMaskBtn, editMaskClear; volatile Bitmap editBm;   // Qwen-Image: the photo to edit
     ImageView img;
     String model = "";   // id of the selected installed model; anima.sh gets MID/MDIR
-    LinearLayout editOpts, editRow, refsRow; Button editAddRef; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
+    LinearLayout editOpts, editRow, refsRow, refActs; volatile boolean refining; Button editAddRef; Button compareBtn; volatile File pendingCompare;   // Qwen edit options, before/after view, the side-by-side of the last single edit
     TextView chipName, chipDot, state, status, saved, placeholder, ramTxt, warnTxt, sizeText;
     volatile long pvTime;
     volatile int remainS = -1;   // seconds left for the current picture, from the pace of the DiT calls (-1 = unknown)
@@ -96,15 +96,16 @@ abstract class MainRun extends MainLora {
     }
     abstract String su(String cmd, boolean poll);
     /** One Mage-Flow image. This route intentionally has no step previews. */
+    static final String REFINE_PROMPT = "Improve the picture quality: natural anatomy, correct hands and fingers, one coherent face, clean sharp details and natural colours. Keep the person, the face, the outfit, the pose and the background exactly the same.";
     File runOneMage(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), m = Mage.dir(home), ids = new File(m, "ids.i32"), raw = new File(m, "img.rgb");
         final int mageSteps = 4; final Bitmap src = editBm; final boolean edit = src != null;
         // masked edit (same tools as Qwen): only the painted area changes, the rest of the photo keeps its exact pixels and resolution.
         // A small painted area is edited as a crop with context around it (more pixels for the detail), then pasted back with a soft edge.
-        final File maskFile = Qwen.editMask(home);
-        final java.util.List<File> refFiles = edit ? Qwen.extraRefs(home) : new ArrayList<>();   // more pictures: "Image 2", "Image 3" (no painted area then)
-        final boolean masked = edit && refFiles.isEmpty() && maskFile.isFile();
-        final Qwen.DetailCrop detail = masked ? Qwen.detailCrop(src, maskFile) : null;
+        final File maskFile = refining ? new File(home, "no_mask_when_refining") : Qwen.editMask(home);
+        final java.util.List<File> refFiles = edit && !refining ? Qwen.extraRefs(home) : new ArrayList<>();   // more pictures: "Image 2", "Image 3" (no painted area then)
+        final boolean masked = edit && maskFile.isFile();   // with reference pictures too: only the painted area of photo 1 takes the result (body, pose, background stay)
+        final Qwen.DetailCrop detail = masked && refFiles.isEmpty() ? Qwen.detailCrop(src, maskFile) : null;
         final Bitmap condition = detail != null ? detail.image : src;
         final int[] runDims = !edit ? new int[]{w, h} : detail != null ? Qwen.detailSize(detail.width(), detail.height()) : Mage.editSize(src.getWidth(), src.getHeight(), w, h, 1 + refFiles.size());
         final int runW = runDims[0], runH = runDims[1];
@@ -159,8 +160,17 @@ abstract class MainRun extends MainLora {
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Error de generación: %s (registro files/mage/mage.log)", "Generation error: %s (log files/mage/mage.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
     }
     File runOne(String pr, String seedS, int w, int h, long t0) {
-        if (isMage()) return runOneMage(pr, seedS, w, h, t0);
-        if (isQwen()) return runOneQwen(pr, seedS, w, h, t0);
+        if (isMage() || isQwen()) {
+            boolean multi = editBm != null && !Qwen.extraRefs(getFilesDir()).isEmpty();
+            File o = isMage() ? runOneMage(pr, seedS, w, h, t0) : runOneQwen(pr, seedS, w, h, t0);
+            if (o == null || !multi || cancelled || !prefs().getBoolean("edit_refine", false)) return o;
+            // "refine": the mixed, smaller picture of a several-picture edit is edited again alone, at full size, to clean the face, hands and details
+            Bitmap r = BitmapFactory.decodeFile(o.getPath()); if (r == null) return o;
+            Bitmap keep = editBm; editBm = r; refining = true;
+            setProgressUi(1, L.s("Repasando la imagen…", "Refining the picture…"), System.currentTimeMillis());
+            try { File o2 = isMage() ? runOneMage(REFINE_PROMPT, seedS, w, h, System.currentTimeMillis()) : runOneQwen(REFINE_PROMPT, seedS, w, h, System.currentTimeMillis()); return o2 != null ? o2 : o; }
+            finally { editBm = keep; refining = false; r.recycle(); }
+        }
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG
         if (Pose.active(this)) setProgressUi(0, L.s("Preparando la pose…", "Preparing the pose…"), t0);
@@ -268,15 +278,15 @@ abstract class MainRun extends MainLora {
     /** one Qwen-Image picture (or an edit of the picked photo): tokenise / prepare the photo here, everything else on the NPU through qwen.sh */
     File runOneQwen(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), Q = Qwen.dir(home), ids = new File(Q, "ids.i32"), raw = new File(Q, "img.f32");
-        final java.util.List<File> refFiles = editBm != null ? Qwen.extraRefs(home) : new ArrayList<>();
+        final java.util.List<File> refFiles = editBm != null && !refining ? Qwen.extraRefs(home) : new ArrayList<>();
         final java.util.List<Bitmap> pics = new ArrayList<>();   // several reference pictures: each one goes to the model as its own picture (<image1>, <image2>, ...)
         if (editBm != null && !refFiles.isEmpty()) { pics.add(editBm); for (File rf : refFiles) { Bitmap rb = BitmapFactory.decodeFile(rf.getPath()); if (rb != null) pics.add(rb); } }
         final Bitmap src = editBm; final boolean edit = src != null; final int nRefs = pics.size() > 1 ? pics.size() : edit ? 1 : 0;
         final String prE = pr;
-        final File maskFile = nRefs > 1 ? new File(home, "no_mask_with_refs") : Qwen.editMask(home);
-        final Qwen.DetailCrop detail = edit && maskFile.isFile() ? Qwen.detailCrop(src, maskFile) : null;
+        final File maskFile = refining ? new File(home, "no_mask_when_refining") : Qwen.editMask(home);   // with reference pictures too: only the painted area takes the result
+        final Qwen.DetailCrop detail = edit && maskFile.isFile() && nRefs < 2 ? Qwen.detailCrop(src, maskFile) : null;
         final Bitmap condition = detail != null ? detail.image : src;
-        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : edit && nRefs < 2 && prefs().getBoolean("qwen_keep_aspect", true) ? Qwen.editSize(src.getWidth(), src.getHeight(), w, h) : new int[]{w, h};
+        final int[] detailDims = detail != null ? Qwen.detailSize(detail.width(), detail.height()) : edit && (nRefs < 2 || maskFile.isFile()) && prefs().getBoolean("qwen_keep_aspect", true) ? Qwen.editSize(src.getWidth(), src.getHeight(), w, h) : new int[]{w, h};
         final int runW = detailDims[0], runH = detailDims[1];
         setProgressUi(2, edit ? L.s("Подготовка фото…", "Preparing the photo…") : L.s("Токенизация…", "Tokenising…"), t0);
         int drop; String edArg = "";
