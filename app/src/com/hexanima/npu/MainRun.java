@@ -161,15 +161,8 @@ abstract class MainRun extends MainLora {
     }
     File runOne(String pr, String seedS, int w, int h, long t0) {
         if (isMage() || isQwen()) {
-            boolean multi = editBm != null && !Qwen.extraRefs(getFilesDir()).isEmpty();
             File o = isMage() ? runOneMage(pr, seedS, w, h, t0) : runOneQwen(pr, seedS, w, h, t0);
-            if (o == null || !multi || cancelled || !prefs().getBoolean("edit_refine", false)) return o;
-            // "refine": the mixed, smaller picture of a several-picture edit is edited again alone, at full size, to clean the face, hands and details
-            Bitmap r = BitmapFactory.decodeFile(o.getPath()); if (r == null) return o;
-            Bitmap keep = editBm; editBm = r; refining = true;
-            setProgressUi(1, L.s("Repasando la imagen…", "Refining the picture…"), System.currentTimeMillis());
-            try { File o2 = isMage() ? runOneMage(REFINE_PROMPT, seedS, w, h, System.currentTimeMillis()) : runOneQwen(REFINE_PROMPT, seedS, w, h, System.currentTimeMillis()); return o2 != null ? o2 : o; }
-            finally { editBm = keep; refining = false; r.recycle(); }
+            return o;   // (a second "refine" pass was tried: Mage invents details - abs, skin marks - instead of cleaning them)
         }
         if (isMoss()) return runOneMoss(pr, seedS, w, h, t0);
         final String fullPrompt = pr;   // kept with its <lora:...> tags in the PNG

@@ -49,7 +49,9 @@ final class Tagger {
     static final class Tag { final String name; final int cat; final float p; Tag(String n, int c, float p) { name = n; cat = c; this.p = p; } }
 
     /** tags of the picture, best first: general (category 0) above 0.35, characters (4) above 0.85; the rating tags are left out */
-    static List<Tag> tag(Context c, Bitmap src) throws Exception {
+    static List<Tag> tag(Context c, Bitmap src) throws Exception { return tag(c, src, 0.35f); }
+    /** thr: the lowest score of a general tag (copying an outfit reads more of its details: bows, trims, straps) */
+    static List<Tag> tag(Context c, Bitmap src, float thr) throws Exception {
         final int S = 448, w = src.getWidth(), h = src.getHeight(), m = Math.max(w, h);
         Bitmap sq = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888); Canvas cv = new Canvas(sq); cv.drawColor(Color.WHITE);
         float s = (float) S / m; float nw = w * s, nh = h * s;
@@ -78,7 +80,7 @@ final class Tagger {
         List<Tag> t = new ArrayList<>();
         for (int i = 0; i < o.length; i++) {
             int cat = Integer.parseInt(names.get(i)[1]);
-            if ((cat == 0 && o[i] >= 0.35f) || (cat == 4 && o[i] >= 0.85f)) t.add(new Tag(names.get(i)[0], cat, o[i]));
+            if ((cat == 0 && o[i] >= thr) || (cat == 4 && o[i] >= 0.85f)) t.add(new Tag(names.get(i)[0], cat, o[i]));
         }
         t.sort((a, b) -> Float.compare(b.p, a.p));
         return t;
@@ -105,7 +107,7 @@ final class Tagger {
     static final String[] CLOTH_WORDS = {"dress", "shirt", "t-shirt", "uniform", "skirt", "jacket", "coat", "kimono", "yukata", "hoodie", "sweater", "pants", "jeans", "shorts", "swimsuit", "bikini", "armor", "suit", "bowtie",
         "bow", "ribbon", "hat", "cap", "gloves", "boots", "sneakers", "shoes", "sandals", "heels", "thighhighs", "socks", "pantyhose", "leggings", "legwear", "scarf", "apron", "cape", "necktie", "vest", "leotard", "sleeves", "collar",
         "choker", "belt", "robe", "cloak", "serafuku", "sailor", "headwear", "lingerie", "panties", "bra", "underwear", "bodysuit", "corset", "top", "crop top", "tank top", "camisole", "blouse", "cardigan", "overalls", "frills",
-        "lace", "polka dot", "striped", "plaid", "floral print", "print", "halterneck", "strapless", "string", "side-tie", "o-ring", "bikini top", "bikini bottom", "one-piece", "highleg", "maid", "nurse", "china dress", "gown"};
+        "lace", "polka dot", "striped", "plaid", "floral print", "print", "halterneck", "strapless", "string", "side-tie", "o-ring", "bikini top", "bikini bottom", "one-piece", "highleg", "maid", "nurse", "china dress", "gown", "off-shoulder", "trim", "halter", "bandeau", "ruffle", "straps", "ribbon trim", "lace trim"};
     static boolean isClothing(Tag t) {
         if (t.cat != 0) return false; String n = " " + clean(t.name) + " ";
         if (n.contains(" hair ") || n.contains(" eyes ")) return false;
@@ -118,12 +120,12 @@ final class Tagger {
         "wariza", "indian style", "contrapposto", "stretching", "outstretched", "spread arms", "hugging own legs", "fetal position", "one knee", "straddling", "reaching", "pointing", "hand in own hair", "hand on own head"};
     static boolean isPose(Tag t) {
         if (t.cat != 0) return false; String n = " " + clean(t.name) + " ";
-        if (n.contains(" armor ") || n.contains("sleeve") || n.contains("band ") || n.contains("warmers") || n.contains("armlet")) return false;
+        if (n.contains(" armor ") || n.contains("strap") || n.contains("sleeve") || n.contains("band ") || n.contains("warmers") || n.contains("armlet")) return false;
         for (String w : POSE_WORDS) if (n.contains(" " + w + " ")) return true;
         return false;
     }
     static List<String> pick(List<Tag> t, boolean clothes, int max) {
-        List<String> o = new ArrayList<>(); for (Tag x : t) if (clothes ? isClothing(x) : isPose(x)) { o.add(clean(x.name)); if (o.size() >= max) break; }
+        List<String> o = new ArrayList<>(); for (Tag x : t) if ((clothes ? isClothing(x) : isPose(x)) && !clean(x.name).equals("swimsuit")) { o.add(clean(x.name)); if (o.size() >= max) break; }
         List<String> keep = new ArrayList<>(); for (String a : o) { boolean sub = false; for (String b : o) if (!a.equals(b) && b.contains(a)) sub = true; if (!sub) keep.add(a); }   // "bikini" goes when "black bikini" is there
         return keep;
     }

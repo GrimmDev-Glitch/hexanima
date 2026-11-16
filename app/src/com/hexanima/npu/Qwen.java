@@ -439,7 +439,7 @@ final class Qwen {
         // feather on a copy of at most 1024 px (a full-size photo can be 12 Mpx), then sample it bilinearly; the fine brush stays the floor
         float fs = Math.min(1f, 1024f / Math.max(w, h)); int fw = Math.max(1, Math.round(w * fs)), fh = Math.max(1, Math.round(h * fs));
         Bitmap small = fs < 1 ? Bitmap.createScaledBitmap(mask, fw, fh, true) : mask;
-        float[] fm = featherMask(small, Math.max(2, Math.round(Math.max(fw, fh) * .006f)));
+        float[] fm = featherMask(small, Math.max(2, Math.round(Math.max(fw, fh) * .003f)))   /* a soft edge that eats less of what is next to the painted area */;
         if (small != mask) small.recycle();
         int[] maskRow = new int[w];
         float[] a = new float[rw * rh];   // indexed relative to (left, top)

@@ -93,10 +93,6 @@ abstract class MainEdit extends MainTools {
                 refActs.addView(br);
                 TextView ch = text(L.s("Mejor calidad: lee la imagen 2, escribe el prompt y edita solo la foto 1 a tamaño completo.", "Better quality: reads image 2, writes the prompt and edits only photo 1 at full size."), 11, DIM, false);
                 ch.setPadding(dp(4), dp(2), dp(4), 0); refActs.addView(ch);
-                CheckBox rf = new CheckBox(this); rf.setText(L.s("Con las 2 imágenes: repasar al terminar (cara y manos, +1 pasada)", "With both pictures: refine afterwards (face and hands, +1 pass)")); rf.setTextSize(12); rf.setTextColor(TXT);
-                rf.setButtonTintList(ColorStateList.valueOf(ACC)); rf.setChecked(prefs().getBoolean("edit_refine", false));
-                rf.setOnCheckedChangeListener((c, on) -> prefs().edit().putBoolean("edit_refine", on).apply());
-                refActs.addView(rf);
             }
         }
         if (editAddRef != null) editAddRef.setVisibility(b != null && (isQwen() || isMage()) && 1 + refs.size() < Qwen.MAX_REFS ? View.VISIBLE : View.GONE);
@@ -319,8 +315,8 @@ abstract class MainEdit extends MainTools {
         ex2.submit(() -> {
             try {
                 Bitmap b = BitmapFactory.decodeFile(src.getPath()); if (b == null) throw new IOException(L.s("No se pudo abrir la imagen 2", "Could not open image 2"));
-                java.util.List<Tagger.Tag> tags = Tagger.tag(this, b); b.recycle();
-                final java.util.List<String> got = Tagger.pick(tags, clothes, clothes ? 8 : 6);
+                java.util.List<Tagger.Tag> tags = Tagger.tag(this, b, 0.25f); b.recycle();
+                final java.util.List<String> got = Tagger.pick(tags, clothes, clothes ? 14 : 8);
                 ui.post(() -> {
                     if (got.isEmpty()) { Toast.makeText(this, clothes ? L.s("No encontré ropa en la imagen 2", "No clothes found in image 2") : L.s("No encontré una pose clara en la imagen 2", "No clear pose found in image 2"), Toast.LENGTH_LONG).show(); return; }
                     String list = android.text.TextUtils.join(", ", got);
