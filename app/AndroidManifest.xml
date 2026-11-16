@@ -22,6 +22,7 @@
         </receiver>
         <activity android:name=".Info" android:exported="false"/>
         <activity android:name=".Settings" android:exported="false"/>
+        <activity android:name=".StorageActivity" android:exported="false"/>
         <activity android:name=".Welcome" android:exported="false"/>
         <activity android:name=".WallEdit" android:exported="false"/>
         <activity android:name=".Corrections" android:exported="false"/>

@@ -138,6 +138,7 @@ public class Settings extends Base {
         }));
         TextView idleNote = text(L.s("Освобождает ОЗУ, если вы долго ничего не генерируете", "Frees RAM when you have not generated anything for a while"), 12, DIM, false); idleNote.setPadding(dp(2), 0, 0, dp(4));
         c2.addView(idleNote);
+        c2.addView(choice(L.s("Almacenamiento", "Storage"), L.f("%s libres", "%s free", StorageActivity.gb(getFilesDir().getUsableSpace())), v -> startActivity(new android.content.Intent(this, StorageActivity.class))));
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));

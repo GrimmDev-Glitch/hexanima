@@ -817,3 +817,32 @@ Could not download: %s	No se pudo descargar: %s
 ChatGPT style added to the prompt (strength 0.8). Tap it again to remove it.	Estilo ChatGPT añadido al prompt (fuerza 0.8). Tócalo otra vez para quitarlo.
 Downloads the LoRA "Style > gpt-image-2" by AgileNumbers from Civitai (22 MB) and adds it to the prompt. It gives the illustration finish of today's ChatGPT: thin lines, detailed eyes and soft light.	Descarga la LoRA «Style > gpt-image-2» de AgileNumbers desde Civitai (22 MB) y la añade al prompt. Da el acabado de ilustración del ChatGPT actual: líneas finas, ojos detallados y luz suave.
 Long-press a LoRA for its trigger words, to rename it or to delete it	Mantén pulsada una LoRA para sus activadores, para cambiarle el nombre o para eliminarla
+Storage	Almacenamiento
+Calculating…	Calculando…
+Anima shared files	Archivos comunes de Anima
+Text encoder and VAE used by every Anima model	Codificador de texto y VAE que usan todos los modelos Anima
+LTX video (hidden)	Vídeo LTX (oculto)
+The video model no longer shows in Models; delete it here if you do not use it	El modelo de vídeo ya no aparece en Modelos; bórralo aquí si no lo usas
+Anima LoRA cache	Caché de LoRAs de Anima
+Rebuilt the next time each LoRA is used (a few seconds more)	Se rehace la próxima vez que uses cada LoRA (unos segundos más)
+MOSS LoRA cache	Caché de LoRAs de MOSS
+Rebuilt when the LoRA is picked again (about 20 s)	Se rehace al volver a elegir la LoRA (unos 20 s)
+Mage cache	Caché de Mage
+Already-encoded prompts and the last edit's inputs	Textos ya codificados y datos de la última edición
+Last Qwen edit inputs	Datos de la última edición de Qwen
+Prepared again when editing	Se vuelven a preparar al editar
+Temporary files	Archivos temporales
+Enlarge, corrections and video work files	Ampliar, correcciones y trabajo del vídeo
+Your pictures; managed in the History	Tus imágenes; se gestionan en el Historial
+Deleted pictures; it empties itself after 30 days	Imágenes borradas; se vacía sola a los 30 días
+Before/after originals	Originales de antes/después
+The starting photo of each edit; without it the ⇆ button goes away	La foto de partida de cada edición; sin ella el botón ⇆ desaparece
+Free: %s of %s	Libre: %s de %s
+MODELS	MODELOS
+CACHES	CACHÉS
+PICTURES	IMÁGENES
+Delete the LTX video model (%s)? To use it again it would have to be downloaded again.	¿Eliminar el modelo de vídeo LTX (%s)? Para volver a usarlo habría que descargarlo de nuevo.
+Delete "%s" (%s)? This cannot be undone.	¿Borrar «%s» (%s)? No se puede deshacer.
+Freed: %s	Liberado: %s
+%s free	%s libres
+Free up	Liberar
