@@ -855,3 +855,12 @@ Hands found: %d. Check the area with ✎ if you like, then generate.	Manos encon
 Detection failed: %s	No se pudo detectar: %s
 Edit this picture	Editar esta imagen
 Edit with Mage	Editar con Mage
+Heat pause	Pausa por calor
+Batch paused: the phone is hot	Tanda en pausa: el teléfono está caliente
+Battery at %.1f °C. It goes on by itself once it cools down.	Batería a %.1f °C. Seguirá sola cuando se enfríe.
+%s  ·  ~%s left	%s  ·  quedan ~%s
+Enlarge a picture from the gallery	Ampliar una imagen de la galería
+Export logs	Exportar registros
+Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key.	Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.
+Saved to Downloads/HexAnima/%s (%d logs)	Guardado en Descargas/HexAnima/%s (%d registros)
+Could not export: %s	No se pudo exportar: %s

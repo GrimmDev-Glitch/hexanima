@@ -690,7 +690,7 @@ public class Main extends Base {
             ((android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi);
             double g = 1024.0 * 1024 * 1024, tot = mi.totalMem / g, free = mi.availMem / g, used = tot - free;
             if (!appBusy) { appBusy = true; new Thread(() -> { appGb = Compat.appRamGb(); appBusy = false; }).start(); }   // /proc scan off the UI thread
-            ramTxt.setText(L.f("ОЗУ  всего %.1f  ·  занято %.1f  ·  свободно %.1f ГБ", "RAM  total %.1f  ·  used %.1f  ·  free %.1f GB", tot, used, free) + (appGb > 0.05 ? L.f("  ·  приложение %.1f ГБ", "  ·  app %.1f GB", appGb) : ""));
+            ramTxt.setText(L.f("ОЗУ  всего %.1f  ·  занято %.1f  ·  свободно %.1f ГБ", "RAM  total %.1f  ·  used %.1f  ·  free %.1f GB", tot, used, free) + (appGb > 0.05 ? L.f("  ·  приложение %.1f ГБ", "  ·  app %.1f GB", appGb) : "") + tempLabel());
             ramBar.setProgress((int) (1000 * used / tot));
             ramBar.setProgressTintList(ColorStateList.valueOf(free < 0.8 ? BAD : free < 1.5 ? WARN : ACC));
             List<String> w = new ArrayList<>();
@@ -708,6 +708,15 @@ public class Main extends Base {
     };
 
     @Override protected void onActivityResult(int req, int res, Intent d) {
+        if (req == REQ_UPSCALE_PICK) {
+            if (res != RESULT_OK || d == null || d.getData() == null) return;
+            final android.net.Uri u = d.getData();
+            ex2.submit(() -> {
+                try { final File f = importPicked(u, "picked_upscale.png"); ui.post(() -> upscaleDialog(f, out -> { f.delete(); prefs().edit().remove("hidden_last").apply(); lastFile = null; restoreLatestGenerated(); })); }
+                catch (Exception e) { ui.post(() -> Toast.makeText(this, String.valueOf(e.getMessage()), Toast.LENGTH_LONG).show()); }
+            });
+            return;
+        }
         if (req == Corrections.REQ && res == RESULT_OK) { prefs().edit().remove("hidden_last").apply(); lastFile = null; restoreLatestGenerated(); return; }   // the corrected picture is the newest one
         if (req == 14 && res == RESULT_OK && d != null) {
             appendPromptWords(d.getStringExtra("moss_triggers"));
@@ -1518,11 +1527,25 @@ public class Main extends Base {
         if (android.os.Build.VERSION.SDK_INT >= 30) { float hr = pm.getThermalHeadroom(0); if (!Float.isNaN(hr) && hr >= 0.95f) return true; }
         return batteryC() >= hotC();
     }
+    /** "  ·  37.5 °C" (battery) for the RAM strip; the battery sensor is the one an app can read on every phone */
+    String tempLabel() { float c = batteryC(); return c > 0 ? String.format(java.util.Locale.US, "  ·  %.1f °C", c) : ""; }
+    /** notification when a batch pauses to let the phone cool down (the user may have left the app) */
+    void notifyCooling(float c) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            nm.createNotificationChannel(new NotificationChannel("heat", L.s("Pausa por calor", "Heat pause"), NotificationManager.IMPORTANCE_DEFAULT));
+            Notification.Builder nb = new Notification.Builder(this, "heat").setSmallIcon(android.R.drawable.stat_sys_warning).setAutoCancel(true)
+                .setContentTitle(L.s("Tanda en pausa: el teléfono está caliente", "Batch paused: the phone is hot"))
+                .setContentText(L.f("Batería a %.1f °C. Seguirá sola cuando se enfríe.", "Battery at %.1f °C. It goes on by itself once it cools down.", c))
+                .setContentIntent(PendingIntent.getActivity(this, 0, new Intent(this, Main.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+            nm.notify(3, nb.build());
+        } catch (Exception ignored) { }
+    }
     /** Between pictures, keep the batch paused until the phone has cooled or the user presses Stop. */
     boolean waitCool(long t0) {
-        long since = System.currentTimeMillis();
+        long since = System.currentTimeMillis(); notifyCooling(batteryC());
         while (!cancelled) {
-            float c = batteryC(); if (c < hotC() - 3f && !tooHot()) return true;
+            float c = batteryC(); if (c < hotC() - 3f && !tooHot()) { try { ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(3); } catch (Exception ignored) { } return true; }
             long mins = (System.currentTimeMillis() - since) / 60000;
             final String m = L.f("Охлаждение телефона… %.1f °C", "Letting the phone cool down… %.1f °C", c);
             ui.post(() -> status.setText(m + "  ·  " + L.f("пауза %d мин", "paused %d min", mins)));
@@ -1772,17 +1795,35 @@ public class Main extends Base {
     // ---- menu, dialogs ------------------------------------------------------------------------
     void menu(View anchor) {
         final boolean video = Ltx.SHOWN;   // the Video screen is hidden while the engine is reworked (LTX quality too low, Wan in progress)
-        String[] items = {L.s("Модели", "Models"), L.s("Видео (экспериментально)", "Video (experimental)"), "Civitai", L.s("Открыть настройки из PNG", "Load settings from a PNG"), L.s("Настройки", "Settings"), L.s("Инфо", "Info")};
-        if (!video) { String[] t = new String[items.length - 1]; t[0] = items[0]; System.arraycopy(items, 2, t, 1, items.length - 2); items = t; }
-        popup(anchor, items, i -> {
-            final int k = video || i == 0 ? i : i + 1;
-            if (k == 0) openModels();
-            else if (k == 1) { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }
-            else if (k == 2) startActivityForResult(new Intent(this, CivitaiActivity.class), 14);
-            else if (k == 3) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8);
-            else if (k == 4) startActivity(new Intent(this, Settings.class));
-            else startActivity(new Intent(this, Info.class));
-        });
+        final List<String> items = new ArrayList<>(); final List<Runnable> acts = new ArrayList<>();
+        items.add(L.s("Модели", "Models")); acts.add(this::openModels);
+        if (video) { items.add(L.s("Видео (экспериментально)", "Video (experimental)")); acts.add(() -> { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }); }
+        items.add("Civitai"); acts.add(() -> startActivityForResult(new Intent(this, CivitaiActivity.class), 14));
+        items.add(L.s("Ampliar una imagen de la galería", "Enlarge a picture from the gallery")); acts.add(() -> pickImage(REQ_UPSCALE_PICK));
+        items.add(L.s("Открыть настройки из PNG", "Load settings from a PNG")); acts.add(() -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/png").addCategory(Intent.CATEGORY_OPENABLE), 8));
+        items.add(L.s("Настройки", "Settings")); acts.add(() -> startActivity(new Intent(this, Settings.class)));
+        items.add("Info"); acts.add(() -> startActivity(new Intent(this, Info.class)));
+        popup(anchor, items.toArray(new String[0]), i -> acts.get(i).run());
+    }
+    static final int REQ_UPSCALE_PICK = 31;
+    /** the system photo picker (the app sees only the picture the user picks) */
+    void pickImage(int req) {
+        if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; }
+        Intent i = android.os.Build.VERSION.SDK_INT >= 33 ? new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).setType("image/*") : new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(i, req);
+    }
+    /** a picked picture as a PNG file in the cache (decoded and upright; at most 4096 px on the long side) */
+    File importPicked(android.net.Uri u, String name) throws Exception {
+        Bitmap b;
+        try (java.io.InputStream in = getContentResolver().openInputStream(u)) { b = BitmapFactory.decodeStream(in); }
+        if (b == null) throw new java.io.IOException(L.s("No se pudo abrir la imagen", "Could not open the picture"));
+        try (java.io.InputStream in = getContentResolver().openInputStream(u)) {   // the photo's EXIF rotation
+            int o = new android.media.ExifInterface(in).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1), deg = o == 6 ? 90 : o == 3 ? 180 : o == 8 ? 270 : 0;
+            if (deg != 0) { android.graphics.Matrix m = new android.graphics.Matrix(); m.postRotate(deg); Bitmap r = Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true); if (r != b) { b.recycle(); b = r; } }
+        } catch (Exception ignored) { }
+        int lg = Math.max(b.getWidth(), b.getHeight()); if (lg > 4096) { Bitmap r = Bitmap.createScaledBitmap(b, b.getWidth() * 4096 / lg, b.getHeight() * 4096 / lg, true); b.recycle(); b = r; }
+        File f = new File(getCacheDir(), name); try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { b.compress(Bitmap.CompressFormat.PNG, 100, o); } b.recycle();
+        return f;
     }
 
     void openModels() { if (busy) { Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); return; } startActivity(new Intent(this, ModelsActivity.class)); }
@@ -1994,12 +2035,19 @@ public class Main extends Base {
         if (genBtn != null && !busy) genBtn.setText(genLabel());
     }
 
+    /** seconds one picture takes with the current model and size: the last measured run if there is one, else the catalog speed at 512x768 scaled by the patch count */
+    long estSec() {
+        int learned = prefs().getInt(timeKey(), 0); if (learned > 0) return learned;
+        double sm = isMoss() || isQwen() || isMage() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;
+        if (Moss.isRs(model) && prefs().getString("rs_mode", "4").equals("8") && Moss.installed8(getFilesDir()) && !loraOn()) sm = 1.65;
+        return Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0 * ((isQwen() || isMage()) && editBm != null ? 1.3 : 1)));
+    }
+    /** key of the measured time per model, size, edit / text-to-image and (Anima) step count */
+    String timeKey() { return "t_" + model + "_" + resW + "x" + resH + (editBm != null && (isQwen() || isMage()) ? "_e" : "") + (isMoss() || isQwen() || isMage() ? "" : "_" + Settings.calls(this)); }
     /** rough time to a picture: the catalog speed at 512x768 scaled by the patch count, times the number of pictures */
     String genLabel() {
         if (model.isEmpty()) return L.s("Скачать модель", "Get a model");
-        double sm = isMoss() || isQwen() || isMage() || Settings.defaultSampling(this) ? 1 : Settings.calls(this) / 2.6;   // the default 4 steps cost ~2.6 full DiT calls (two run at half size)
-        if (Moss.isRs(model) && prefs().getString("rs_mode", "4").equals("8") && Moss.installed8(getFilesDir()) && !loraOn()) sm = 1.65; // measured 8-step DMD is about 1.65× the 4-step RealSkin run, including final VAE decode
-        long est = Math.max(3, Math.round(store.speed(model) * sm * ((resW / 16) * (resH / 16)) / 1536.0 * (isQwen() && editBm != null ? 1.3 : 1))) * count;
+        long est = estSec() * count;
         return count > 1 ? L.f("Генерировать ×%d  ·  ~%d с", "Generate ×%d  ·  ~%d s", count, est) : L.f("Генерировать  ·  ~%d с", "Generate  ·  ~%d s", est);
     }
 
@@ -2341,7 +2389,9 @@ public class Main extends Base {
                 ui.post(() -> { if (busy) { img.setImageDrawable(null); showImg(false); placeholder.setVisibility(View.VISIBLE); } });
                 final String seedS = String.valueOf(gk >= 2 ? gridSeed : randomSeed ? new Random().nextInt(1 << 30) : baseSeed + i);
                 if (gk == 2) cfgOv = GRID_CFG[i]; else if (gk == 3) stepsOv = GRID_STEPS[i]; else if (gk == 4) cutOv = Settings.CFG_CUTS[i];
+                picStart = System.currentTimeMillis(); picExpect = estSec();
                 final File f = runOne(pr, seedS, w, h, t0);
+                if (f != null && !cancelled && gk == 0) { int took = (int) Math.round((System.currentTimeMillis() - picStart) / 1000.0), old = prefs().getInt(timeKey(), 0); prefs().edit().putInt(timeKey(), old > 0 ? (old + 2 * took) / 3 : took).apply(); }   // learn the real time (weighted to the last runs)
                 cfgOv = null; stepsOv = 0; cutOv = 0;
                 if (f == null) break;
                 made++;
@@ -2372,6 +2422,7 @@ public class Main extends Base {
                 final Bitmap gb = gf != null ? BitmapFactory.decodeFile(gf.getPath()) : null;
                 if (gb != null) { lastBm = gb; ui.post(() -> { batchGridFile = gf; batchDisplayIndex = batchFiles.size(); lastFile = gf; img.setImageBitmap(gb); showImg(true); placeholder.setVisibility(View.GONE); saved.setText(L.f("Cuadrícula · %d imágenes · desliza para recorrer", "Grid · %d images · ‹ › to browse", madeFiles.size())); refreshGeneratedEditAction(); }); }
             }
+            picStart = 0;
             final double sec = (System.currentTimeMillis() - t0) / 1000.0;
             final boolean wasCancelled = cancelled, okAny = made > 0, hot = hotStop || tooHot();
             hotStop = false;
@@ -2761,6 +2812,8 @@ public class Main extends Base {
 
     /** pct is the progress of the current picture; with several pictures the bar and the text cover the whole batch */
     File previewFile() { return new File(D, "preview.png"); }
+    volatile long picStart, picExpect;   // start of the current picture and its expected seconds (for "~30 s left")
+    static String dur(long s) { return s < 60 ? s + " s" : String.format(java.util.Locale.US, "%d min %02d s", s / 60, s % 60); }
     volatile int remainS = -1;   // seconds left for the current picture, from the pace of the DiT calls (-1 = unknown)
     volatile long pvTime;
     /** live preview: sd-cli renames a fresh preview.png into place after every step; show it while the picture is being made */
@@ -2774,8 +2827,11 @@ public class Main extends Base {
         showPreview(t0);
         final int all = (curIdx * 100 + pct) / curN;
         final String pre = curN > 1 ? "(" + (curIdx + 1) + "/" + curN + ")  " : "";
-        final int rem = remainS;
-        final String t = rem > 0 ? L.f("%s  ·  осталось ~%d с", "%s  ·  ~%d s left", pre + msg, rem) : L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (System.currentTimeMillis() - t0) / 1000.0);
+        long now = System.currentTimeMillis(), inPic = (now - picStart) / 1000;
+        long rem = remainS > 0 ? remainS : picExpect - inPic;   // Anima: from the pace of its steps; others: the measured (or estimated) time minus what has passed
+        if (rem < 2 && pct > 15 && pct < 100) rem = inPic * (100 - pct) / pct;   // slower than expected: from the progress itself
+        rem = Math.max(1, rem) + (long) Math.max(0, curN - curIdx - 1) * picExpect;
+        final String t = picStart > 0 && picExpect > 0 ? L.f("%s  ·  quedan ~%s", "%s  ·  ~%s left", pre + msg, dur(rem)) : L.f("%s  ·  %.0f с", "%s  ·  %.0f s", pre + msg, (now - t0) / 1000.0);
         ui.post(() -> { bar.setProgress(all); status.setText(t); });
     }
 }

@@ -139,6 +139,9 @@ public class Settings extends Base {
         TextView idleNote = text(L.s("Освобождает ОЗУ, если вы долго ничего не генерируете", "Frees RAM when you have not generated anything for a while"), 12, DIM, false); idleNote.setPadding(dp(2), 0, 0, dp(4));
         c2.addView(idleNote);
         c2.addView(choice(L.s("Almacenamiento", "Storage"), L.f("%s libres", "%s free", StorageActivity.gb(getFilesDir().getUsableSpace())), v -> startActivity(new android.content.Intent(this, StorageActivity.class))));
+        c2.addView(choice(L.s("Exportar registros", "Export logs"), "ZIP", v -> exportLogs()));
+        TextView logNote = text(L.s("Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.", "Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key."), 12, DIM, false);
+        logNote.setPadding(dp(2), 0, 0, dp(4)); c2.addView(logNote);
 
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
@@ -201,5 +204,45 @@ public class Settings extends Base {
         r.addView(sw);
         r.setOnClickListener(v -> sw.toggle());
         return r;
+    }
+
+    /** ZIP of every *.log under the app's files (models, server, runners) plus device.txt, written to Download/HexAnima */
+    void exportLogs() {
+        final String fn = "HexAnima_logs_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.US).format(new java.util.Date()) + ".zip";
+        new Thread(() -> {
+            String msg;
+            try {
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fn); cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip");
+                cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/HexAnima");
+                android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                int n = 0;
+                try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(new java.io.BufferedOutputStream(getContentResolver().openOutputStream(u)))) {
+                    StringBuilder d = new StringBuilder();
+                    String ver = "?"; try { ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
+                    android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo(); ((android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(mi);
+                    android.content.Intent b = registerReceiver(null, new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+                    d.append("HexAnima ").append(ver).append('\n').append("device: ").append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL).append('\n')
+                     .append("soc: ").append(Compat.soc()).append('\n').append("android: ").append(android.os.Build.VERSION.RELEASE).append(" (sdk ").append(android.os.Build.VERSION.SDK_INT).append(")\n")
+                     .append(String.format(java.util.Locale.US, "ram: %.1f GB total, %.1f GB free%n", mi.totalMem / 1073741824.0, mi.availMem / 1073741824.0))
+                     .append("storage free: ").append(StorageActivity.gb(getFilesDir().getUsableSpace())).append('\n')
+                     .append("battery: ").append(b == null ? "?" : b.getIntExtra("temperature", 0) / 10f + " C").append('\n')
+                     .append("thermal status: ").append(((android.os.PowerManager) getSystemService(POWER_SERVICE)).getCurrentThermalStatus()).append('\n')
+                     .append("language: ").append(L.lang).append(", cool mode: ").append(coolMode(this)).append('\n');
+                    z.putNextEntry(new java.util.zip.ZipEntry("device.txt")); z.write(d.toString().getBytes("UTF-8")); z.closeEntry();
+                    java.util.ArrayDeque<java.io.File[]> todo = new java.util.ArrayDeque<>(); todo.add(new java.io.File[]{getFilesDir()});
+                    byte[] buf = new byte[1 << 16]; String root = getFilesDir().getPath() + "/";
+                    while (!todo.isEmpty()) for (java.io.File f : todo.poll()) {
+                        if (f.isDirectory()) { if (!f.getName().equals("gallery") && f.getPath().split("/").length - root.split("/").length < 3) { java.io.File[] k = f.listFiles(); if (k != null) todo.add(k); } continue; }
+                        if (!f.getName().endsWith(".log") || f.length() > (32L << 20)) continue;
+                        z.putNextEntry(new java.util.zip.ZipEntry(f.getPath().replace(root, "")));
+                        try (java.io.InputStream in = new java.io.FileInputStream(f)) { for (int r; (r = in.read(buf)) > 0; ) z.write(buf, 0, r); }
+                        z.closeEntry(); n++;
+                    }
+                }
+                msg = L.f("Guardado en Descargas/HexAnima/%s (%d registros)", "Saved to Downloads/HexAnima/%s (%d logs)", fn, n);
+            } catch (Exception e) { msg = L.f("No se pudo exportar: %s", "Could not export: %s", String.valueOf(e.getMessage())); }
+            final String m = msg; runOnUiThread(() -> android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_LONG).show());
+        }).start();
     }
 }
