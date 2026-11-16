@@ -74,7 +74,7 @@ public class Main extends Base {
     ImageButton dlBtn, shareBtn, favBtn, againBtn, upBtn, fixBtn; Button editGeneratedBtn;
     MultiAutoCompleteTextView prompt;
     EditText seed, wEdit, hEdit;
-    LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop;
+    LinearLayout loraBox; TextView loraName, loraInfo; EditText strText; SeekBar strBar; Button loraPick, loraDrop; Button gptStyleBtn;
     LinearLayout qwenLoraBox, qwenStrRow; TextView qwenLoraName, qwenStrVal; Button qwenLoraPick, qwenLoraDrop; SeekBar qwenStr; volatile boolean qwenFolding;
     Fold sampFold, loraFold, extFold;
     LinearLayout sampBox, negBox, mossStepsBox; EditText negEdit, stepsEdit, cfgEdit; Button samplerBtn, schedBtn, cutBtn, mossStepsBtn; TextView sampNote;
@@ -532,6 +532,8 @@ public class Main extends Base {
         loraFold.body.addView(sr2);
         Button loraLib = button(L.s("Biblioteca", "Library"), CARD, ACC); loraLib.setTextSize(13); loraLib.setAllCaps(false); loraLib.setOnClickListener(v -> loraLibrary());
         LinearLayout lar = new LinearLayout(this); lar.setPadding(0, dp(8), 0, 0); loraActions(lar, loraLib, loraPick); loraFold.body.addView(lar);
+        gptStyleBtn = button(L.s("✦ Estilo ChatGPT", "✦ ChatGPT style"), CARD, ACC); gptStyleBtn.setTextSize(13); gptStyleBtn.setAllCaps(false); gptStyleBtn.setOnClickListener(v -> gptStyle());
+        LinearLayout.LayoutParams gpl = new LinearLayout.LayoutParams(-1, dp(42)); gpl.topMargin = dp(6); loraFold.body.addView(gptStyleBtn, gpl);
         root.addView(loraBox);
         refreshLora();
 
@@ -1012,6 +1014,40 @@ public class Main extends Base {
         for (String t : cur) low.add(t.toLowerCase(java.util.Locale.ROOT));
         cur.add("<lora:" + n + ":" + w + ">");
         prompt.setText(android.text.TextUtils.join(", ", cur)); prompt.setSelection(prompt.getText().length());
+    }
+    // ---- "ChatGPT style": the Anima LoRA "Style > gpt-image-2" by AgileNumbers (Civitai model 2564225, version 2998634; commercial use and derivatives allowed).
+    // One tap downloads it into the LoRA library if needed (pinned file, SHA-256 checked) and adds its trigger word and <lora:gpt-image-2:0.8>; a second tap takes them out.
+    static final String GPT_LORA = "gpt-image-2", GPT_TRIGGER = "@gpt-image-2", GPT_URL = "https://civitai.com/api/download/models/2998634?fileId=2878107",
+        GPT_SHA = "6ecff93984c1b084950f4535ff71293299dc1ee2225d267b79e5186fc7d38a99";
+    static final long GPT_SIZE = 23037256L;
+    void gptStyle() {
+        if (loraWeight(GPT_LORA) != null) {   // on -> off
+            String p = loraTag(GPT_LORA).matcher(prompt.getText().toString()).replaceAll("");
+            List<String> keep = new ArrayList<>(); for (String t : tokens(p)) if (!t.equalsIgnoreCase(GPT_TRIGGER)) keep.add(t);
+            prompt.setText(android.text.TextUtils.join(", ", keep)); prompt.setSelection(prompt.getText().length()); return;
+        }
+        final File f = new File(AnimaLora.dir(getFilesDir()), GPT_LORA + ".safetensors");
+        if (f.isFile() && f.length() == GPT_SIZE) { gptApply(); return; }
+        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(20), dp(12), dp(20), dp(4));
+        v.addView(text(L.s("Descarga la LoRA «Style > gpt-image-2» de AgileNumbers desde Civitai (22 MB) y la añade al prompt. Da el acabado de ilustración del ChatGPT actual: líneas finas, ojos detallados y luz suave.",
+            "Downloads the LoRA \"Style > gpt-image-2\" by AgileNumbers from Civitai (22 MB) and adds it to the prompt. It gives the illustration finish of today's ChatGPT: thin lines, detailed eyes and soft light."), 13, DIM, false));
+        final ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); pb.setMax(1000); pb.setProgressTintList(ColorStateList.valueOf(ACC)); v.addView(pb);
+        final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+        final android.app.AlertDialog dl = builder().setTitle(L.s("Estilo ChatGPT", "ChatGPT style")).setView(v).setCancelable(false).setNegativeButton(L.s("Отмена", "Cancel"), (d, i) -> stop.set(true)).show();
+        ex2.submit(() -> {
+            try {
+                Civitai.download(this, GPT_URL, f, GPT_SIZE, (d, t) -> ui.post(() -> { if (t > 0) pb.setProgress((int) (1000 * d / t)); }), stop);
+                if (!GPT_SHA.equalsIgnoreCase(Models.sha256(f))) { f.delete(); throw new IOException(L.s("el archivo descargado no coincide (SHA-256)", "the downloaded file does not match (SHA-256)")); }
+                AnimaLora.Check c = AnimaLora.check(f); if (!c.ok) { f.delete(); throw new IOException(c.message()); }
+                ui.post(() -> { dl.dismiss(); gptApply(); });
+            } catch (Exception e) { f.delete(); ui.post(() -> { dl.dismiss(); if (!stop.get()) builder().setMessage(L.f("No se pudo descargar: %s", "Could not download: %s", String.valueOf(e.getMessage()))).setPositiveButton("OK", null).show(); }); }
+        });
+    }
+    void gptApply() {
+        List<String> cur = new ArrayList<>(); cur.add(GPT_TRIGGER); for (String t : tokens(prompt.getText().toString())) if (!t.equalsIgnoreCase(GPT_TRIGGER)) cur.add(t);
+        cur.add("<lora:" + GPT_LORA + ":0.8>");
+        prompt.setText(android.text.TextUtils.join(", ", cur)); prompt.setSelection(prompt.getText().length());
+        Toast.makeText(this, L.s("Estilo ChatGPT añadido al prompt (fuerza 0.8). Tócalo otra vez para quitarlo.", "ChatGPT style added to the prompt (strength 0.8). Tap it again to remove it."), Toast.LENGTH_LONG).show();
     }
     void loraRemove(String n, String words) {
         String p = loraTag(n).matcher(prompt.getText().toString()).replaceAll("");
@@ -2005,6 +2041,7 @@ public class Main extends Base {
             int c = working ? WARN : isLoaded ? OK : DIM;
             chipDot.setTextColor(c);
             if (loraBox != null) { loraBox.setVisibility(model.isEmpty() || isQwen() || isMage() ? View.GONE : View.VISIBLE); refreshLora(); }
+            if (gptStyleBtn != null) gptStyleBtn.setVisibility(isMoss() ? View.GONE : View.VISIBLE);   // the gpt-image-2 style LoRA is for Anima
             if (qwenLoraBox != null) { qwenLoraBox.setVisibility(isQwen() ? View.VISIBLE : View.GONE); refreshQwenLora(); }
             if (editBox != null) editBox.setVisibility(isQwen() || isMage() ? View.VISIBLE : View.GONE);
             if (editOpts != null) refreshEdit();   // the family decides the mask, the options and the extra reference pictures

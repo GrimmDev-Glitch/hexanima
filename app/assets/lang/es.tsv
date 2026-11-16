@@ -810,3 +810,9 @@ A few seconds. Sharper, but it may smooth textures and thicken lines.	Unos segun
 Detailed · UltraSharp	Detallado · UltraSharp
 About 10 times slower. More faithful: keeps textures, eyes and thin lines.	Unas 10 veces más lento. Más fiel al original: conserva texturas, ojos y líneas finas.
 Raises the resolution and sharpness on the NPU. It may invent small details (hair, text, textures); the original picture is kept.	Aumenta la resolución y la nitidez en la NPU. Puede inventar detalles pequeños (pelo, texto, texturas); la imagen original no se toca.
+✦ ChatGPT style	✦ Estilo ChatGPT
+ChatGPT style	Estilo ChatGPT
+the downloaded file does not match (SHA-256)	el archivo descargado no coincide (SHA-256)
+Could not download: %s	No se pudo descargar: %s
+ChatGPT style added to the prompt (strength 0.8). Tap it again to remove it.	Estilo ChatGPT añadido al prompt (fuerza 0.8). Tócalo otra vez para quitarlo.
+Downloads the LoRA "Style > gpt-image-2" by AgileNumbers from Civitai (22 MB) and adds it to the prompt. It gives the illustration finish of today's ChatGPT: thin lines, detailed eyes and soft light.	Descarga la LoRA «Style > gpt-image-2» de AgileNumbers desde Civitai (22 MB) y la añade al prompt. Da el acabado de ilustración del ChatGPT actual: líneas finas, ojos detallados y luz suave.
