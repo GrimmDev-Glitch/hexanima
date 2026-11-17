@@ -1,4 +1,8 @@
-# New in 1.9.4
+# New in 1.9.5
+ADetailer after the picture: the picture shows first, then the face and/or hands are detailed (new "ADetailer (hands)" in Extras). With turbo models the fingers can still come out odd.
+Full metadata in the pictures: prompt, negative, steps, sampler, CFG, seed, model, LoRA hashes and the Civitai resources, so Civitai recognises them on upload.
+History: a "Copy prompt" button (or tap the prompt). Configuration templates: long-press one to overwrite it with the current settings.
+# From 1.9.4
 Mage without a size limit: the model runs in windows on the NPU, pictures up to 2048×3072 (1536×1536 in ~72 s) and reference photos at full size.
 Anima without a size limit: up to 4096×4096 (1536×1536 in ~50 s), with big sizes in the list.
 "How much it changes" (Edit a photo): tap the number to type the percentage. The step counter with a photo counts the real steps.

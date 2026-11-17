@@ -1,4 +1,8 @@
-# Nuevo en 1.9.4
+# Nuevo en 1.9.5
+ADetailer después de la imagen: primero ves la imagen y luego se repasan la cara y/o las manos (nuevo «ADetailer (manos)» en Extras). Con modelos turbo los dedos pueden seguir saliendo raros.
+Metadatos completos en las imágenes: prompt, negativo, pasos, sampler, CFG, semilla, modelo, hashes de los LoRAs y los recursos de Civitai, para que Civitai los reconozca al subirlas.
+Historial: botón «Copiar prompt» (o toca el prompt). Plantillas de configuración: mantén pulsada una para sobrescribirla con la configuración actual.
+# De la 1.9.4
 Mage sin límite de tamaño: el modelo trabaja por ventanas en la NPU, hace imágenes de hasta 2048×3072 (1536×1536 en ~72 s) y las fotos de referencia entran a tamaño completo.
 Anima sin límite de tamaño: hasta 4096×4096 (1536×1536 en ~50 s), con tamaños grandes en la lista.
 «Cuánto cambia» (Editar una foto): toca el número para escribir el porcentaje. El contador de pasos con foto cuenta los pasos reales.
