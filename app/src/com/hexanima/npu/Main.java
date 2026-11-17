@@ -596,7 +596,8 @@ public class Main extends MainEdit {
     }
 
     @Override protected void onResume() {
-        PngMeta.keep = Settings.keepMeta(this);
+        PngMeta.keep = Settings.keepMeta(this); PngMeta.home = getFilesDir();
+        try { PngMeta.appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
         super.onResume();
         if (Corrections.freedAnima) { Corrections.freedAnima = false; if (loaded) { loaded = false; setModelUi(false, false, ""); } }   // Corrections stopped the Anima server for Qwen
         visible = true;

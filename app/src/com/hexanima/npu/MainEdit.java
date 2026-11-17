@@ -380,6 +380,7 @@ abstract class MainEdit extends MainTools {
         hnEdit = smallField(hr, L.s("ШАГИ", "STEPS"), "x_hires_steps", "4", false);
         c.addView(hr);
         sw(c, L.s("ADetailer (лица)", "ADetailer (faces)"), L.s("Находит лица и перерисовывает их детальнее", "Finds faces and redraws them in more detail"), "x_ad", false);
+        sw(c, L.s("ADetailer (manos)", "ADetailer (hands)"), L.s("Encuentra las manos y las redibuja con más detalle, con tu mismo modelo (descarga de 6 MB la primera vez)", "Finds the hands and redraws them in more detail with your own model (6 MB download the first time)"), "x_ad_hands", false);
         LinearLayout ar = new LinearLayout(this); ar.setGravity(Gravity.CENTER_VERTICAL);
         adText = text("", 12, DIM, false); ar.addView(adText, new LinearLayout.LayoutParams(0, -2, 1));
         Button adPick = button(L.s("Детектор…", "Detector…"), FIELD, ACC); adPick.setTextSize(12);
@@ -404,7 +405,7 @@ abstract class MainEdit extends MainTools {
         if (extrasBox == null) return;
         extrasBox.setVisibility(isMoss() || isQwen() || isMage() || model.isEmpty() ? View.GONE : View.VISIBLE);
         List<String> on = new ArrayList<>();
-        if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer");
+        if (prefs().getBoolean("x_hires", false)) on.add("Hires"); if (prefs().getBoolean("x_ad", false)) on.add("ADetailer"); if (prefs().getBoolean("x_ad_hands", false)) on.add(L.s("Manos", "Hands"));
         if (initSrc().exists()) on.add(maskSrc().exists() ? "inpaint" : "img2img"); if (!queue.isEmpty()) on.add(L.f("очередь %d", "queue %d", queue.size()));
         extFold.sum.setText(on.isEmpty() ? L.s("выкл.", "off") : android.text.TextUtils.join(" · ", on)); extFold.sum.setTextColor(on.isEmpty() ? DIM : ACC);
         refreshAnimaInit();

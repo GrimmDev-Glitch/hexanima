@@ -200,6 +200,10 @@ abstract class MainTools extends MainRun {
             x.setOnClickListener(z -> builder().setMessage(L.f("¿Borrar la plantilla «%s»?", "Delete the template \"%s\"?", n)).setNegativeButton(L.s("Отмена", "Cancel"), null)
                 .setPositiveButton(L.s("Удалить", "Delete"), (a, b) -> { ps.remove(n); prefs().edit().putString("config_templates", ps.toString()).apply(); dlg.dismiss(); presets(); }).show());
             r.setOnClickListener(z -> { dlg.dismiss(); applyTemplate(n, t); });
+            r.setOnLongClickListener(z -> { builder().setTitle(n).setItems(new String[]{L.s("Sobrescribir con la configuración actual", "Overwrite with the current settings")}, (a, b) ->
+                builder().setMessage(L.f("¿Reemplazar «%s» con la configuración que tienes ahora?", "Replace \"%s\" with your current settings?", n)).setNegativeButton(L.s("Отмена", "Cancel"), null)
+                    .setPositiveButton(L.s("Sobrescribir", "Overwrite"), (c, k) -> { try { ps.put(n, snapshot()); prefs().edit().putString("config_templates", ps.toString()).apply();
+                        Toast.makeText(this, L.f("Plantilla «%s» actualizada", "Template \"%s\" updated", n), Toast.LENGTH_SHORT).show(); dlg.dismiss(); presets(); } catch (Exception ignored) { } }).show()).show(); return true; });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.topMargin = dp(6); list.addView(r, lp);
         }
         save.setOnClickListener(z -> {
@@ -207,21 +211,26 @@ abstract class MainTools extends MainRun {
             LinearLayout box = new LinearLayout(this); box.setPadding(dp(20), dp(8), dp(20), 0); box.addView(nm, new LinearLayout.LayoutParams(-1, -2));
             builder().setTitle(L.s("Guardar plantilla", "Save template")).setView(box).setNegativeButton(L.s("Отмена", "Cancel"), null).setPositiveButton("OK", (d2, k) -> {
                 try {
-                    JSONObject vals = new JSONObject(), types = new JSONObject();
-                    for (java.util.Map.Entry<String, ?> en : prefs().getAll().entrySet()) {
-                        if (!cfgKey(en.getKey(), model) || en.getValue() == null) continue;
-                        Object o = en.getValue(); vals.put(en.getKey(), o instanceof java.util.Set ? new JSONArray((java.util.Set<?>) o) : o);
-                        types.put(en.getKey(), o instanceof Boolean ? "b" : o instanceof Integer ? "i" : o instanceof Long ? "l" : o instanceof Float ? "f" : o instanceof java.util.Set ? "s" : "t");
-                    }
-                    vals.put("model", model);
                     String n = nm.getText().toString().trim(); if (n.isEmpty()) n = L.f("Plantilla %d", "Template %d", ps.length() + 1);
-                    ps.put(n, new JSONObject().put("v", vals).put("t", types).put("time", System.currentTimeMillis()));
+                    ps.put(n, snapshot());
                     prefs().edit().putString("config_templates", ps.toString()).apply();
                     Toast.makeText(this, L.f("Plantilla «%s» guardada", "Template \"%s\" saved", n), Toast.LENGTH_SHORT).show();
                     dlg.dismiss(); presets();
                 } catch (Exception ignored) { }
             }).show();
         });
+    }
+    /** the current settings as a template entry {v: values, t: types, time} (the fields as they are now are stored first) */
+    JSONObject snapshot() throws Exception {
+        prefs().edit().putString("prompt", prompt.getText().toString()).putString("seed", seed.getText().toString()).putString("model", model).putInt("w", resW).putInt("h", resH).putInt("count", count).commit();
+        JSONObject vals = new JSONObject(), types = new JSONObject();
+        for (java.util.Map.Entry<String, ?> en : prefs().getAll().entrySet()) {
+            if (!cfgKey(en.getKey(), model) || en.getValue() == null) continue;
+            Object o = en.getValue(); vals.put(en.getKey(), o instanceof java.util.Set ? new JSONArray((java.util.Set<?>) o) : o);
+            types.put(en.getKey(), o instanceof Boolean ? "b" : o instanceof Integer ? "i" : o instanceof Long ? "l" : o instanceof Float ? "f" : o instanceof java.util.Set ? "s" : "t");
+        }
+        vals.put("model", model);
+        return new JSONObject().put("v", vals).put("t", types).put("time", System.currentTimeMillis());
     }
     /** writes the template's values back and restarts the screen so every field shows them; a model that is no longer installed is left as it is */
     boolean skipSave;   // set while the screen restarts after a template was loaded

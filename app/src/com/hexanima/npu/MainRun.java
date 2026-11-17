@@ -47,6 +47,20 @@ import org.json.JSONObject;
 abstract class MainRun extends MainLora {
     volatile long picStart, picExpect;   // start of the current picture and its expected seconds (for "~30 s left")
     static final String AD_SHA = "aa44f31aed57284eec9fe6c8152c03e7625424f78ef276868baae7efc952c3d0";
+    /** hand_yolov8n (Bingsu/adetailer, Apache-2.0) converted for sd.cpp with its convert_yolov8_to_safetensors.py, hosted with the V73 packs */
+    static final String AD_HAND_SHA = "51f09f73c259264d6d1bb856d8421a2bee6e5543093eb41fa9cd0aeb593f45d3";
+    static final String AD_HAND_URL = "https://huggingface.co/GrimmDev-Glitch/hexanima-packs/resolve/main/adetailer/hand_yolov8n.safetensors";
+    /** the hand detector, in its own folder (adModel() takes any .safetensors of the face folder) */
+    File ensureAdHands(long t0) {
+        File dir = new File(getFilesDir(), "adetailer_hands"), out = new File(dir, "hand_yolov8n.safetensors");
+        if (out.length() == 6033980L) return out;
+        setProgressUi(1, L.s("Descargando el detector de manos (6 MB)…", "Downloading the hand detector (6 MB)…"), t0);
+        try { dir.mkdirs(); Models.fetch(AD_HAND_URL, out, -1, AD_HAND_SHA, null, new java.util.concurrent.atomic.AtomicBoolean()); return out; }
+        catch (Exception e) { ui.post(() -> Toast.makeText(this, "ADetailer: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+    }
+    static String handPrompt(String pr) { return pr + ", detailed hands, five fingers, natural hands"; }
+    /** hands need more room than faces: stronger redraw, its own steps (a turbo model has only a few), a margin around the hand and a slightly grown mask */
+    static final String AD_HAND_ARGS = "confidence=0.35,denoising_strength=0.55,steps=8,inpaint_padding=48,dilate_erode=8";
     static final String AD_URL = "https://huggingface.co/GrimmDev-Glitch/hexanima-packs/resolve/main/adetailer/face_yolov8n.safetensors";
     static final int STEPS = 4;   // the models are distilled for 4 steps (see Info)
     ProgressBar bar, ramBar;
@@ -64,6 +78,7 @@ abstract class MainRun extends MainLora {
     volatile File varInit; int countOv;   // one batch of "similar variations": its init picture; one batch with its own picture count
     abstract File adDir();
     abstract File adModel();
+    abstract File loraSrc();
     abstract long availMb();
     abstract String cfgNow();
     abstract boolean cfgOnNow();
@@ -197,6 +212,7 @@ abstract class MainRun extends MainLora {
                 long nowMs = System.currentTimeMillis();
                 if (st >= 1 && tStep1[0] == 0) tStep1[0] = nowMs;
                 remainS = st >= 2 && st < calls ? (int) Math.ceil((nowMs - tStep1[0]) / 1000.0 / (st - 1) * (calls - st) + 0.5) : -1;   // from the pace of the calls after the first
+                if (adPhase) continue;   // the ADetailer passes show their own text
                 if (st >= calls) setProgressUi(94, L.s("Декодирование…", "Decoding…"), t0);
                 else if (c[2] > base[2] || st > 0) setProgressUi(15 + (int) (76 * stepShare(st)), L.f("Шаг %d/%d", "Step %d/%d", Math.min(steps, st * steps / calls + 1), steps), t0);  // cached text skips the adapter log, but the first DiT call still started
                 else setProgressUi(8, L.s("Кодирование текста…", "Encoding the text…"), t0);
@@ -204,7 +220,27 @@ abstract class MainRun extends MainLora {
         });
         poll.start();
         final String samp = "CFG=" + q(cfgNow()) + " SAMPLER=" + q(Settings.sampler(this)) + " SCHED=" + q(Settings.scheduler(this)) + (cfgOnNow() ? " NEG=" + q(Settings.negative(this)) + " CFG_CUT=" + cutNow() : "");
+        adPrompt = pr;
         su("cd " + D + " && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + stepsAll + " " + samp + " " + extrasEnv(w, h, t0) + "W=" + w + " H=" + h + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1", false);
+        // ADetailer after the picture: it is shown first, then each detector (faces, then hands) runs as its own light pass on it:
+        // sd.cpp img2img with a single last step at almost no noise (the picture stays as it is) plus the detector, which redraws only what it finds
+        final boolean adFace = prefs().getBoolean("x_ad", false), adHands = prefs().getBoolean("x_ad_hands", false);
+        adPhase = true;
+        if (!cancelled && (adFace || adHands) && new File(f).length() > 0) {
+            for (int pass = 0; pass < 2 && !cancelled; pass++) {
+                boolean hands = pass == 1; if (hands ? !adHands : !adFace) continue;
+                File det = hands ? ensureAdHands(t0) : ensureAd(t0); if (det == null) continue;
+                BitmapFactory.Options bo = new BitmapFactory.Options(); bo.inJustDecodeBounds = true; BitmapFactory.decodeFile(f, bo); if (bo.outWidth <= 0) break;
+                final Bitmap shown = BitmapFactory.decodeFile(f);
+                if (shown != null) ui.post(() -> { img.setImageBitmap(shown); showImg(true); placeholder.setVisibility(View.GONE); });   // the picture before this detail pass
+                setProgressUi(92, hands ? L.s("Repasando las manos…", "Detailing the hands…") : L.s("Repasando la cara…", "Detailing the face…"), t0);
+                float s2 = Math.min(0.5f, 1.05f / Math.max(1, stepsAll));
+                su("cd " + D + " && cp last.png ad_in.png && rm -f last.png && " + mp() + "PREFIX=" + q(Settings.prefix(this)) + " STEPS=" + stepsAll + " " + samp + " INIT=" + q(D + "/ad_in.png") + " STRENGTH=" + String.format(java.util.Locale.US, "%.3f", s2)
+                    + " AD=" + q(det.getPath()) + (hands ? " AD_PROMPT=" + q(handPrompt(pr)) + " AD_ARGS=" + q(AD_HAND_ARGS) : "") + " W=" + bo.outWidth + " H=" + bo.outHeight
+                    + " LOGRE='learned_condition|completed in' sh ./anima.sh " + q(pr) + " " + seedS + " " + f + " < /dev/null >> gen.log 2>&1; [ -s last.png ] || cp ad_in.png last.png", false);
+            }
+        }
+        adPhase = false;
         done[0] = true; remainS = -1;
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
@@ -216,6 +252,8 @@ abstract class MainRun extends MainLora {
                 .put("steps", stepsAll).put("cfg", cfgNow()).put("sampler", Settings.sampler(this)).put("scheduler", Settings.scheduler(this));
             if (cfgOnNow() && !Settings.negative(this).isEmpty()) meta.put("negative", Settings.negative(this));
             if (loraOn() && loraFitsModel()) meta.put("lora", prefs().getString("anima_lora_name", "LoRA")).put("lora_strength", loraStr());
+            if (cfgOnNow()) meta.put("neg", Settings.negative(this));
+            { JSONArray res = new JSONArray(); if (loraOn() && loraFitsModel()) res.put(loraSrc().getPath() + "*" + String.format(java.util.Locale.US, "%.2f", loraStr())); for (String t : tagLoras) res.put(t); if (res.length() > 0) meta.put("res", res); }   // LoRA files for the PNG text (hashes, Civitai ids)
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
@@ -269,7 +307,7 @@ abstract class MainRun extends MainLora {
         try {
             byte[] png = Moss.png(raw, w, h); raw.delete();
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("steps", mossSteps).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
-            if (useLora) meta.put("lora", prefs().getString("moss_lora_name", "LoRA")).put("lora_strength", lstr);
+            if (useLora) { meta.put("lora", prefs().getString("moss_lora_name", "LoRA")).put("lora_strength", lstr); meta.put("res", new JSONArray().put(loraSrc().getPath() + "*" + String.format(java.util.Locale.US, "%.2f", lstr))); }
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Ошибка генерации: %s (лог files/moss/moss.log)", "Generation failed: %s (log files/moss/moss.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
     }
@@ -513,6 +551,7 @@ abstract class MainRun extends MainLora {
             return out;
         } catch (Exception e) { return null; }
     }
+    String adPrompt = ""; volatile boolean adPhase;   // the prompt of the picture being made, for the hands detail prompt
     String extrasEnv(int w, int h, long t0) {
         StringBuilder e = new StringBuilder();
         if (prefs().getBoolean("x_preview", true)) e.append("PREVIEW=").append(q(previewFile().getPath())).append(" ");
@@ -526,7 +565,7 @@ abstract class MainRun extends MainLora {
             if (hs != null) e.append("HIRES=1 HIRES_W=").append(hs[0]).append(" HIRES_H=").append(hs[1]).append(" HIRES_DENOISE=").append(pf("x_hires_den", .45f)).append(" HIRES_STEPS=").append((int) pf("x_hires_steps", 4)).append(" ");
             else ui.post(() -> Toast.makeText(this, L.s("Hires fix: этот размер уже максимальный для NPU", "Hires fix: this size is already the NPU's largest"), Toast.LENGTH_LONG).show());
         }
-        if (prefs().getBoolean("x_ad", false)) { File ad = ensureAd(t0); if (ad != null) e.append("AD=").append(q(ad.getPath())).append(" "); }
+        // ADetailer runs after the picture (runOne: the picture shows first, then the faces and / or hands are detailed on it)
         e.append(initEnv(w, h));
         return e.toString();
     }

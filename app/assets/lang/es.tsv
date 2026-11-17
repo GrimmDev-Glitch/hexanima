@@ -970,3 +970,14 @@ Too large: at most %d patches (2048×3072)	Tamaño demasiado grande: máximo %d 
 Too large: at most 65536 patches (e.g. 4096×4096)	Demasiado grande: máximo 65536 parches (p. ej. 4096×4096)
 How much it changes (%)	Cuánto cambia (%)
 From 10 to 100.	De 10 a 100.
+ADetailer (hands)	ADetailer (manos)
+Finds the hands and redraws them in more detail with your own model (6 MB download the first time)	Encuentra las manos y las redibuja con más detalle, con tu mismo modelo (descarga de 6 MB la primera vez)
+Downloading the hand detector (6 MB)…	Descargando el detector de manos (6 MB)…
+Detailing the hands…	Repasando las manos…
+Detailing the face…	Repasando la cara…
+Overwrite with the current settings	Sobrescribir con la configuración actual
+Replace "%s" with your current settings?	¿Reemplazar «%s» con la configuración que tienes ahora?
+Overwrite	Sobrescribir
+Template "%s" updated	Plantilla «%s» actualizada
+Prompt copied	Prompt copiado
+Copy prompt	Copiar prompt

@@ -69,6 +69,11 @@ public class Viewer extends Base {
         bottom = new LinearLayout(this); bottom.setOrientation(LinearLayout.VERTICAL); bottom.setBackgroundColor(0xB3000000); bottom.setPadding(dp(14), dp(10), dp(14), dp(10));
         info = text("", 12, 0xFFB8C0D0, false); bottom.addView(info);
         prompt = text("", 13, Color.WHITE, false); prompt.setMaxLines(3); prompt.setPadding(0, dp(4), 0, dp(8)); bottom.addView(prompt);
+        prompt.setOnClickListener(v -> {   // tap the prompt: copy it
+            String t = prompt.getText().toString(); if (t.isEmpty()) return;
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null) { cm.setPrimaryClip(android.content.ClipData.newPlainText("prompt", t)); Toast.makeText(this, L.s("Prompt copiado", "Prompt copied"), Toast.LENGTH_SHORT).show(); }
+        });
         actions = new LinearLayout(this); bottom.addView(actions);
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
@@ -113,6 +118,7 @@ public class Viewer extends Base {
         }
         ico("ic_download", () -> { try { Gallery.export(this, f); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
         ico("ic_share", () -> Gallery.share(this, f));
+        if (!m.optString("prompt").isEmpty()) act(L.s("Copiar prompt", "Copy prompt"), () -> prompt.performClick());
         if (Upscaler.available(this)) ico("ic_tune", () -> Corrections.open(this, f));
         if (Upscaler.available(this)) ico("ic_upscale", () -> upscaleDialog(f, out -> { files.add(0, out); idx = 0; changed = true; pager.set(files, idx); refresh(); }));
         favB = ico("ic_star_off", () -> { boolean nv = !Gallery.fav(f); Gallery.setFav(f, nv); setFav(favB, nv); changed = true; }); setFav(favB, Gallery.fav(f));
