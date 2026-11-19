@@ -1,4 +1,14 @@
-# New in 1.9.5
+# Included in 1.9.6
+Import and export Anima model packs in folders: validates the manifest, sizes and SHA-256 before restore; rolls back new files if an import fails or is cancelled.
+Offline model catalog: browse saved models without internet; downloads stay disabled until the connection returns.
+Optional automatic saving: copies each finished picture to the Gallery or an Android folder you choose, while keeping the History copy.
+Corrections and upscaling preserve generation metadata in the PNG and add the correction/upscale step.
+Stopping a generation or deleting a model asks for confirmation. If Anima fails to finish loading, the app shows the chip and the latest log lines.
+Adjust the remaining image count while a batch runs without changing the image already in progress.
+Choosing the default negative prompt fills it in and enables CFG 4 when CFG 1 would otherwise skip it.
+# Repack 1.9.6-v73.1
+Fixed this notice so the 1.9.6 changes now appear correctly in English or Spanish.
+# From 1.9.5
 ADetailer after the picture: the picture shows first, then the face and/or hands are detailed (new "ADetailer (hands)" in Extras). With turbo models the fingers can still come out odd.
 Full metadata in the pictures: prompt, negative, steps, sampler, CFG, seed, model, LoRA hashes and the Civitai resources, so Civitai recognises them on upload.
 History: a "Copy prompt" button (or tap the prompt). Configuration templates: long-press one to overwrite it with the current settings.

@@ -1,4 +1,14 @@
-# Nuevo en 1.9.5
+# Incluido en 1.9.6
+Importar y exportar modelos Anima en carpetas: verifica manifiesto, tamaños y SHA-256 antes de restaurar; si la importación falla o se cancela, revierte los archivos nuevos.
+Catálogo de modelos sin conexión: consulta los modelos guardados aunque no haya internet; las descargas quedan desactivadas hasta reconectar.
+Guardado automático opcional: copia cada imagen terminada a la Galería o a una carpeta elegida con el selector de Android, y conserva también la copia del Historial.
+Las correcciones y el upscale conservan en el PNG los metadatos de generación y añaden el paso de corrección/upscale.
+Al detener una generación o borrar un modelo aparece una confirmación. Si Anima no termina de cargar, muestra el chip y las últimas líneas del registro.
+La cantidad pendiente de una tanda se puede ajustar mientras genera, sin cambiar la imagen que ya está en curso.
+Al elegir el prompt negativo predeterminado, la app lo rellena y activa CFG 4 cuando CFG 1 lo habría dejado sin efecto.
+# Reempaquetado 1.9.6-v73.1
+Se corrigió este aviso: ahora las novedades de la 1.9.6 aparecen correctamente en español o inglés.
+# De la 1.9.5
 ADetailer después de la imagen: primero ves la imagen y luego se repasan la cara y/o las manos (nuevo «ADetailer (manos)» en Extras). Con modelos turbo los dedos pueden seguir saliendo raros.
 Metadatos completos en las imágenes: prompt, negativo, pasos, sampler, CFG, semilla, modelo, hashes de los LoRAs y los recursos de Civitai, para que Civitai los reconozca al subirlas.
 Historial: botón «Copiar prompt» (o toca el prompt). Plantillas de configuración: mantén pulsada una para sobrescribirla con la configuración actual.
