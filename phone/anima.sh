@@ -27,15 +27,28 @@ RUNX='export LD_LIBRARY_PATH="$LIBS" ADSP_LIBRARY_PATH="$ADSPP"; exec "$@"'   # 
 ADSPP=${BIN:-$A}
 # Snapdragon 8 Gen 2 (Hexagon V73) needs its own build of the DiT kernels: it ships as libmega_skel_v73.so and is copied under the name the DSP
 # loader looks for into a dir listed before $BIN (same trick as moss.sh); the QNN contexts pick their V73 skel by themselves
-case "$(getprop ro.soc.model)" in SM8550) DSPA=v73;; *) DSPA=;; esac
+SOC=$(getprop ro.soc.model)
+case "$SOC" in SM8550|SM8650) DSPA=v73;; *) DSPA=;; esac
 if [ -n "$DSPA" ] && [ -f "$BIN/libmega_skel_$DSPA.so" ]; then
   mkdir -p $A/dsp_$DSPA; cmp -s "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so || cp -f "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so
   ADSPP="$A/dsp_$DSPA;$BIN"
+fi
+# The reported SM8650/V75 device supports five concurrent DSP sessions. A 40-block Anima model
+# uses three HMX workers there (14/14/12), leaving sessions for the VAE and text encoder.
+if [ "$SOC" = SM8650 ] && [ -n "$MDIR" ] && [ -f "$A/$MDIR/blk39.bin" ]; then
+  export ANIMAD_HMXG=14,14,12
+else
+  unset ANIMAD_HMXG
 fi
 if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf quit > $SQ/job.tmp; mv $SQ/job.tmp $SQ/job; fi; pidof $NS >/dev/null && kill $(pidof $NS); n=0; while pidof $NA >/dev/null && [ $n -lt 20 ]; do sleep 0.25; n=$((n+1)); done
   # animad stuck in an aborted request never polls "quit": kill it and its children so the next load does not wait forever
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
+load_fail() {
+  { echo "Anima runner failed to start (chip ${HEXARCH:-unknown}): $1"; [ -f "$2" ] && tail -n 25 "$2"; } > "$A/load_error"
+  sh "$0" stop
+  exit 3
+}
 # LORA=<file*strength|...>: Anima LoRAs folded into the block weights when megarun loads them (hexagon/mega/lora_fold.h), so they are part of the loaded model
 KEY="${MODEL:-2}${MEGA_STREAM:+s}${MEGA_COOL:+c}${LORA:+|$LORA|${LORA_S:-1}}"   # the low-memory (streaming) mode and the LoRAs are part of the key: changing them restarts the server
 # cool mode: MEGA_COOL=1 = always; otherwise the NPU processes switch to the lower clock while $A/cool exists (the app creates it when the phone is warm)
@@ -44,6 +57,7 @@ if pidof $NA >/dev/null && [ "$(cat $A/model 2>/dev/null)" != "$KEY" ]; then   #
   sh $0 stop; while pidof $NA >/dev/null; do sleep 0.3; done
 fi
 if ! pidof $NA >/dev/null; then
+  rm -f "$A/load_error"
   echo "$KEY" > $A/model
   rm -rf $ROOT; mkdir -p $ROOT
   # lcache: the folded blocks of the last LoRA set; the next load with the same set reads them instead of folding again
@@ -52,7 +66,12 @@ if ! pidof $NA >/dev/null; then
   if [ -n "$LORA" ]; then export MEGA_LORA="$LORA" MEGA_LORA_S="${LORA_S:-1}" MEGA_LORA_CACHE=$A/lcache ANIMA_TE=$S/miaomiao3DHarem_animaLH3D10_txt.safetensors ANIMA_TE_CACHE=$A/tecache
   else unset MEGA_LORA MEGA_LORA_S MEGA_LORA_CACHE ANIMA_TE ANIMA_TE_CACHE; fi
   cd $A && LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $ANIMAD $SM --serve $ROOT < /dev/null > $A/animad.log 2>&1 &
-  while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do sleep 0.3; done
+  n=0; limit=1000; [ -n "$LORA" ] && limit=2000
+  while ! grep -q serving $A/animad.log 2>/dev/null && [ ! -f $A/cancel ]; do
+    sleep 0.3; n=$((n+1))
+    if [ $n -gt 20 ] && ! pidof $NA >/dev/null; then load_fail "animad stopped while loading" "$A/animad.log"; fi
+    if [ $n -ge $limit ]; then load_fail "animad did not report ready before timeout" "$A/animad.log"; fi
+  done
 fi
 # persistent sd-cli (text tokenizer/sampler/PNG writer stay loaded: saves ~0.7 s per image); ANIMA_NOSERVE=1 starts one per image as before
 if [ -z "$ANIMA_NOSERVE" ] && ! pidof $NS >/dev/null; then
@@ -60,7 +79,11 @@ if [ -z "$ANIMA_NOSERVE" ] && ! pidof $NS >/dev/null; then
   LLM=miaomiao3DHarem_animaLH3D10_txt.safetensors; [ -s $A/te_llm ] && LLM=$(cat $A/te_llm)
   cd $S && SD_SERVE=$SQ LIBS=$LIBS ADSPP=$ADSPP setsid nohup sh -c "$RUNX" sh $SDCLI --diffusion-model $DM --llm "$LLM" \
     -p x --sampling-method euler --cfg-scale 1 --steps 4 -W 512 -H 768 ${VAEARG:---taesd taew2_1.safetensors} --hires-upscalers-dir $S/upscalers --mmap -t ${T:-4} -o /sdcard/Download/anima_srv.png < /dev/null > $A/sdcli.log 2>&1 &
-  while [ ! -f $SQ/ready ] && [ ! -f $A/cancel ]; do sleep 0.1; done
+  n=0; while [ ! -f $SQ/ready ] && [ ! -f $A/cancel ]; do
+    sleep 0.1; n=$((n+1))
+    if [ $n -gt 100 ] && ! pidof $NS >/dev/null; then load_fail "sd-cli stopped while loading" "$A/sdcli.log"; fi
+    if [ $n -ge 600 ]; then load_fail "sd-cli did not report ready before timeout" "$A/sdcli.log"; fi
+  done
 fi
 if [ -f $A/cancel ]; then rm -f $A/cancel; exit 1; fi
 [ "$1" = load ] && exit 0

@@ -236,7 +236,7 @@ public class Corrections extends Base {
                 File f = new File(work, "alt_" + System.currentTimeMillis() + ".png");
                 try (FileOutputStream fo = new FileOutputStream(f)) { cur.compress(Bitmap.CompressFormat.PNG, 100, fo); }
                 cur.recycle();
-                final JSONObject step = new JSONObject().put("type", c).put("auto", n).put("prompt", qp).put("seed", seed).put("sec", Math.round((System.currentTimeMillis() - t0) / 100.0) / 10.0);
+                final JSONObject step = new JSONObject().put("type", c).put("auto", n).put("prompt", prompt).put("seed", seed).put("sec", Math.round((System.currentTimeMillis() - t0) / 100.0) / 10.0);
                 ui.post(() -> { dlg.dismiss(); running = false; alts.add(f); altSteps.add(step); sel = alts.size() - 1; refresh();
                     Toast.makeText(this, L.f("Corregidas: %d. Compara y elige «Usar esta» si te gusta.", "Fixed: %d. Compare, and pick \"Use this one\" if you like it.", n), Toast.LENGTH_LONG).show(); });
             } catch (InterruptedException e) { ui.post(() -> { dlg.dismiss(); running = false; });
@@ -276,11 +276,11 @@ public class Corrections extends Base {
                     String seed = String.valueOf(new java.util.Random().nextInt(Integer.MAX_VALUE));
                     byte[] png = Qwen.runMaskedEdit(this, in, maskFile(), prompt, seed, () -> stop[0], ph -> ui.post(() -> { tv.setText(ph); bar.setProgress(150 + 200 * stepOf(ph)); }));
                     out = BitmapFactory.decodeByteArray(png, 0, png.length); if (out == null) throw new java.io.IOException("decode");
-                    step.put("prompt", qp).put("seed", seed);
+                    step.put("prompt", prompt).put("seed", seed);
                 } else if (c.equals("noise")) {
                     Bitmap den = Upscaler.run(this, in, 1, Upscaler.ESRGAN, pr, () -> stop[0]);   // denoise: the fast model, it smooths noise best
                     out = blend(in, den, str / 100f); den.recycle(); step.put("strength", str / 100.0);
-                } else { out = Upscaler.run(this, in, fac, pr, () -> stop[0]); step.put("factor", fac); }
+                } else { out = Upscaler.run(this, in, fac, pr, () -> stop[0]); step.put("factor", fac).put("upscaler", Upscaler.name(Upscaler.ESRGAN)); }
                 in.recycle();
                 ui.post(() -> tv.setText(L.s("Guardando…", "Saving…")));
                 File f = new File(work, "alt_" + System.currentTimeMillis() + ".png");

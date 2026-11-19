@@ -59,6 +59,20 @@ final class PngMeta {
         String sch = m.optString("scheduler"); if (!sch.isEmpty() && !sch.equals("discrete")) p.append(", Schedule type: ").append(sch);
         p.append(", CFG scale: ").append(m.optString("cfg", "1")).append(", Seed: ").append(m.optString("seed")).append(", Size: ").append(m.optInt("w")).append("x").append(m.optInt("h"));
         p.append(", Model: ").append(m.optString("model").replace(",", " "));
+        int upscale = m.optInt("upscaled");
+        if (upscale > 1) p.append(", Hires upscale: ").append(upscale).append(", Hires upscaler: ").append(m.optString("upscaler", "unknown"));
+        org.json.JSONArray corrections = m.optJSONArray("corrections");
+        if (corrections != null) for (int i = 0; i < corrections.length(); i++) {
+            JSONObject step = corrections.optJSONObject(i); if (step == null) continue;
+            String type = step.optString("type"), prompt = step.optString("prompt");
+            if (type.equals("face") || type.equals("hands")) {
+                p.append(", ADetailer model: Qwen masked edit (").append(type).append(")");
+                if (!prompt.isEmpty()) p.append(", ADetailer prompt: ").append(prompt.replace(',', ' '));
+                String seed = step.optString("seed"); if (!seed.isEmpty()) p.append(", ADetailer seed: ").append(seed);
+            } else if (type.equals("resolution")) {
+                p.append(", Hires upscale: ").append(step.optInt("factor", upscale)).append(", Hires upscaler: ").append(step.optString("upscaler", m.optString("upscaler", "unknown")));
+            }
+        }
         org.json.JSONArray civ = new org.json.JSONArray();
         String id = m.optString("id"); if (id.startsWith("cv")) { try { civ.put(new JSONObject().put("type", "checkpoint").put("modelVersionId", Long.parseLong(id.substring(2)))); } catch (Exception ignored) { } }
         org.json.JSONArray res = m.optJSONArray("res"); StringBuilder lh = new StringBuilder();

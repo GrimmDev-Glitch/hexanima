@@ -8,10 +8,10 @@ if [ "$1" = stop ]; then for p in libmossrun.so libvaerun.so libvaetile.so; do p
 IDS=$1 W=$2 H=$3 SEED=$4 STEPS=$5 OUT=$6
 LIBS=$BIN:/system/lib64:/vendor/lib64
 ARCH=v69; SKEL=$BIN/libmossskel.so
-if [ "$(getprop ro.soc.model)" = SM8550 ]; then
+if [ "$(getprop ro.soc.model)" = SM8550 ] || [ "$(getprop ro.soc.model)" = SM8650 ]; then
   ARCH=v73
   SKEL=$BIN/libmossskel_v73.so
-  # Use the validated architecture-matched SM8550 kernel; LoKr sidecars remain experimental and are not selected by the app.
+  # Use the validated V73 kernel on SM8550 and the reported compatible V73 path on SM8650; LoKr sidecars remain experimental.
   [ -f "$SKEL" ] || { echo "MOSS DSP kernel is missing" >> "$M/moss.log"; exit 1; }
 fi
 ADSPP="$M/dsp;$BIN"

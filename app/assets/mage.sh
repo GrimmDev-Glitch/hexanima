@@ -4,7 +4,7 @@
 if [ "$1" = stop ]; then pidof libmagerun_mage.so >/dev/null && kill -9 $(pidof libmagerun_mage.so); exit 0; fi
 IDS=$1 DROP=$2 W=$3 H=$4 SEED=$5 STEPS=$6 OUT=$7 ED=$8
 ARCH=v69; SKEL=$BIN/libmageskel.so
-case "$(getprop ro.soc.model)" in SM8550) ARCH=v73; SKEL=$BIN/libmageskel_v73.so;; esac   # Mage kernel from the shared flux3/hexagon/mega tree built with ARCH=v73 (windowed DiT, no token limit)
+case "$(getprop ro.soc.model)" in SM8550|SM8650) ARCH=v73; SKEL=$BIN/libmageskel_v73.so;; esac   # Mage V73 kernel; SM8650/V75 reuse is experimental
 [ -f "$SKEL" ] || { echo "Missing Mage DSP kernel for $ARCH" >&2; exit 1; }
 mkdir -p "$M/dsp" "$M/cache"; cp -f "$SKEL" "$M/dsp/libmega_skel.so"
 rm -f "$M/mage.log" "$M/z.f32" "$M/prev.bin" "$OUT"

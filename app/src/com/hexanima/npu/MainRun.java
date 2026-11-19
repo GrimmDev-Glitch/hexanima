@@ -190,6 +190,7 @@ abstract class MainRun extends MainLora {
             setProgressUi(0, L.s("Загружаю модель…", "Loading the model…"), t0);
             su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh load < /dev/null >/dev/null 2>&1", false);
             if (cancelled) return null;
+            if (loadError() != null) return null;
             loaded = true;
         }
         coolTick(true);
@@ -257,6 +258,22 @@ abstract class MainRun extends MainLora {
             if (!tg.used.isEmpty() && loraFitsModel()) meta.put("prompt_loras", String.join(", ", tg.used));
             return Gallery.save(this, PngMeta.embed(png, meta), meta);
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()); return null; }
+    }
+
+    /** Show the runner's startup log instead of leaving the UI in a permanent loading state. */
+    String loadError() {
+        File f = new File(D, "load_error");
+        if (!f.isFile()) return null;
+        String detail;
+        try { detail = new String(Models.readBytes(f), "UTF-8").trim(); }
+        catch (Exception e) { detail = e.getMessage() == null ? "?" : e.getMessage(); }
+        f.delete();
+        if (detail.length() > 5000) detail = detail.substring(detail.length() - 5000);
+        final String msg = detail;
+        ui.post(() -> builder().setTitle(L.s("No se pudo cargar el modelo", "The model failed to load"))
+            .setMessage(L.f("Chip %s · %s\n\n%s", "Chip %s · %s\n\n%s", Compat.soc(), Compat.archLabel(), msg))
+            .setPositiveButton("OK", null).show());
+        return detail;
     }
     /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
     File runOneMoss(String pr, String seedS, int w, int h, long t0) {

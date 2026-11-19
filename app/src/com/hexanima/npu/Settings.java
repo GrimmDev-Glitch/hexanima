@@ -25,6 +25,24 @@ public class Settings extends Base {
     static boolean lowRam(Context c) { return prefs(c).getBoolean("lowram", Compat.ramGb(c) < 9.5); }
     static boolean keepOn(Context c) { return prefs(c).getBoolean("keepon", true); }
     static boolean keepMeta(Context c) { return prefs(c).getBoolean("keep_meta", true); }
+    static boolean autoSave(Context c) { return prefs(c).getBoolean("autosave", false); }
+    /** SAF folder for exported images; null means the phone gallery's Pictures/Anima folder. */
+    static android.net.Uri pictureDir(Context c) {
+        String value = prefs(c).getString("pic_dir", ""); if (value.isEmpty()) return null;
+        android.net.Uri uri = android.net.Uri.parse(value);
+        for (android.content.UriPermission permission : c.getContentResolver().getPersistedUriPermissions())
+            if (permission.getUri().equals(uri) && permission.isWritePermission()) return uri;
+        return null;
+    }
+    static String pictureDirLabel(Context c) {
+        android.net.Uri uri = pictureDir(c);
+        if (uri == null) return L.s("Galería del teléfono (Pictures/Anima)", "Phone gallery (Pictures/Anima)");
+        try {
+            String id = android.provider.DocumentsContract.getTreeDocumentId(uri); int colon = id.indexOf(':');
+            String path = colon >= 0 ? id.substring(colon + 1) : id;
+            return path.isEmpty() ? L.s("Almacenamiento interno", "Internal storage") : path;
+        } catch (Exception e) { return uri.getLastPathSegment(); }
+    }
     static String rawPrefix(Context c) { SharedPreferences sp = prefs(c); String p = sp.getString(key(c, "prefix"), sp.getString("prefix", DEFAULT_PREFIX));  /* per model, falling back to the old global one */ return p.equals(OLD_DEFAULT_PREFIX) ? DEFAULT_PREFIX : p; }
     /** what goes before the prompt: trimmed, ending with a comma and a space; a single space when the user cleared it (anima.sh treats an empty PREFIX as "use the default") */
     static String prefix(Context c) { String p = rawPrefix(c).trim(); return p.isEmpty() ? " " : (p.endsWith(",") ? p : p + ",") + " "; }
@@ -81,6 +99,14 @@ public class Settings extends Base {
                 startActivity(new android.content.Intent(this, WallEdit.class));   // straight to placing it; this screen is rebuilt on return
                 return;
             } catch (Exception e) { Toast.makeText(this, L.f("Не удалось открыть картинку: %s", "Could not open the picture: %s", String.valueOf(e.getMessage())), Toast.LENGTH_LONG).show(); }
+            recreate();
+        }
+        if (req == 33 && res == RESULT_OK && d != null && d.getData() != null) {
+            try {
+                android.net.Uri uri = d.getData();
+                getContentResolver().takePersistableUriPermission(uri, d.getFlags() & (android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+                prefs(this).edit().putString("pic_dir", uri.toString()).apply();
+            } catch (Exception e) { Toast.makeText(this, String.valueOf(e.getMessage()), Toast.LENGTH_LONG).show(); }
             recreate();
         }
     }
@@ -150,6 +176,13 @@ public class Settings extends Base {
         LinearLayout c3 = card(col);
         c3.addView(toggle(L.s("Не гасить экран при генерации", "Keep the screen on while generating"), "", keepOn(this), on -> p.edit().putBoolean("keepon", on).apply()));
         c3.addView(toggle(L.s("Guardar metadatos en la imagen", "Keep metadata in the picture"), L.s("Prompt, semilla y modelo dentro del PNG. Desactivado, el PNG no los lleva; el historial de la app guarda su propia copia.", "Prompt, seed and model inside the PNG. Off, the PNG carries none of them; the app's History keeps its own copy."), keepMeta(this), on -> { p.edit().putBoolean("keep_meta", on).apply(); PngMeta.keep = on; }));
+        c3.addView(choice(L.s("Dónde guardar las imágenes", "Where to save pictures"), pictureDirLabel(this), v -> builder().setTitle(L.s("Dónde guardar las imágenes", "Where to save pictures"))
+            .setSingleChoiceItems(new String[]{L.s("Galería del teléfono (Pictures/Anima)", "Phone gallery (Pictures/Anima)"), L.s("Elegir carpeta…", "Choose a folder…")}, pictureDir(this) == null ? 0 : -1, (d, i) -> {
+                d.dismiss();
+                if (i == 0) { p.edit().remove("pic_dir").apply(); recreate(); }
+                else startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION | android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | android.content.Intent.FLAG_GRANT_PREFIX_URI_PERMISSION), 33);
+            }).show()));
+        c3.addView(toggle(L.s("Guardar automáticamente", "Save automatically"), L.s("Copia cada imagen terminada en el destino elegido. También queda en el Historial de HexAnima.", "Copies each finished picture to the chosen destination. It also stays in HexAnima History."), autoSave(this), on -> p.edit().putBoolean("autosave", on).apply()));
         String[] cn0 = {L.s("Автоматически", "Automatic"), L.s("Всегда", "Always"), L.s("Никогда", "Never")}, cv0 = {"auto", "on", "off"};
         int ci0 = Math.max(0, java.util.Arrays.asList(cv0).indexOf(coolMode(this)));
         c3.addView(choice(L.s("Режим без перегрева", "Cool mode"), cn0[ci0], v -> {

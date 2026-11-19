@@ -1,5 +1,6 @@
 package com.hexanima.npu;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -17,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Model catalog: a card per model (size, speed at the base resolution, installed state) with download / delete. The download itself runs on a thread with a foreground service,
  *  its progress lives in statics so that leaving this screen does not lose it. The shared files (text encoder, VAE) come with the first model. */
 public class ModelsActivity extends Base {
+    static final int REQ_IMPORT = 41, REQ_EXPORT = 42;
     static volatile boolean downloading;
     static volatile String dlId = "", dlMsg = "";
     static volatile long dlDone, dlTotal;
@@ -30,9 +32,10 @@ public class ModelsActivity extends Base {
     TextView info;
     EditText url;
     List<Models.Item> items = new ArrayList<>();
+    Models.Item pendingExport;
     final java.util.Map<String, ProgressBar> bars = new java.util.HashMap<>();
     final java.util.Map<String, TextView> msgs = new java.util.HashMap<>();
-    boolean wasDownloading;
+    boolean wasDownloading, ioBusy;
     final Runnable tick = new Runnable() {
         @Override public void run() {
             if (downloading) {
@@ -56,6 +59,9 @@ public class ModelsActivity extends Base {
         col.addView(info);
         url = field(L.s("Адрес каталога (…/resolve/main/)", "Catalog URL (…/resolve/main/)")); url.setText(prefBase()); url.setTextSize(12); url.setBackground(bg(CARD, 14)); url.setVisibility(View.GONE);
         col.addView(url);
+        Button imp = button(L.s("Importar modelo desde carpeta…", "Import model from folder…"), CARD, TXT); imp.setTextSize(13);
+        imp.setOnClickListener(v -> { if (!downloading && !ioBusy) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_IMPORT); });
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(-1, dp(42)); il.bottomMargin = dp(10); col.addView(imp, il);
         src.setOnClickListener(v -> { boolean show = url.getVisibility() != View.VISIBLE; url.setVisibility(show ? View.VISIBLE : View.GONE); if (!show) load(); });
         list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
         col.addView(list);
@@ -72,13 +78,56 @@ public class ModelsActivity extends Base {
     @Override protected void onPause() { super.onPause(); ui.removeCallbacks(tick); }
     @Override protected void onDestroy() { super.onDestroy(); io.shutdownNow(); }
 
+    @Override protected void onActivityResult(int req, int result, Intent data) {
+        super.onActivityResult(req, result, data);
+        if (result != RESULT_OK || data == null || data.getData() == null) return;
+        if (req == REQ_IMPORT) runModelIO(false, data.getData(), null);
+        else if (req == REQ_EXPORT && pendingExport != null) { Models.Item it = pendingExport; pendingExport = null; runModelIO(true, data.getData(), it); }
+    }
+
+    void runModelIO(boolean exporting, android.net.Uri tree, Models.Item item) {
+        if (downloading || ioBusy) return;
+        ioBusy = true;
+        AtomicBoolean stop = new AtomicBoolean();
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(20), dp(8), dp(20), 0);
+        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(1000); bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACC)); box.addView(bar);
+        TextView line = text(L.s("Preparando…", "Preparing…"), 12, DIM, false); line.setPadding(0, dp(6), 0, 0); box.addView(line);
+        AlertDialog dlg = builder().setTitle(exporting ? L.f("Exportar: %s", "Export: %s", item.name) : L.s("Importar modelo", "Import model"))
+            .setView(box).setCancelable(false).setNegativeButton(L.s("Cancelar", "Cancel"), null).show();
+        dlg.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> { stop.set(true); line.setText(L.s("Cancelando…", "Cancelling…")); dlg.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setEnabled(false); });
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        io.submit(() -> {
+            String error = null; String[] imported = null;
+            Models.Progress progress = (done, total, path) -> ui.post(() -> {
+                if (total > 0) bar.setProgress((int) Math.min(1000, done * 1000 / total));
+                line.setText(L.f("%s / %s GB · %s", "%s / %s GB · %s", gb(done), gb(total), path));
+            });
+            try {
+                if (exporting) ModelIO.export(this, store, item.id, item.name, tree, progress, stop);
+                else imported = ModelIO.importFrom(this, store, tree, progress, stop);
+                if (stop.get()) throw new java.io.InterruptedIOException();
+            } catch (java.io.InterruptedIOException e) { error = L.s("Operación cancelada", "Operation cancelled"); }
+            catch (Exception e) { error = L.f("Error: %s", "Error: %s", String.valueOf(e.getMessage())); }
+            final String msg = error; final String[] model = imported;
+            ui.post(() -> {
+                dlg.dismiss(); ioBusy = false; getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                if (model != null) {
+                    boolean found = false; for (Models.Item existing : items) if (existing.id.equals(model[0])) { found = true; break; }
+                    if (!found) { Models.Item added = new Models.Item(); added.id = model[0]; added.name = model[1]; added.desc = L.s("Importado desde una carpeta", "Imported from a folder"); added.descEn = added.desc; items.add(0, added); }
+                    Toast.makeText(this, L.f("Modelo importado: %s", "Imported model: %s", model[1]), Toast.LENGTH_LONG).show(); render();
+                } else if (msg == null) Toast.makeText(this, L.s("Modelo exportado a la carpeta elegida", "Model exported to the chosen folder"), Toast.LENGTH_LONG).show();
+                else Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+
     void load() {
         list.removeAllViews();
         list.addView(text(L.s("Загружаю каталог…", "Loading catalog…"), 13, DIM, false));
         final String base = url.getText().toString().trim().replaceAll("/*$", "") + "/";
         getSharedPreferences("anima", 0).edit().putString("base", base).apply();
         io.submit(() -> {
-            try { final List<Models.Item> cat = store.catalog(base); Models.ensureMage(cat); for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); }); }
+            try { final List<Models.Item> cat = store.catalog(this, base); final boolean off = store.offline; Models.ensureMage(cat); for (Models.Item it : cat) store.refreshMeta(it); ui.post(() -> { items = cat; render(); if (off) Toast.makeText(this, L.s("Sin internet: catálogo guardado. Puedes borrar modelos, pero no descargar.", "Offline: showing the saved catalog. You can delete models, but cannot download."), Toast.LENGTH_LONG).show(); }); }
             catch (Exception e) { ui.post(() -> { list.removeAllViews(); list.addView(text(L.f("Каталог недоступен: %s", "Catalog unavailable: %s", e.getMessage()), 13, BAD, false)); }); }
         });
     }
@@ -98,6 +147,10 @@ public class ModelsActivity extends Base {
             LinearLayout top = new LinearLayout(this); top.setGravity(android.view.Gravity.CENTER_VERTICAL);
             if (have) { TextView ok = text("✓", 18, OK, true); ok.setPadding(0, 0, dp(8), 0); top.addView(ok); }
             top.addView(text(it.name, 17, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
+            if (have && ModelIO.supported(it.id)) {
+                TextView ex = text(L.s("Exportar", "Export"), 13, ACC, true); ex.setPadding(dp(10), dp(6), 0, dp(6));
+                ex.setAlpha(ioBusy ? .5f : 1f); ex.setOnClickListener(v -> { if (!downloading && !ioBusy) { pendingExport = it; startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_EXPORT); } }); top.addView(ex);
+            }
             c.addView(top);
             String meta = (it.params.isEmpty() ? "" : it.params + (it.quant.isEmpty() ? "" : " " + it.quant) + "  ·  ") + (it.video ? L.s("~30 с на клип 512×320", "~30 s per 512×320 clip") + "  ·  " : it.speed > 0 ? L.f("~%d с на 512×768", "~%d s at 512×768", it.speed) + "  ·  " : "") + L.f("%s ГБ", "%s GB", gb(it.size));
             TextView m = text(meta, 13, ACC, false); m.setPadding(0, dp(4), 0, 0); c.addView(m);
@@ -118,10 +171,10 @@ public class ModelsActivity extends Base {
                 Button x = button(L.s("Отменить", "Cancel"), FIELD, TXT); x.setOnClickListener(v -> cancel.set(true));
                 LinearLayout.LayoutParams xl = new LinearLayout.LayoutParams(-1, dp(42)); xl.topMargin = dp(8); c.addView(x, xl);
             } else {
-                String label = have ? L.s("Удалить", "Delete") : !it.runtimeAvailable ? L.s("Ожидание контекстов V73", "Waiting for V73 contexts") : L.f("Скачать  %s ГБ", "Download  %s GB", gb(it.size + (needCommon ? store.commonSize : 0)));
-                Button bt = button(label, have ? FIELD : ACC, have ? BAD : ON_ACC); bt.setEnabled(!downloading && (have || it.runtimeAvailable)); bt.setAlpha(downloading || !have && !it.runtimeAvailable ? .5f : 1f);
+                String label = have ? L.s("Удалить", "Delete") : store.offline ? L.s("Sin conexión", "Offline") : !it.runtimeAvailable ? L.s("Ожидание контекстов V73", "Waiting for V73 contexts") : L.f("Скачать  %s ГБ", "Download  %s GB", gb(it.size + (needCommon ? store.commonSize : 0)));
+                Button bt = button(label, have ? FIELD : ACC, have ? BAD : ON_ACC); bt.setEnabled(!downloading && !ioBusy && (have || (!store.offline && it.runtimeAvailable))); bt.setAlpha(downloading || ioBusy || !have && (store.offline || !it.runtimeAvailable) ? .5f : 1f);
                 bt.setOnClickListener(v -> {
-                    if (have) { store.delete(it.id); deleted = it.id; render(); }
+                    if (have) confirmDelete(it, () -> { store.delete(it.id); deleted = it.id; render(); });
                     else start(base, it, needCommon);
                 });
                 LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, dp(44)); bl.topMargin = dp(10);
@@ -133,6 +186,12 @@ public class ModelsActivity extends Base {
     }
 
     boolean hasAnima() { for (Models.Item it : items) if (!it.moss && !it.qwen && !it.mage && !it.video) return true; return false; }
+
+    void confirmDelete(Models.Item it, Runnable action) {
+        builder().setMessage(L.f("¿Eliminar «%s»? Tendrás que descargarlo otra vez para usarlo.", "Delete “%s”? You will need to download it again to use it.", it.name))
+            .setNegativeButton(L.s("Cancelar", "Cancel"), null)
+            .setPositiveButton(L.s("Eliminar", "Delete"), (d, w) -> action.run()).show();
+    }
 
     void start(String base, Models.Item it, boolean needCommon) {
         if (!Compat.chipAllowed(this)) {   // an unsupported chip: the models will not run, so ask before 4 GB are downloaded
@@ -151,7 +210,7 @@ public class ModelsActivity extends Base {
     void begin(String base, Models.Item it, boolean needCommon) {
         long need = it.size + (needCommon ? store.commonSize : 0);
         if (getFilesDir().getUsableSpace() < need + 300_000_000L) { Toast.makeText(this, L.f("Не хватает места: нужно %s ГБ", "Not enough space: need %s GB", gb(need)), Toast.LENGTH_LONG).show(); return; }
-        if (downloading) return;
+        if (downloading || ioBusy) return;
         downloading = true; dlId = it.id; dlDone = 0; dlTotal = need; dlMsg = L.s("Подключаюсь…", "Connecting…"); cancel.set(false);
         final android.content.Context app = getApplicationContext();
         app.startForegroundService(new Intent(app, DownloadService.class));

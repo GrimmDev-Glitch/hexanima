@@ -981,3 +981,58 @@ Overwrite	Sobrescribir
 Template "%s" updated	Plantilla «%s» actualizada
 Prompt copied	Prompt copiado
 Copy prompt	Copiar prompt
+Active: %d	Activos: %d
+Active LoRAs	LoRAs activos
+Open in browser	Abrir en el navegador
+Could not open the browser	No se pudo abrir el navegador
+CFG set to 4 to apply the negative prompt	CFG cambiado a 4 para usar el prompt negativo
+Stop the current generation? The model will need to load again.	¿Detener la generación actual? El modelo tendrá que volver a cargarse.
+Keep going	Seguir
+Delete “%s”? You will need to download it again to use it.	¿Eliminar «%s»? Tendrás que descargarlo otra vez para usarlo.
+Where to save pictures	Dónde guardar las imágenes
+Phone gallery (Pictures/Anima)	Galería del teléfono (Pictures/Anima)
+Choose a folder…	Elegir carpeta…
+Save automatically	Guardar automáticamente
+Copies each finished picture to the chosen destination. It also stays in HexAnima History.	Copia cada imagen terminada en el destino elegido. También queda en el Historial de HexAnima.
+Saved to: %s	Guardada en: %s
+Offline: showing the saved catalog. You can delete models, but cannot download.	Sin internet: catálogo guardado. Puedes borrar modelos, pero no descargar.
+Offline	Sin conexión
+Could not write the manifest	No se pudo escribir el manifiesto
+hexanima-model.json was not found in that folder.	No se encontró hexanima-model.json en esa carpeta.
+Unknown model format	Formato de modelo desconocido
+This pack is not an Anima model supported by this importer.	Este paquete no es un modelo Anima compatible con este importador.
+This pack requires Hexagon %s; this phone uses %s.	Este paquete requiere Hexagon %s; este teléfono usa %s.
+Not enough space: %s GB plus free-space margin required.	No hay espacio suficiente: se requieren %s GB más margen libre.
+Missing file %s	Falta el archivo %s
+A model or shared component already exists with different files. Delete it before restoring this pack.	Ya existe un modelo o componente con otros archivos. Elimínalo antes de restaurar este paquete.
+File size or hash mismatch: %s	El tamaño o hash no coincide: %s
+Could not create folder %s	No se pudo crear la carpeta %s
+Only installed Anima models with their shared files can be exported.	Solo se pueden exportar modelos Anima instalados con sus archivos comunes.
+The model has no files to export	El modelo no contiene archivos para exportar
+Could not create the export folder	No se pudo crear la carpeta de exportación
+Could not create file %s	No se pudo crear el archivo %s
+Incomplete copy: %s	Copia incompleta: %s
+%s / %s GB · %s	%s / %s GB · %s
+Operation cancelled	Operación cancelada
+Imported from a folder	Importado desde una carpeta
+Imported model: %s	Modelo importado: %s
+Model exported to the chosen folder	Modelo exportado a la carpeta elegida
+Export	Exportar
+Import model from folder…	Importar modelo desde carpeta…
+Export: %s	Exportar: %s
+Import model	Importar modelo
+Cancelling…	Cancelando…
+Internal storage	Almacenamiento interno
+Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 / 8 Gen 3 is required	Chip %s: no compatible; se requiere Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 / 8 Gen 3
+The manifest contains duplicate files or invalid file data.	El manifiesto contiene archivos duplicados o datos inválidos.
+The pack is missing essential Anima model files.	El paquete no contiene los archivos esenciales del modelo Anima.
+The pack is missing Anima model blocks.	El paquete no contiene los bloques del modelo Anima.
+The model blocks are incomplete or not consecutive.	Los bloques del modelo están incompletos o no son consecutivos.
+The shared text-encoder header is missing.	Falta el encabezado del codificador de texto compartido.
+More than one matching shared text file was found.	Se encontró más de un archivo de texto compartido coincidente.
+The sparse shared text-encoder file was not found.	No se encontró el archivo disperso del codificador de texto compartido.
+The model failed to load	No se pudo cargar el modelo
+Chip %s · %s\n\n%s	Chip %s · %s\n\n%s
+The pack is incomplete: a shared Anima component is missing.	El paquete está incompleto: falta un componente compartido de Anima.
+The sparse-file manifest is invalid.	El manifiesto de archivos dispersos es inválido.
+The pack is missing headers needed to rebuild its model files.	El paquete no contiene los encabezados necesarios para reconstruir los archivos dispersos.

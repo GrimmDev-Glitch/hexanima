@@ -1,5 +1,9 @@
 package com.hexanima.npu;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -24,6 +28,7 @@ final class Models {
 
     final File anima, sd, home;
     Models(File home) { this.home = home; anima = new File(home, "anima"); sd = new File(home, "sd"); anima.mkdirs(); sd.mkdirs(); }
+    boolean offline;
 
     static String get(String url) throws IOException {
         HttpURLConnection c = open(url, 0);
@@ -41,11 +46,41 @@ final class Models {
     }
 
     long commonSize;
-    List<Item> catalog(String base) throws Exception {
-        String txt;
-        try { txt = get(base + "catalog6.json"); List<Item> out = catalogPacks(txt, base); checkRuntimePacks(out); ensureMage(out); return out; } catch (Exception e6) { }
-        try { txt = get(base + "catalog5.json"); List<Item> out = catalogPacks(txt, base); checkRuntimePacks(out); ensureMage(out); return out; } catch (Exception e5) { }
-        try { txt = get(base + "catalog2.json"); } catch (Exception e) { txt = get(base + "catalog.json"); }
+    List<Item> catalog(Context context, String base) throws Exception {
+        offline = false; Exception last = null;
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        Network network = cm == null ? null : cm.getActiveNetwork();
+        NetworkCapabilities caps = network == null ? null : cm.getNetworkCapabilities(network);
+        boolean connected = caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        if (connected) {
+            String[] names = {"catalog6.json", "catalog5.json", "catalog2.json", "catalog.json"};
+            for (String name : names) {
+                try {
+                    String txt = get(base + name); List<Item> out = parseCatalog(txt, base, name);
+                    checkRuntimePacks(out); ensureMage(out); saveCatalog(base, name, txt); return out;
+                } catch (Exception e) { last = e; }
+            }
+        } else {
+            offline = true; last = new IOException("No validated internet connection");
+        }
+        try {
+            JSONObject cache = new JSONObject(read(new File(home, "model_catalog_cache.json")));
+            if (!base.equals(cache.optString("base"))) throw new IOException("cached catalog is for another source");
+            List<Item> out = parseCatalog(cache.getString("text"), base, cache.getString("name"));
+            ensureMage(out); offline = true; return out;
+        } catch (Exception e) { if (last == null) last = e; }
+        throw last == null ? new IOException("catalog unavailable") : last;
+    }
+
+    private void saveCatalog(String base, String name, String text) {
+        try (FileWriter w = new FileWriter(new File(home, "model_catalog_cache.json"))) {
+            w.write(new JSONObject().put("base", base).put("name", name).put("text", text).toString());
+        } catch (Exception ignored) { }
+    }
+
+    private List<Item> parseCatalog(String txt, String base, String name) throws Exception {
+        if (name.equals("catalog6.json") || name.equals("catalog5.json")) return catalogPacks(txt, base);
         JSONObject j = new JSONObject(txt);
         commonSize = j.optLong("common_size", 0);
         List<Item> out = new ArrayList<>();
@@ -57,7 +92,6 @@ final class Models {
             configureRuntime(it, base);
             out.add(it);
         }
-        checkRuntimePacks(out); ensureMage(out);
         return out;
     }
 

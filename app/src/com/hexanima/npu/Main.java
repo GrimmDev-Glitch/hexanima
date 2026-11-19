@@ -73,7 +73,7 @@ public class Main extends MainEdit {
             for (String t : tagLoras) if (!ls.contains(t)) ls.add(t);
         }
         String lora = ls.isEmpty() ? "" : "LORA=" + q(String.join("|", ls)) + " ";
-        return "MID=" + model + " MDIR=m_" + model + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "") + (Settings.coolMode(this).equals("on") ? "MEGA_COOL=1 " : "");
+        return "MID=" + model + " MDIR=m_" + model + " HEXARCH=" + Compat.dspArch() + " IDLE=" + Settings.idleMin(this) * 60 + " " + lora + (Settings.lowRam(this) ? "MEGA_STREAM=1 " : "") + (Settings.coolMode(this).equals("on") ? "MEGA_COOL=1 " : "");
     }
 
     GradientDrawable gradient(boolean enabled) {
@@ -341,7 +341,12 @@ public class Main extends MainEdit {
         negBox = new LinearLayout(this); negBox.setOrientation(LinearLayout.VERTICAL);   // the negative prompt sits right under the prompt (models that use it)
         LinearLayout negHead = new LinearLayout(this); negHead.setGravity(Gravity.CENTER_VERTICAL);
         negHead.addView(label(L.s("НЕГАТИВНЫЙ ПРОМПТ", "NEGATIVE PROMPT")), new LinearLayout.LayoutParams(0, -2, 1));
-        TextView negDef = link(L.s("По умолчанию", "Default")); negDef.setOnClickListener(v -> negEdit.setText(Settings.turbo(this) ? "" : Settings.NEG_DEFAULT)); negHead.addView(negDef);
+        TextView negDef = link(L.s("По умолчанию", "Default")); negDef.setOnClickListener(v -> {
+            boolean enableNeg = !Settings.cfgOn(this);
+            if (enableNeg) cfgEdit.setText("4");   // CFG 1 skips the negative pass, so selecting the default must actually enable it
+            negEdit.setText(Settings.NEG_DEFAULT);
+            if (enableNeg) Toast.makeText(this, L.s("CFG cambiado a 4 para usar el prompt negativo", "CFG set to 4 to apply the negative prompt"), Toast.LENGTH_LONG).show();
+        }); negHead.addView(negDef);
         TextView negTpl = link(L.s("Plantillas", "Templates")); negTpl.setOnClickListener(v -> negTemplates()); negHead.addView(negTpl);
         TextView negClr = link(L.s("Очистить", "Clear")); negClr.setOnClickListener(v -> negEdit.setText("")); negHead.addView(negClr);
         negBox.addView(negHead);
@@ -547,7 +552,12 @@ public class Main extends MainEdit {
         brow.addView(countBtn, cb);
         genBtn = button("", ACC, ON_ACC);
         genBtn.setTextSize(17);
-        genBtn.setOnClickListener(v -> { if (busy) cancel(); else generate(false); });
+        genBtn.setOnClickListener(v -> {
+            if (busy) builder().setMessage(L.s("¿Detener la generación actual? El modelo tendrá que volver a cargarse.", "Stop the current generation? The model will need to load again."))
+                .setNegativeButton(L.s("Seguir", "Keep going"), null)
+                .setPositiveButton(L.s("Detener", "Stop"), (d, w) -> cancel()).show();
+            else generate(false);
+        });
         brow.addView(genBtn, new LinearLayout.LayoutParams(0, dp(54), 1));
         bottom.addView(brow);
         frame.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
@@ -1278,7 +1288,7 @@ public class Main extends MainEdit {
         setModelUi(loaded, true, want ? L.s("Загружаю модель…", "Loading the model…") : L.s("Выгружаю модель…", "Unloading the model…"));
         ex.submit(() -> {
             su("rm -f " + D + "/cancel; " + mp() + "sh " + D + "/anima.sh " + (want ? "load" : "stop") + " < /dev/null >/dev/null 2>&1", false);
-            loaded = want;
+            loaded = want && loadError() == null;
             setModelUi(loaded, false, "");
         });
     }

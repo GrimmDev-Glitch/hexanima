@@ -87,7 +87,7 @@ abstract class MainLora extends Base {
         LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(18), dp(16), dp(18), dp(10));
         LinearLayout th = new LinearLayout(this); th.setGravity(Gravity.CENTER_VERTICAL);
         th.addView(text("LoRAs", 20, TXT, true), new LinearLayout.LayoutParams(0, -2, 1));
-        final TextView cnt = text("", 12, ACC, true); th.addView(cnt); v.addView(th);
+        final TextView cnt = text("", 12, ACC, true); cnt.setPadding(dp(8), dp(8), dp(2), dp(8)); cnt.setClickable(true); cnt.setFocusable(true); th.addView(cnt); v.addView(th);
         final EditText filter = field(L.s("Фильтр: имя или слово…", "Filter: name or word…")); filter.setSingleLine(true); filter.setTextSize(15);
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2); fl.topMargin = dp(10); fl.bottomMargin = dp(8); v.addView(filter, fl);
         final HorizontalScrollView catScroll = new HorizontalScrollView(this); catScroll.setHorizontalScrollBarEnabled(false); final LinearLayout catRow = new LinearLayout(this); catScroll.addView(catRow);
@@ -109,8 +109,18 @@ abstract class MainLora extends Base {
         if (lf != null) for (File f : lf) if (f.getName().endsWith(".safetensors") && !f.getName().startsWith("new.")) names.add(f.getName().substring(0, f.getName().length() - 12));
         java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
         if (names.isEmpty()) list.addView(text(L.s("Пусто: скачайте LoRA с Civitai или импортируйте файл.", "Empty: download LoRAs from Civitai or import a file."), 14, DIM, false));
-        final List<View> rows = new ArrayList<>(); final List<String> keys = new ArrayList<>(); final List<CheckBox> boxes = new ArrayList<>();
-        final Runnable count = () -> { int k = 0; for (CheckBox b : boxes) if (b.isChecked()) k++; cnt.setText(k == 0 ? "" : L.f("активно: %d", "active: %d", k)); };
+        final List<View> rows = new ArrayList<>(); final List<String> keys = new ArrayList<>(); final List<String> displayNames = new ArrayList<>(); final List<CheckBox> boxes = new ArrayList<>(); final List<String> activeNames = new ArrayList<>();
+        final Runnable count = () -> {
+            activeNames.clear();
+            for (int i = 0; i < boxes.size(); i++) if (boxes.get(i).isChecked()) {
+                EditText weight = (EditText) ((LinearLayout) rows.get(i)).getChildAt(3);
+                String w = weight.getText().toString().trim();
+                activeNames.add(displayNames.get(i) + (w.isEmpty() ? "" : " · " + w));
+            }
+            cnt.setText(activeNames.isEmpty() ? "" : L.f("Activos: %d", "Active: %d", activeNames.size()));
+            cnt.setEnabled(!activeNames.isEmpty()); cnt.setAlpha(activeNames.isEmpty() ? .55f : 1f);
+        };
+        cnt.setOnClickListener(x -> { if (!activeNames.isEmpty()) builder().setTitle(L.s("LoRAs activos", "Active LoRAs")).setItems(activeNames.toArray(new String[0]), null).setPositiveButton(L.s("Cerrar", "Close"), null).show(); });
         for (String n : names) {
             File f = new File(dir, n + ".safetensors"); JSONObject md = Civitai.meta(f); final String words = Civitai.words(f);
             final String title0 = md != null && !md.optString("name").isEmpty() ? md.optString("name") : n, al = alias(true, "anima/" + n);
@@ -122,6 +132,7 @@ abstract class MainLora extends Base {
             row.addView(cb);
             LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
             TextView tn = text(title, 15, TXT, true); tn.setSingleLine(true); tn.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(tn);
+            displayNames.add(title);
             TextView sub = text(words.isEmpty() ? n : words, 12, DIM, false); sub.setSingleLine(true); sub.setEllipsize(android.text.TextUtils.TruncateAt.END); col.addView(sub);
             row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
             TextView pen = text("✎", 16, DIM, false); pen.setPadding(dp(6), dp(4), dp(4), dp(4));
@@ -135,7 +146,7 @@ abstract class MainLora extends Base {
                 if (on) { if (loraWeight(n) == null) loraAdd(n, w, words); } else loraRemove(n, words);
                 row.setBackground(bg(on ? SEL : FIELD, 12)); count.run();
             });
-            we.addTextChangedListener(watch(s -> { String w = s.trim().replace(',', '.'); try { Float.parseFloat(w); if (cb.isChecked()) loraSetWeight(n, w); } catch (NumberFormatException ignored) { } }));
+            we.addTextChangedListener(watch(s -> { String w = s.trim().replace(',', '.'); try { Float.parseFloat(w); if (cb.isChecked()) loraSetWeight(n, w); } catch (NumberFormatException ignored) { } count.run(); }));
             row.setOnClickListener(x -> cb.toggle());
             row.setOnLongClickListener(x -> { loraMenu(title, f, words, () -> builder().setMessage(L.f("Удалить %s?", "Delete %s?", n)).setPositiveButton(L.s("Удалить", "Delete"), (d, i) -> { if (cb.isChecked()) loraRemove(n, words); f.delete(); Civitai.metaFile(f).delete(); dlg.dismiss(); loraLibrary(); }).setNegativeButton(L.s("Отмена", "Cancel"), null).show(), () -> { dlg.dismiss(); loraLibrary(); }); return true; });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.bottomMargin = dp(6); list.addView(row, lp);
@@ -309,10 +320,10 @@ abstract class MainLora extends Base {
         try { startActivityForResult(i, 15); }
         catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el selector de archivos", "Could not open the file picker"), Toast.LENGTH_LONG).show(); }
     }
-    /** long tap on a library LoRA: category, trigger words, and (Anima) delete */
+    /** long tap on a library LoRA: category, trigger words, Civitai page, and (Anima) delete */
     void loraMenu(String title, File f, String words, Runnable delete, Runnable reopen) {
         List<String> items = new ArrayList<>(); items.add(L.f("Categoría: %s…", "Category: %s…", Civitai.catName(Civitai.category(f)))); items.add(L.s("Copiar palabras activadoras", "Copy trigger words"));
-        items.add(L.s("Editar palabras activadoras…", "Edit trigger words…")); items.add(L.s("Añadir activadoras al prompt", "Add trigger words to the prompt")); if (delete != null) items.add(L.s("Удалить", "Delete"));
+        items.add(L.s("Editar palabras activadoras…", "Edit trigger words…")); items.add(L.s("Añadir activadoras al prompt", "Add trigger words to the prompt")); items.add(L.s("Abrir en el navegador", "Open in browser")); if (delete != null) items.add(L.s("Удалить", "Delete"));
         builder().setTitle(title).setItems(items.toArray(new String[0]), (d, i) -> {
             if (i == 0) {
                 String[] names = new String[Civitai.CATS.length + 1]; names[0] = Civitai.catName("");
@@ -323,8 +334,16 @@ abstract class MainLora extends Base {
                 android.content.ClipboardManager clip = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE); if (clip != null) clip.setPrimaryClip(android.content.ClipData.newPlainText("LoRA triggers", words));
             } else if (i == 2) editTriggers(title, words, s -> { Civitai.setWords(f, s); reopen.run(); });
             else if (i == 3) { if (words.isEmpty()) Toast.makeText(this, L.s("Sin palabras activadoras: usa «Editar palabras activadoras…»", "No trigger words: use \"Edit trigger words…\""), Toast.LENGTH_LONG).show(); else appendPromptWords(words); }
+            else if (i == 4) openLoraInBrowser(title, f);
             else if (delete != null) delete.run();
         }).show();
+    }
+    void openLoraInBrowser(String title, File f) {
+        JSONObject md = Civitai.meta(f); long modelId = md == null ? 0 : md.optLong("model_id"), versionId = md == null ? 0 : md.optLong("version_id");
+        String url = modelId > 0 ? "https://civitai.red/models/" + modelId + (versionId > 0 ? "?modelVersionId=" + versionId : "")
+            : "https://civitai.red/search/models?query=" + Uri.encode(title);
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (Exception e) { Toast.makeText(this, L.s("No se pudo abrir el navegador", "Could not open the browser"), Toast.LENGTH_SHORT).show(); }
     }
     /** All + the categories present in this library (+ Uncategorised when some have none); hidden when nothing is categorised */
     void fillCatChips(LinearLayout row, List<String> cats, String[] sel, Runnable apply) {

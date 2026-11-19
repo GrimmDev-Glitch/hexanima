@@ -118,7 +118,7 @@ public class Viewer extends Base {
         }
         ico("ic_download", () -> { try { Gallery.export(this, f); Toast.makeText(this, L.s("Сохранено в галерею: Pictures/Anima", "Saved to gallery: Pictures/Anima"), Toast.LENGTH_SHORT).show(); } catch (Exception e) { Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show(); } });
         ico("ic_share", () -> Gallery.share(this, f));
-        if (!m.optString("prompt").isEmpty()) act(L.s("Copiar prompt", "Copy prompt"), () -> prompt.performClick());
+        if (!m.optString("prompt").isEmpty()) ico("ic_copy", () -> prompt.performClick());
         if (Upscaler.available(this)) ico("ic_tune", () -> Corrections.open(this, f));
         if (Upscaler.available(this)) ico("ic_upscale", () -> upscaleDialog(f, out -> { files.add(0, out); idx = 0; changed = true; pager.set(files, idx); refresh(); }));
         favB = ico("ic_star_off", () -> { boolean nv = !Gallery.fav(f); Gallery.setFav(f, nv); setFav(favB, nv); changed = true; }); setFav(favB, Gallery.fav(f));

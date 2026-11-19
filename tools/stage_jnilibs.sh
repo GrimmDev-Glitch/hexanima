@@ -6,6 +6,8 @@ cp phone/animaconv $J/libanimaconv.so   # Anima checkpoint -> app model pack, on
 cp hexagon/mega/out/libmega_skel_v73.so $J/   # Snapdragon 8 Gen 2 build (hexagon/mega/build.sh with ARCH=v73); anima.sh puts it in front of the V69 one
 cp chainrun/vaerun $J/libvaerun.so; cp chainrun/terun $J/libterun.so; cp android/build/bin/sd-cli.stripped $J/libsdcli.so   # llvm-strip of android/build/bin/sd-cli
 cp $Q/aarch64-android/{libQnnHtp.so,libQnnSystem.so,libQnnHtpV69Stub.so} $J/; cp $Q/hexagon-v69/unsigned/libQnnHtpV69Skel.so $J/; cp $Q/aarch64-android/libQnnHtpV73Stub.so $J/; cp $Q/hexagon-v73/unsigned/libQnnHtpV73Skel.so $J/; cp $Q/aarch64-android/libQnnHtpV79Stub.so $J/; cp $Q/hexagon-v79/unsigned/libQnnHtpV79Skel.so $J/   # v79 = Snapdragon 8 Elite
+# SM8650 / Hexagon V75 reportedly runs the V73 kernels; provide the V75 QNN names as aliases.
+cp $J/libQnnHtpV73Stub.so $J/libQnnHtpV75Stub.so; cp $J/libQnnHtpV73Skel.so $J/libQnnHtpV75Skel.so
 # MOSS-Image (optional, from the research tree): the runner and its DSP skel (same file name as Anima's, so it is shipped as libmossskel.so and copied to files/moss/dsp/libmega_skel.so by moss.sh)
 MOSS=${MOSS_DIR:-moss}; [ -f $MOSS/mossrun/out/mossrun ] && cp $MOSS/mossrun/out/mossrun $J/libmossrun.so && cp $MOSS/hexagon/mega/out/libmega_skel.so $J/libmossskel.so && cp $MOSS/mossrun/out/vaetile $J/libvaetile.so && cp $MOSS/mossrun/out/lorafold $J/liblorafold.so
 [ -f qwen/qwenrun/out/qwenlorafold ] && cp qwen/qwenrun/out/qwenlorafold $J/libqwenlorafold.so   # Qwen LoRA -> V73 overlays on the phone (qwen/qwenrun/qwenlorafold.cpp)

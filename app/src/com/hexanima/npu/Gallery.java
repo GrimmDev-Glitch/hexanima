@@ -24,10 +24,18 @@ final class Gallery {
     static File trashDir(Context c) { File d = new File(dir(c), "trash"); d.mkdirs(); return d; }
 
     static File save(Context c, byte[] png, JSONObject meta) throws IOException {
+        // Central guarantee for every final image saved in History, including corrections and upscale.
+        // Those flows re-encode through Bitmap.compress(), which discards all PNG text chunks.
+        png = PngMeta.embed(png, meta);
         String base = String.valueOf(System.currentTimeMillis());
         File f = new File(dir(c), base + ".png");
         try (FileOutputStream o = new FileOutputStream(f)) { o.write(png); }
         writeMeta(f, meta);
+        if (Settings.autoSave(c)) try {
+            export(c, f);
+            String where = Settings.pictureDirLabel(c);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> android.widget.Toast.makeText(c.getApplicationContext(), L.f("Guardada en: %s", "Saved to: %s", where), android.widget.Toast.LENGTH_SHORT).show());
+        } catch (Exception ignored) { }   // keep the History copy if the external destination is unavailable
         return f;
     }
 
@@ -75,6 +83,11 @@ final class Gallery {
 
     /** copy into the phone gallery (Pictures/Anima) */
     static Uri export(Context c, File png) throws IOException {
+        Uri tree = Settings.pictureDir(c);
+        if (tree != null) {
+            Uri saved = exportToTree(c, png, tree);
+            if (saved != null) return saved;   // a revoked or removed folder falls back to the phone gallery
+        }
         ContentValues cv = new ContentValues();
         JSONObject m = meta(png);
         cv.put(MediaStore.Images.Media.DISPLAY_NAME, "anima_" + m.optInt("w") + "x" + m.optInt("h") + "_" + m.optString("seed", "0") + "_" + png.getName());
@@ -85,6 +98,20 @@ final class Gallery {
             byte[] b = new byte[1 << 16]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
         }
         return u;
+    }
+
+    private static Uri exportToTree(Context c, File png, Uri tree) {
+        try {
+            JSONObject m = meta(png);
+            String name = "anima_" + m.optInt("w") + "x" + m.optInt("h") + "_" + m.optString("seed", "0") + "_" + png.getName();
+            Uri top = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree));
+            Uri out = android.provider.DocumentsContract.createDocument(c.getContentResolver(), top, "image/png", name);
+            if (out == null) return null;
+            try (OutputStream dst = c.getContentResolver().openOutputStream(out); InputStream src = new FileInputStream(png)) {
+                byte[] buffer = new byte[1 << 16]; for (int n; (n = src.read(buffer)) > 0; ) dst.write(buffer, 0, n);
+            }
+            return out;
+        } catch (Exception e) { return null; }
     }
 
     static Uri uri(File png) { return Uri.parse("content://" + AUTH + "/" + png.getName()); }

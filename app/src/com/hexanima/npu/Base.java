@@ -336,6 +336,7 @@ abstract class Base extends Activity {
         switch (name) {
             case "ic_download": return L.s("Guardar en la galería", "Save to the gallery");
             case "ic_share": return L.s("Compartir", "Share");
+            case "ic_copy": return L.s("Copiar prompt", "Copy prompt");
             case "ic_star": case "ic_star_off": return L.s("Favorita", "Favourite");
             case "ic_delete": return L.s("Mover a la papelera", "Move to trash");
             case "ic_refresh": return L.s("Otra vez", "Again");

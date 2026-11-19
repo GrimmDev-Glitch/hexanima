@@ -8,7 +8,7 @@
 if [ "$1" = stop ]; then for p in libqwenrun.so libvaeenc.so libqvaetile.so; do pidof $p >/dev/null && kill -9 $(pidof $p); done; pkill -f 'tail -f .*vae.cmd'; exit 0; fi
 IDS=$1 DROP=$2 W=$3 H=$4 SEED=$5 STEPS=$6 OUT=$7 ED=$8
 ARCH=v69; SKEL=$BIN/libqwenskel.so
-case "$(getprop ro.soc.model)" in SM8550) ARCH=v73; SKEL=$BIN/libqwenskel_v73.so;; esac
+case "$(getprop ro.soc.model)" in SM8550|SM8650) ARCH=v73; SKEL=$BIN/libqwenskel_v73.so;; esac
 [ -f "$SKEL" ] || { echo "Missing Qwen DSP kernel for $ARCH" >&2; exit 1; }
 VDIR=$Q/vae; [ "$ARCH" = v73 ] && VDIR=$Q/vae_v73
 LIBS=$BIN:/system/lib64:/vendor/lib64; ADSPP="$Q/dsp;$BIN"
