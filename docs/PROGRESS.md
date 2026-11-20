@@ -32,7 +32,7 @@ Adaptar HexAnima a Snapdragon 8 Gen 1/8+ Gen 1, 8 Gen 2, 8 Gen 3, 8 Elite, 8 Gen
 | 8 Gen 2 | SM8550 | V73 | POCO F6 Pro de referencia; ruta actual probada para generación y metadatos. Próximo banco para Krea 2 Turbo y regresión de funciones. |
 | 8 Gen 3 | SM8650 | V75 | APK candidata reutiliza kernels/contextos V73 según el reporte, añade alias QNN V75 y reduce Anima de 40 bloques a 3 workers (14/14/12); falta validación física y por función. |
 | 8s Gen 4 | SM8735 | V73 reportado; sin confirmar en tabla QAIRT | APK Dev de diagnóstico preparada con ruta V73 experimental; falta validar FP16, contextos QNN y cada función en un teléfono real. |
-| 8 Elite | SM8750 | V79 | Dev experimental compilada: skeletons HMX de MOSS/Mage, VAE MOSS con QAIRT 2.28 y ESRGAN V79 incluido; Anima/Qwen bloqueados. ELF/símbolos y APK comprobados, pero no generación física. Faltan prueba en OnePlus 13, cancelación/reinicio y contextos V79 de Anima/Qwen. El código externo adiirfan/anima-android sirve como referencia técnica; no copiar sin licencia. |
+| 8 Elite | SM8750 | V79 | Pruebas OnePlus CPH2649: MOSS generó una imagen amarilla; los registros siguientes muestran NaN desde el primer bloque DiT en MOSS y Mage (VAE no ejecutado). Dev5 añade estadísticas de entrada/salida para aislar el problema. Sigue sin compatibilidad funcional validada; ESRGAN aún sin resultado comunicado. Anima/Qwen siguen bloqueados. |
 | 8 Gen 5 | SM8845 | V81 | Faltan toolchain/contextos V81 y prueba física. |
 | 8 Elite Gen 5 | SM8850 | V81 | Faltan toolchain/contextos V81 y prueba física. |
 
@@ -48,6 +48,6 @@ Adaptar HexAnima a Snapdragon 8 Gen 1/8+ Gen 1, 8 Gen 2, 8 Gen 3, 8 Elite, 8 Gen
 ## Último APK Dev
 
 - El POCO F6 Pro conserva la Dev instalada `com.hexanima.npu.dev`, versión `1.9.5-v73`.
-- Dev SD8E compilada el 20 nov: `1.9.6-v79-sd8e-dev`, código 37; paquete `com.hexanima.npu.dev`. Firma, manifiesto, assets y librerías comprobados; SHA-256 `d06d04e4f5277238919650513ee1e3849edc2c9d59f8198f3db21777007e5c0c`.
-- La Dev SD8E solo habilita generación experimental de MOSS/Mage y ESRGAN V79; Anima/Qwen se bloquean. No se instaló en el POCO ni se probó en un OnePlus 13. La APK y los contextos binarios están ignorados por Git y no viajan en el commit.
+- Dev SD8E dev5 compilada el 20 nov: `1.9.6-v79-sd8e-dev5`, código 42; paquete `com.hexanima.npu.dev`. Firma, manifiesto y librerías MOSS/Mage verificadas; SHA-256 `8c9e8c49e73db681ef3f61d77e1e457fee6b3d4a4c757f9f89402b15b9a586ce`.
+- La Dev SD8E habilita generación experimental de MOSS/Mage y ESRGAN V79; Anima/Qwen se bloquean. El OnePlus CPH2649/SM8750 reportó primero una imagen amarilla con MOSS y después registros con valores no finitos en la salida del primer bloque DiT de MOSS y Mage; el VAE no llegó a ejecutarse. Dev5 registra rango/valores de entrada y salida del primer bloque. Falta probar esta APK y comparar los diagnósticos. APK y contextos binarios ignorados por Git.
 - La candidata SM8650/V75 anterior incluía rutas V73 para Anima, MOSS, Qwen, Mage, detectores, pose y upscalers; alias QNN V75; y 3 workers Anima (14/14/12). ADB no logró iniciar su servidor y quedó sin prueba física.

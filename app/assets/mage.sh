@@ -9,6 +9,7 @@ case "$(getprop ro.soc.model)" in
   SM8550|SM8650|SM8735) ARCH=v73; SKEL=$BIN/libmageskel_v73.so;;
 esac   # V79 SD8E is an experimental route; V75 and 8s Gen 4 reuse are experimental too
 [ -f "$SKEL" ] || { echo "Missing Mage DSP kernel for $ARCH" >&2; exit 1; }
+if [ "$ARCH" = v79 ]; then export MAGE_DEBUG_STATS=1; fi
 mkdir -p "$M/dsp" "$M/cache"; cp -f "$SKEL" "$M/dsp/libmega_skel.so"
 rm -f "$M/mage.log" "$M/z.f32" "$M/prev.bin" "$OUT"
 if [ -n "$ED" ]; then CMD="edit $ED $DROP $SEED $STEPS $M/z.f32"; else CMD="genp $IDS $DROP $H $W $SEED $STEPS $M/z.f32"; fi

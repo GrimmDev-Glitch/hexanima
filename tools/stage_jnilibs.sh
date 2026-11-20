@@ -46,7 +46,8 @@ if [ -f "$MB/magerun/out/magerun" ] && [ -f "$MB/hexagon/mega/out/libmega_skel_v
   cp "$MB/hexagon/mega/out/libmega_skel_v73.so" "$J/libmageskel_v73.so"
 fi
 if [ -f mage/magerun/out/magerun ]; then cp mage/magerun/out/magerun "$J/libmagerun_mage.so"; fi
-[ -f mage/hexagon/mega/out/libmega_skel_v79.so ] && cp mage/hexagon/mega/out/libmega_skel_v79.so "$J/libmageskel_v79.so"
+# Mage's current runner uses MODE 53 and MODE 61 from the shared Flux3 kernel tree. The old Mage V79 tree only implements MODE 50/60.
+[ -f flux3/hexagon/mega/out/libmega_skel_v79.so ] && cp flux3/hexagon/mega/out/libmega_skel_v79.so "$J/libmageskel_v79.so"
 # picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
 # "Detailed" upscaler: 4x-UltraSharp (Kim2091, CC BY-NC-SA 4.0; MODEL=ultrasharp upscale/build.sh 256 ARCH), same runner; offered only where its context exists

@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <random>
@@ -302,6 +303,37 @@ static bool write_atomic(const std::string& path, const std::vector<f32>& data) 
   return true;
 }
 
+static void debug_tensor(const char* name, const f32* x, size_t n, int channels) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return;
+  const size_t stride = channels > 0 ? n / (size_t)channels : n;
+  for (int c = 0; c < std::max(1, channels); c++) {
+    const f32* p = x + (size_t)c * stride; double sum = 0, sum2 = 0; size_t finite = 0;
+    f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
+    for (size_t i = 0; i < stride; i++) { const f32 v = p[i]; if (!std::isfinite(v)) continue; finite++; mn = std::min(mn, v); mx = std::max(mx, v); sum += v; sum2 += (double)v * v; }
+    const double mean = finite ? sum / finite : 0, var = finite ? std::max(0.0, sum2 / finite - mean * mean) : 0;
+    fprintf(stderr, "diag %s[%d]: finite=%zu/%zu min=%.7g max=%.7g mean=%.7g sd=%.7g\n", name, c, finite, stride, (double)mn, (double)mx, mean, sqrt(var));
+  }
+  fflush(stderr);
+}
+
+static bool debug_nonfinite(const char* model, int step, int block, const f32* x, size_t n) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return false;
+  size_t bad = 0, first = n; uint32_t bits = 0;
+  for (size_t i = 0; i < n; i++) if (!std::isfinite(x[i])) { if (!bad) { first = i; memcpy(&bits, x + i, sizeof bits); } bad++; }
+  fprintf(stderr, "diag %s step=%d block=%d finite=%zu/%zu", model, step, block, n - bad, n);
+  if (bad) fprintf(stderr, " first_nonfinite=%zu bits=0x%08x\n", first, bits); else fprintf(stderr, "\n");
+  fflush(stderr); return bad != 0;
+}
+
+static void debug_input(const char* model, int step, const f32* x, size_t n) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return;
+  size_t bad = 0, first = n; uint32_t bits = 0; f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
+  for (size_t i = 0; i < n; i++) { const f32 v = x[i]; if (!std::isfinite(v)) { if (!bad) { first = i; memcpy(&bits, x + i, sizeof bits); } bad++; } else { mn = std::min(mn, v); mx = std::max(mx, v); } }
+  fprintf(stderr, "diag %s step=%d finite=%zu/%zu min=%.7g max=%.7g", model, step, n - bad, n, (double)mn, (double)mx);
+  if (bad) fprintf(stderr, " first_nonfinite=%zu bits=0x%08x", first, bits);
+  fprintf(stderr, "\n"); fflush(stderr);
+}
+
 static void wait_preview_ack(const char* path, int step) {
   if (!path || !*path) return;
   for (int i = 0; i < 300; i++) {   // allow the phone's VAE preview up to 30 seconds, then keep generation moving
@@ -354,16 +386,24 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
     std::vector<f32> modv; time_vecs(codes[s], modv, head);
     tC = now();
     rows_to_x32(rows.data(), Ns, 3072, (f32*)(blob + L.meta[M_X]), nsS);
+    if (s == 0) debug_input("dit-input", s, (const f32*)(blob + L.meta[M_X]), (size_t)Ns * 3072);
     sync_clean(g_blobD); tD = now();
     std::vector<std::string> df; for (int k = 0; k < NLAYER_DIT; k++) { char p[512]; snprintf(p, sizeof p, "%s/dit/blk%02d.bin", g_dir.c_str(), k); df.push_back(p); }
-    if (!stream_files(df, g_te, [&](int k, Buf& b) { meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; meta[M_LOKR] = !memcmp(b.p + DIT_PACK, "MLKR", 4) ? DIT_PACK : 0; return call(L, meta, b, 0, g_blobD, modv.data(), 18432) == 0; }, g_keep_blocks)) return false;
+    if (!stream_files(df, g_te, [&](int k, Buf& b) {
+      meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; meta[M_LOKR] = !memcmp(b.p + DIT_PACK, "MLKR", 4) ? DIT_PACK : 0;
+      if (call(L, meta, b, 0, g_blobD, modv.data(), 18432)) return false;
+      if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobD); if (debug_nonfinite("dit-block", s, k, (const f32*)(blob + L.meta[M_X]), (size_t)Ns * 3072)) return false; }
+      return true;
+    }, g_keep_blocks)) return false;
     sync_inval(g_blobD); tE = now();
     x32_to_rows((const f32*)(blob + L.meta[M_X]), Ni, 3072, outrows.data());
     par_for(Ni / 16 + 1, [&](int blk) { for (int t = blk * 16; t < std::min(Ni, blk * 16 + 16); t++) {
       f32* r = &outrows[(size_t)t * 3072]; double ss = 0; for (int i = 0; i < 3072; i++) ss += (double)r[i] * r[i]; const float rs = 1.f / sqrtf((float)(ss / 3072) + 1e-6f);
       for (int i = 0; i < 3072; i++) r[i] = r[i] * rs * nfin[i] * (1.f + head[3072 + i]) + head[i];
       for (int o = 0; o < 128; o++) { const f32* w = Wfin + (size_t)o * 3072; float a = 0; for (int i = 0; i < 3072; i++) a += w[i] * r[i]; v[(size_t)o * Ni + t] = a; } } });
+    if (debug_nonfinite("head-v", s, -1, v.data(), (size_t)128 * Ni)) return false;
     for (size_t i = 0; i < (size_t)128 * Ni; i++) x0s[i] = zs[i] - v[i];
+    if (debug_nonfinite("sampler-x0", s, -1, x0s, (size_t)128 * Ni)) return false;
     fprintf(stderr, "  step %d%s: mix+embed %.0f ms, time/mod %.0f ms, to-x32 %.0f ms, DSP blocks %.0f ms, head+sampler %.0f ms\n", s, lowstep ? " (low-res)" : "", (tB - tA) * 1e3, (tC - tB) * 1e3, (tD - tC) * 1e3, (tE - tD) * 1e3, (now() - tE) * 1e3);
     const char* previewPath = getenv("MOSS_PREVIEW_Z");
     const char* previewAck = getenv("MOSS_PREVIEW_ACK"); bool previewPending = false;
@@ -378,6 +418,9 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
   }
   // BN denorm + unpatchify -> [32][2H][2W]
   std::vector<f32> zo; latent_output(x0.data(), H, W, zo);
+  debug_tensor("dit-latent", zo.data(), zo.size(), 32);
+  size_t bad = 0; for (f32 v : zo) if (!std::isfinite(v)) bad++;
+  if (bad) { fprintf(stderr, "error: %zu non-finite DiT latent values; VAE decode skipped\n", bad); remove(outz.c_str()); return false; }
   FILE* f = fopen(outz.c_str(), "wb"); fwrite(zo.data(), 4, zo.size(), f); fclose(f);
   printf("done %.0f\n", (now() - tall) * 1000); fflush(stdout);
   return true;

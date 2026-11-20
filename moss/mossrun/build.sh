@@ -2,7 +2,8 @@
 # build mossrun for Android arm64 (needs ../hexagon/mega/out/{mega_stub.c,mega.h} from the skel build)
 cd "$(dirname "$0")"; M=$PWD/../hexagon/mega
 source ~/anima-npu/work/env.sh
-docker run --rm --platform linux/amd64 -v "$PWD/..:/work" -v "$QNN_SDK_ROOT/include/QNN:/qnninc:ro" ghcr.io/snapdragon-toolchain/arm64-android:v0.8 bash -c '
+QNN_INCLUDE_DIR=${QNN_INCLUDE_DIR:-$QNN_SDK_ROOT/include/QNN}
+docker run --rm --platform linux/amd64 -v "$PWD/..:/work" -v "$QNN_INCLUDE_DIR:/qnninc:ro" ghcr.io/snapdragon-toolchain/arm64-android:v0.8 bash -c '
 S=/opt/hexagon/6.7.0.0; NDK=/opt/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin; W=/work
 INC="-w -I$S/incs -I$S/incs/stddef -I$S/ipc/fastrpc/incs -I$S/ipc/fastrpc/rpcmem/inc -I$W/hexagon/mega/out -I$W/hexagon/mega"
 mkdir -p $W/mossrun/out

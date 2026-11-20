@@ -157,6 +157,7 @@ abstract class MainRun extends MainLora {
         done[0] = true; try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) { if (detail != null) detail.recycle(); return null; }
         try {
+            if (!raw.isFile()) throw new IOException(L.s("El runner NPU se detuvo antes de crear la imagen; revisa files/mage/mage.log", "The NPU runner stopped before creating the image; check files/mage/mage.log"));
             byte[] png = Mage.png(raw, runW, runH); raw.delete();
             if (masked) png = detail != null ? Qwen.applyDetailMask(png, src, maskFile, detail, runW, runH, w, h) : Qwen.applyStretchedMask(png, src, maskFile);
             if (detail != null) detail.recycle();
@@ -326,6 +327,7 @@ abstract class MainRun extends MainLora {
         try { poll.join(); } catch (InterruptedException ignored) { }
         if (cancelled) return null;
         try {
+            if (!raw.isFile()) throw new IOException(L.s("El runner NPU se detuvo antes de crear la imagen; revisa files/moss/moss.log", "The NPU runner stopped before creating the image; check files/moss/moss.log"));
             byte[] png = Moss.png(raw, w, h); raw.delete();
             JSONObject meta = new JSONObject().put("prompt", pr).put("seed", seedS).put("w", w).put("h", h).put("model", modelName()).put("id", model).put("steps", mossSteps).put("sec", (System.currentTimeMillis() - t0) / 1000.0);
             if (useLora) { meta.put("lora", prefs().getString("moss_lora_name", "LoRA")).put("lora_strength", lstr); meta.put("res", new JSONArray().put(loraSrc().getPath() + "*" + String.format(java.util.Locale.US, "%.2f", lstr))); }

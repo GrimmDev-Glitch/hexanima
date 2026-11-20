@@ -1,3 +1,9 @@
+# New in 1.9.6-v79-sd8e-dev5
+Snapdragon 8 Elite diagnostic Dev: logs the first DiT block input and output for MOSS and Mage to pinpoint where non-finite values begin. This build diagnoses the failure; it does not claim to fix it.
+
+# New in 1.9.6-v79-sd8e-diag
+Snapdragon 8 Elite diagnostic Dev: MOSS logs DiT latent and VAE RGB statistics to help locate image corruption. Still experimental; export logs immediately if the image looks wrong.
+
 # New in 1.9.6-v79-sd8e-dev
 Experimental Snapdragon 8 Elite (SM8750) test: V79 MOSS and Mage routes, the MOSS V79 VAE and V79 Real-ESRGAN. Anima and Qwen are blocked because their V79 contexts are not included yet. Not tested on an SD8E phone; export logs immediately if anything fails.
 
@@ -40,3 +46,5 @@ Negative prompt templates: save, pick and reuse recent ones.
 Settings: a GitHub row with the version.
 # From 1.9.0
 Prompt from a picture, Mage with several references, Anima "Edit a photo", one-tap detailer, time left, wildcards, variations, sheets of 9, temperature and export logs.
+# New in 1.9.6-v79-sd8e-dev4
+SD8E diagnostics now stop at the first Mage/MOSS DiT block producing non-finite values. Failed MOSS/Mage runs show a clear log-file message instead of a missing-image error. Both model paths remain experimental and need another OnePlus test.

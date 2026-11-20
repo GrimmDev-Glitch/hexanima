@@ -1,3 +1,9 @@
+# Novedades de 1.9.6-v79-sd8e-dev5
+Dev de diagnóstico para Snapdragon 8 Elite: registra la entrada y salida del primer bloque DiT de MOSS y Mage para localizar dónde aparecen valores no finitos. Esta versión diagnostica el fallo; todavía no lo corrige.
+
+# Novedades de 1.9.6-v79-sd8e-diag
+Dev de diagnóstico para Snapdragon 8 Elite: MOSS guarda en el registro las estadísticas del latente DiT y la salida RGB del VAE para localizar la corrupción. Sigue siendo experimental; exporta los registros inmediatamente si la imagen sale mal.
+
 # Novedades de 1.9.6-v79-sd8e-dev
 Prueba experimental para Snapdragon 8 Elite (SM8750): rutas V79 de MOSS y Mage, VAE MOSS V79 y Real-ESRGAN V79. Anima y Qwen se bloquean porque sus contextos V79 aún no están incluidos. No se ha probado en un teléfono SD8E; exporta los registros inmediatamente si falla.
 
@@ -40,3 +46,5 @@ Plantillas para el prompt negativo: guardar, elegir y usar los recientes.
 Ajustes: fila de GitHub con la versión.
 # De la 1.9.0
 Prompt desde una imagen, Mage con varias referencias, «Editar una foto» en Anima, detailer de un toque, tiempo restante, comodines, variaciones, cuadrículas de 9, temperatura y exportar registros.
+# Novedades de 1.9.6-v79-sd8e-dev4
+El diagnóstico SD8E ahora se detiene en el primer bloque DiT de Mage/MOSS que produce valores no finitos. Los fallos muestran el registro correspondiente en vez del error de imagen ausente. Ambas rutas siguen siendo experimentales y necesitan otra prueba en el OnePlus.

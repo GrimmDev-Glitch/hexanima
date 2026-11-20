@@ -1044,6 +1044,8 @@ The shared text-encoder header is missing.	Falta el encabezado del codificador d
 More than one matching shared text file was found.	Se encontró más de un archivo de texto compartido coincidente.
 The sparse shared text-encoder file was not found.	No se encontró el archivo disperso del codificador de texto compartido.
 The model failed to load	No se pudo cargar el modelo
+The NPU runner stopped before creating the image; check files/mage/mage.log	El runner NPU se detuvo antes de crear la imagen; revisa files/mage/mage.log
+The NPU runner stopped before creating the image; check files/moss/moss.log	El runner NPU se detuvo antes de crear la imagen; revisa files/moss/moss.log
 Chip %s · %s\n\n%s	Chip %s · %s\n\n%s
 The pack is incomplete: a shared Anima component is missing.	El paquete está incompleto: falta un componente compartido de Anima.
 The sparse-file manifest is invalid.	El manifiesto de archivos dispersos es inválido.

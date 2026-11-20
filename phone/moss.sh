@@ -18,6 +18,7 @@ elif [ "$(getprop ro.soc.model)" = SM8550 ] || [ "$(getprop ro.soc.model)" = SM8
   # Use the validated V73 kernel on SM8550 and the reported compatible V73 path on SM8650; LoKr sidecars remain experimental.
   [ -f "$SKEL" ] || { echo "MOSS DSP kernel is missing" >> "$M/moss.log"; exit 1; }
 fi
+if [ "$ARCH" = v79 ]; then export MOSS_DEBUG_STATS=1; fi
 ADSPP="$M/dsp;$BIN"
 RUNX='export LD_LIBRARY_PATH="$LIBS" ADSP_LIBRARY_PATH="$ADSPP"; exec "$@"'
 mkdir -p "$M/dsp" && cp -f "$SKEL" "$M/dsp/libmega_skel.so"

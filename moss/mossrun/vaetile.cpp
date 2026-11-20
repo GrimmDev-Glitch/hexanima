@@ -58,6 +58,19 @@ static uint32_t tElems(const Qnn_Tensor_t& t) {
 
 static uint32_t tType(const Qnn_Tensor_t& t) { return t.version == QNN_TENSOR_VERSION_1 ? t.v1.dataType : t.v2.dataType; }
 
+static void debug_rgb(const std::vector<float>& rgb, int w, int h) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return;
+  const size_t plane = (size_t)w * h;
+  for (int c = 0; c < 3; c++) {
+    const float* p = rgb.data() + (size_t)c * plane; double sum = 0, sum2 = 0; size_t finite = 0;
+    float mn = INFINITY, mx = -INFINITY;
+    for (size_t i = 0; i < plane; i++) { const float v = p[i]; if (!std::isfinite(v)) continue; finite++; mn = std::min(mn, v); mx = std::max(mx, v); sum += v; sum2 += (double)v * v; }
+    const double mean = finite ? sum / finite : 0, var = finite ? std::max(0.0, sum2 / finite - mean * mean) : 0;
+    fprintf(stderr, "diag vae-rgb[%d]: finite=%zu/%zu min=%.7g max=%.7g mean=%.7g sd=%.7g\n", c, finite, plane, (double)mn, (double)mx, mean, sqrt(var));
+  }
+  fflush(stderr);
+}
+
 int main(int argc, char** argv) {
   if (argc < 4) { fprintf(stderr, "usage: vaerun BACKEND SYSTEM CONTEXT.bin\n"); return 2; }
   void* hb = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
@@ -156,6 +169,14 @@ int main(int argc, char** argv) {
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count();
     if (!ok) { fprintf(stderr, "execute failed\n"); printf("error\n"); fflush(stdout); continue; }
     for (size_t i = 0; i < wsum.size(); i++) { const float inv = 1.f / std::max(wsum[i], 1e-6f); for (int c = 0; c < 3; c++) acc[(size_t)c * H * W + i] *= inv; }
+    debug_rgb(acc, W, H);
+    bool finite = true; double sum = 0.0, sum2 = 0.0;
+    for (float v : acc) { if (!std::isfinite(v)) { finite = false; break; } sum += v; sum2 += (double)v * v; }
+    const double mean = sum / acc.size(), variance = std::max(0.0, sum2 / acc.size() - mean * mean);
+    if (!finite || (getenv("MOSS_DEBUG_STATS") && variance < 1e-8)) {
+      fprintf(stderr, "error: invalid or near-constant VAE RGB output (finite=%d variance=%.9g); image not saved\n", (int)finite, variance);
+      remove(fo.c_str()); printf("error\n"); fflush(stdout); continue;
+    }
     FILE* f = fopen(fo.c_str(), "wb"); fwrite(acc.data(), 4, acc.size(), f); fclose(f);
     printf("done %.0f\n", ms); fflush(stdout);
   }

@@ -155,6 +155,23 @@ static bool encode_text(const std::vector<int>& ids, int drop, std::vector<f32>&
 }
 // run the DiT. refs (optional): clean reference-image latent tokens [Nr][128] (edit), rh x rw tokens each, appended one after the other to the image stream after the target tokens; picture k sits at RoPE frame index k + 1
 struct RefImg { std::vector<f32> tok; int h = 0, w = 0; };
+static bool mage_debug_nonfinite(int step, int block, const f32* x, size_t n) {
+  const char* enabled = getenv("MAGE_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return false;
+  size_t bad = 0, first = n; uint32_t bits = 0;
+  for (size_t i = 0; i < n; i++) if (!std::isfinite(x[i])) { if (!bad) { first = i; memcpy(&bits, x + i, sizeof bits); } bad++; }
+  fprintf(stderr, "diag mage-dit step=%d block=%d finite=%zu/%zu", step, block, n - bad, n);
+  if (bad) fprintf(stderr, " first_nonfinite=%zu bits=0x%08x\n", first, bits); else fprintf(stderr, "\n");
+  fflush(stderr); return bad != 0;
+}
+static void mage_debug_input(int step, const f32* x, size_t n) {
+  const char* enabled = getenv("MAGE_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return;
+  size_t bad = 0, first = n; uint32_t bits = 0; f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
+  for (size_t i = 0; i < n; i++) { const f32 v = x[i]; if (!std::isfinite(v)) { if (!bad) { first = i; memcpy(&bits, x + i, sizeof bits); } bad++; } else { mn = std::min(mn, v); mx = std::max(mx, v); } }
+  fprintf(stderr, "diag mage-dit-input step=%d finite=%zu/%zu min=%.7g max=%.7g", step, n - bad, n, (double)mn, (double)mx);
+  if (bad) fprintf(stderr, " first_nonfinite=%zu bits=0x%08x", first, bits);
+  fprintf(stderr, "\n"); fflush(stderr);
+}
+
 static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned seed, int steps, const std::string& outz, const std::vector<RefImg>* refs, std::vector<f32>* ztok = nullptr) {
   const double T0 = now(); const int N = h * w; int Nr = 0; if (refs) for (const RefImg& r : *refs) Nr += r.h * r.w; const int NI = N + Nr;
   if (NI % 32 || N % 32) { fprintf(stderr, "image tokens must be a multiple of 32\n"); return false; }
@@ -184,6 +201,7 @@ static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned s
     if (Nr) memcpy(rows.data() + (size_t)N * D, refimg.data(), (size_t)Nr * D * 4);
     memcpy(rows.data() + (size_t)NI * D, ttx.data(), (size_t)nt * D * 4);
     rows_to_x32(rows.data(), ntok, D, Xp, ns); if (!win) sync_clean(g_blobM);
+    if (s == 0 && !win) mage_debug_input(s, Xp, (size_t)ntok * D);
     if (!stream_files(g_files, g_te, [&](int b, Buf& w) {
       if (win) {   // per block: pass 0 = keys / values of every window into the global K / V buffers, pass 1 = the full block per window (attention over all keys)
         const int nwin = (ns + wns - 1) / wns; const f32* mb = mods + ((size_t)(s * NB + b) * 16) * D;
@@ -193,11 +211,13 @@ static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned s
           sync_clean(g_blobM);
           meta[M_NTOK] = nws * 32; meta[M_BA] = ni0; meta[M_A2] = ntok; meta[M_A4] = pass == 0 ? 1 : 2; meta[M_A9] = w0; meta[M_FIRST] = (b == 0 && pass == 0 && wn == 0) ? 1 : 2; meta[M_REL] = (b == NB - 1 && pass == 1 && wn == nwin - 1) ? 1 : 2; meta[M_FMT] = 0;
           if (call(g_LM, meta, w, 0, g_blobM, mb, 16 * D)) return false;
-          if (pass == 1) { sync_inval(g_blobM); memcpy(&Xh[(size_t)w0 * XS], blob + g_LM.meta[M_X], (size_t)nws * XS * 4); }
+          if (pass == 1) { sync_inval(g_blobM); if (mage_debug_nonfinite(s, b, (const f32*)(blob + g_LM.meta[M_X]), (size_t)nws * 32 * D)) return false; memcpy(&Xh[(size_t)w0 * XS], blob + g_LM.meta[M_X], (size_t)nws * XS * 4); }
         }
         meta[M_A2] = meta[M_A4] = meta[M_A9] = 0; return true; }
       meta[M_FIRST] = b == 0; meta[M_REL] = b == NB - 1; meta[M_FMT] = getenv("MAGE_FC2") ? atoi(getenv("MAGE_FC2")) : 0;
-      return call(g_LM, meta, w, 0, g_blobM, mods + ((size_t)(s * NB + b) * 16) * D, 16 * D) == 0; }, NB)) return false;
+      if (call(g_LM, meta, w, 0, g_blobM, mods + ((size_t)(s * NB + b) * 16) * D, 16 * D)) return false;
+      if (getenv("MAGE_DEBUG_STATS")) { sync_inval(g_blobM); if (mage_debug_nonfinite(s, b, Xp, (size_t)ntok * D)) return false; }
+      return true; }, NB)) return false;
     if (!win) sync_inval(g_blobM);
     x32_to_rows((const f32*)Xp, N, D, rows.data());
     ln_rows(rows.data(), N, D, nmods + (size_t)(s * 2) * D, nmods + (size_t)(s * 2 + 1) * D);
@@ -209,7 +229,7 @@ static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned s
     const float dt = sig[s + 1] - sig[s]; for (size_t i = 0; i < z.size(); i++) z[i] += dt * v[i];
     fprintf(stderr, "step %d: %.2fs (io wait %.2fs)\n", s, now() - ts, g_waitio); g_waitio = 0;
   }
-  { size_t bad = 0; for (float v : z) if (!std::isfinite(v)) bad++; if (bad) fprintf(stderr, "WARNING: %zu non-finite latent values\n", bad); }
+  { size_t bad = 0; for (float v : z) if (!std::isfinite(v)) bad++; if (bad) { fprintf(stderr, "ERROR: %zu non-finite latent values; refusing to decode or save this generation\n", bad); unlink(outz.c_str()); return false; } }
   if (ztok) *ztok = z;
   { std::vector<f32> zt((size_t)128 * N); for (int i = 0; i < N; i++) for (int c = 0; c < 128; c++) zt[(size_t)c * N + i] = z[(size_t)i * 128 + c];
     FILE* f = fopen(outz.c_str(), "wb"); if (!f) return false; fwrite(zt.data(), 4, zt.size(), f); fclose(f); }
