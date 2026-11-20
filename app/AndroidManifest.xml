@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.hexanima.npu" android:versionCode="34" android:versionName="1.9.6-v73.1">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.hexanima.npu" android:versionCode="35" android:versionName="1.9.6-v73.2">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="34"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
@@ -29,6 +30,7 @@
         <activity android:name=".Corrections" android:exported="false"/>
         <activity android:name=".VideoActivity" android:exported="false"/>
         <provider android:name=".GalleryProvider" android:authorities="com.hexanima.npu.gallery" android:exported="false" android:grantUriPermissions="true"/>
+        <provider android:name=".UpdateApkProvider" android:authorities="com.hexanima.npu.updates" android:exported="false" android:grantUriPermissions="true"/>
         <activity android:name=".Main" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>

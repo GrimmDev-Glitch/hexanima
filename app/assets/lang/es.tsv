@@ -861,6 +861,16 @@ Battery at %.1f °C. It goes on by itself once it cools down.	Batería a %.1f °
 %s  ·  ~%s left	%s  ·  quedan ~%s
 Enlarge a picture from the gallery	Ampliar una imagen de la galería
 Export logs	Exportar registros
+Check for updates	Buscar actualizaciones
+Official GitHub release	Release oficial de GitHub
+Checking for an update…	Buscando una versión…
+The release has no APK asset	El Release no contiene un APK
+APK SHA-256 does not match the release	No coincide el SHA-256 del APK
+The APK is not HexAnima	El APK no corresponde a HexAnima
+You already have the latest version	Ya tienes la última versión
+Version %s verified	Versión %s verificada
+Update failed: %s	No se pudo actualizar: %s
+Allow HexAnima to install updates, then return here	Permite instalar actualizaciones de HexAnima y vuelve aquí
 Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key.	Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.
 Saved to Downloads/HexAnima/%s (%d logs)	Guardado en Descargas/HexAnima/%s (%d registros)
 Could not export: %s	No se pudo exportar: %s
@@ -1036,3 +1046,4 @@ Chip %s · %s\n\n%s	Chip %s · %s\n\n%s
 The pack is incomplete: a shared Anima component is missing.	El paquete está incompleto: falta un componente compartido de Anima.
 The sparse-file manifest is invalid.	El manifiesto de archivos dispersos es inválido.
 The pack is missing headers needed to rebuild its model files.	El paquete no contiene los encabezados necesarios para reconstruir los archivos dispersos.
+MOSS is not yet validated on Snapdragon 8 Gen 3 (Hexagon V75).	MOSS aún no está validado en Snapdragon 8 Gen 3 (Hexagon V75).

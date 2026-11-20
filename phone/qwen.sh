@@ -26,11 +26,14 @@ if [ -n "$ED" ]; then   # the condition image: VAE encoder tiles on the NPU -> r
     [ -s $ED/cond_raw$SX.f32 ] || exit 1
   done < $ED/meta.txt
 fi
-# the decoder starts now and loads its 0.5 GB context while the transformer runs; the "run" command is appended to its command file afterwards
-VAE=${VAE:-vae_t32.bin}; rm -f $Q/vae.cmd $Q/vae.log; : > $Q/vae.cmd
-(tail -f $Q/vae.cmd | LIBS=$LIBS ADSPP=$ADSPP sh -c "$RUNX" sh $BIN/libqvaetile.so $BIN/libQnnHtp.so $BIN/libQnnSystem.so $VDIR/$VAE > $Q/vae.log 2>&1 &)
+# Run the transformer first: rejected arguments must not send quit while QNN is still opening the decoder.
 printf 'load %s\ngen %s %s %s %s %s %s %s/z.raw\nquit\n' "$Q" "$IDS" "$DROP" "$H" "$W" "$SEED" "$STEPS" "$Q" | env LIBS=$LIBS ADSPP=$ADSPP QWEN_EDIT="$ED" QWEN_CACHE=$Q/cache QWEN_LORA="${QWEN_LORA:-}" sh -c "$RUNX" sh $BIN/libqwenrun.so >> $Q/qwen.log 2>&1
-if [ -s $Q/z.raw ]; then printf 'run %s/z.raw %s %s %s\nquit\n' "$Q" "$W" "$H" "$OUT" >> $Q/vae.cmd; else printf 'quit\n' >> $Q/vae.cmd; fi
-n=0; while pidof libqvaetile.so >/dev/null && [ $n -lt 900 ]; do sleep 0.2; n=$((n+1)); done
-pkill -f "tail -f $Q/vae.cmd"; cat $Q/vae.log >> $Q/qwen.log 2>/dev/null
+if [ -s $Q/z.raw ]; then
+  VAE=${VAE:-vae_t32.bin}; rm -f $Q/vae.cmd $Q/vae.log; : > $Q/vae.cmd
+  (tail -f $Q/vae.cmd | LIBS=$LIBS ADSPP=$ADSPP sh -c "$RUNX" sh $BIN/libqvaetile.so $BIN/libQnnHtp.so $BIN/libQnnSystem.so $VDIR/$VAE > $Q/vae.log 2>&1 &)
+  n=0; while ! grep -q '^ready' $Q/vae.log && [ $n -lt 300 ]; do sleep 0.2; n=$((n+1)); done
+  if grep -q '^ready' $Q/vae.log; then printf 'run %s/z.raw %s %s %s\nquit\n' "$Q" "$W" "$H" "$OUT" >> $Q/vae.cmd; fi
+  n=0; while pidof libqvaetile.so >/dev/null && [ $n -lt 900 ]; do sleep 0.2; n=$((n+1)); done
+  pkill -f "tail -f $Q/vae.cmd"; cat $Q/vae.log >> $Q/qwen.log 2>/dev/null
+fi
 [ -s $OUT ]

@@ -15,6 +15,7 @@ public class Settings extends Base {
     /** the default up to 1.3.0 had "fair skin", which fights prompts asking for dark skin; a saved copy of that old default is upgraded */
     static final String OLD_DEFAULT_PREFIX = "best quality, score_7, score_9, very aesthetic, ultra detailed, fair skin, high contrast, anime coloring, ";
     static final int[] IDLE = {0, 3, 5, 10, 30};
+    @Override protected void onResume() { super.onResume(); AppUpdater.resumeInstall(this); }
 
     static SharedPreferences prefs(Context c) { return c.getSharedPreferences("anima", 0); }
     static boolean autoload(Context c) { return prefs(c).getBoolean("autoload", false); }
@@ -166,6 +167,7 @@ public class Settings extends Base {
         c2.addView(idleNote);
         c2.addView(choice(L.s("Almacenamiento", "Storage"), L.f("%s libres", "%s free", StorageActivity.gb(getFilesDir().getUsableSpace())), v -> startActivity(new android.content.Intent(this, StorageActivity.class))));
         c2.addView(choice(L.s("Exportar registros", "Export logs"), "ZIP", v -> exportLogs()));
+        c2.addView(choice(L.s("Buscar actualizaciones", "Check for updates"), L.s("Release oficial de GitHub", "Official GitHub release"), v -> AppUpdater.check(this)));
         TextView logNote = text(L.s("Guarda en Descargas/HexAnima un ZIP con los registros de los modelos y los datos del teléfono, para reportar un fallo. No incluye imágenes, prompts guardados ni tu clave de Civitai.", "Saves to Downloads/HexAnima a ZIP with the model logs and the phone's details, to report a problem. It holds no pictures, saved prompts or your Civitai key."), 12, DIM, false);
         logNote.setPadding(dp(2), 0, 0, dp(4)); c2.addView(logNote);
 

@@ -242,7 +242,7 @@ final class Qwen {
     static File editDir(File home) { return new File(dir(home), "edit"); }
 
     /** size presets (W×H): the patch count (W/16·H/16) must be a multiple of 32 */
-    static final int[][] PRESETS = {{512, 512}, {640, 640}, {768, 768}, {1024, 1024}, {512, 768}, {768, 512}, {640, 960}, {960, 640}, {576, 1024}, {1024, 576}, {768, 1024}, {1024, 768}, {896, 1152}, {1152, 896}};
+    static final int[][] PRESETS = {{512, 512}, {640, 640}, {768, 768}, {1024, 1024}, {512, 768}, {768, 512}, {640, 896}, {896, 640}, {576, 1024}, {1024, 576}, {768, 1024}, {1024, 768}, {896, 1152}, {1152, 896}};
     static final int MAX_KEYS = 6800;   // the attention of one DiT step holds target + condition + text tokens in the 8 MB VTCM
     static String sizeError(int w, int h) {
         if (w < 256 || h < 256) return L.s("Размер: минимум 256 по каждой стороне", "Size: at least 256 on each side");

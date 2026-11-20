@@ -16,7 +16,6 @@ import org.json.JSONObject;
 /** The app's own picture history: files/gallery/<ts>.png + <ts>.json (prompt, seed, size, model, time, fav). Deleted pictures move to gallery/trash for 30 days.
  *  Nothing goes to the phone gallery until the user taps "Download". */
 final class Gallery {
-    static final String AUTH = "com.hexanima.npu.gallery";
     static final int ALL = 0, FAV = 1, TRASH = 2;
     static final long TRASH_DAYS = 30;
 
@@ -114,11 +113,15 @@ final class Gallery {
         } catch (Exception e) { return null; }
     }
 
-    static Uri uri(File png) { return Uri.parse("content://" + AUTH + "/" + png.getName()); }
+    static Uri uri(Context c, File png) {
+        return new Uri.Builder().scheme("content").authority(c.getPackageName() + ".gallery").appendPath(png.getName()).build();
+    }
 
     static void share(Context c, List<File> pngs) {
+        if (pngs == null || pngs.isEmpty()) return;
         ArrayList<Uri> us = new ArrayList<>();
-        for (File f : pngs) us.add(uri(f));
+        for (File f : pngs) if (f != null && f.isFile()) us.add(uri(c, f));
+        if (us.isEmpty()) return;
         Intent s = new Intent(us.size() == 1 ? Intent.ACTION_SEND : Intent.ACTION_SEND_MULTIPLE).setType("image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         if (us.size() == 1) s.putExtra(Intent.EXTRA_STREAM, us.get(0)); else s.putParcelableArrayListExtra(Intent.EXTRA_STREAM, us);
         ClipData cd = ClipData.newRawUri("", us.get(0));
@@ -129,7 +132,8 @@ final class Gallery {
     static void share(Context c, File png) { share(c, java.util.Collections.singletonList(png)); }
 
     static void view(Context c, File png) {
-        Uri u = uri(png);
+        if (png == null || !png.isFile()) return;
+        Uri u = uri(c, png);
         Intent v = new Intent(Intent.ACTION_VIEW).setDataAndType(u, "image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         v.setClipData(ClipData.newRawUri("", u));
         c.startActivity(v);
