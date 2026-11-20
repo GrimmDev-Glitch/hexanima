@@ -9,7 +9,7 @@
 - **Share and MOSS:** Dev builds now use their own gallery provider authority; MOSS tries the existing V73 route on Snapdragon 8 Gen 3 / Hexagon V75 (experimental).
 - **What's New:** the release changes are listed in English and Spanish and shown after the app version changes.
 
-**Device validation:** the update was installed from Settings on a POCO F6 Pro (Snapdragon 8 Gen 2), preserving its selected photo and prompt. A newly exported log exposed a shell syntax error in the Qwen runner; the corrected APK is being retested through this same Release. MOSS now tries the existing V73 route on V75 and remains experimental until a Snapdragon 8 Gen 3 device is tested.
+**Device validation:** the .1 → .2 update flow was exercised from Settings on a POCO F6 Pro (Snapdragon 8 Gen 2); the selected photo and prompt remained. The corrected APK was then installed over it, and its packaged Qwen shell script passed `sh -n` on Android. A full Qwen generation was not run because the phone had 4,382 MB available and the app requires 5,000 MB before starting. MOSS now tries the existing V73 route on V75 and remains experimental until tested on Snapdragon 8 Gen 3.
 
 ### Novedades (español)
 
@@ -18,7 +18,7 @@
 - **Compartir y MOSS:** Dev ahora usa la autoridad propia de su proveedor de galería; MOSS intenta la ruta V73 existente en Snapdragon 8 Gen 3 / Hexagon V75 (experimental).
 - **Novedades:** los cambios aparecen en español o inglés al cambiar la versión de la app.
 
-**Validación en dispositivo:** la actualización se instaló desde Ajustes en un POCO F6 Pro (Snapdragon 8 Gen 2) y conservó la foto y el prompt seleccionados. Un registro nuevo reveló un error de sintaxis en el script Qwen; el APK corregido se vuelve a probar mediante este mismo Release. MOSS ahora intenta la ruta V73 existente en V75 y sigue experimental hasta probarlo en un Snapdragon 8 Gen 3.
+**Validación en dispositivo:** se probó desde Ajustes la actualización .1 → .2 en un POCO F6 Pro (Snapdragon 8 Gen 2); conservó la foto y el prompt seleccionados. Después instalé encima el APK corregido y el `qwen.sh` incluido pasó `sh -n` en Android. No ejecuté una generación completa porque el teléfono tenía 4.382 MB disponibles y la app exige 5.000 MB antes de iniciar. MOSS intenta la ruta V73 existente en V75 y sigue experimental hasta probarlo en Snapdragon 8 Gen 3.
 
 **Instalación:** se instala encima de 1.6.0-v73 o posterior sin borrar modelos, LoRAs ni imágenes.
 
