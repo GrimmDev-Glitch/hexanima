@@ -406,9 +406,13 @@ int main(int argc, char** argv) {
       printf("loaded %.1f\n", now() - t0); continue;
     }
     if (cmd == "gen") {   // gen IDS.i32 DROP H W SEED STEPS OUT.z
-      std::string idsf, outz; int drop, H, W, steps; unsigned seed; ss >> idsf >> drop >> H >> W >> seed >> steps >> outz;
+      std::string idsf, outz; int drop = -1, H = 0, W = 0, steps = 0; long long seedValue = 0;
+      if (!(ss >> idsf >> drop >> H >> W >> seedValue >> steps >> outz)) { printf("error args: malformed gen command\n"); continue; }
+      const unsigned seed = static_cast<unsigned>(seedValue);
       std::vector<int> ids; { FILE* f = fopen(idsf.c_str(), "rb"); if (!f) { printf("error ids\n"); continue; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); ids.resize(n / 4); if (fread(ids.data(), 4, ids.size(), f) != ids.size()) {} fclose(f); }
-      if (ids.size() <= (size_t)drop || (int)ids.size() > MAXT || H % 16 || W % 16 || ((H / 16) * (W / 16)) % 32 || (H / 16) * (W / 16) > 6144 || steps < 1 || steps > 4) { printf("error args\n"); continue; }
+      if (drop < 0 || ids.size() <= (size_t)drop || (int)ids.size() > MAXT || H % 16 || W % 16 || ((H / 16) * (W / 16)) % 32 || (H / 16) * (W / 16) > 6144 || steps < 1 || steps > 4) {
+        printf("error args: ids=%zu drop=%d H=%d W=%d seed=%u steps=%d maxT=%d\n", ids.size(), drop, H, W, seed, steps, MAXT); continue;
+      }
       if (!generate(ids, drop, H, W, seed, steps, outz)) printf("error gen\n");
     }
   }
