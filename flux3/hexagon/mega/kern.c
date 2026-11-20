@@ -799,3 +799,44 @@ void k_gate_slab(uint16_t *o, const uint16_t *gl, int nheads, int hdt) {
     for (int j = 0; j < hdt; j++) { HVX_Vector *t = &ov[(h * hdt + j) * 16 + p]; *t = Q6_Vhf_equals_Vqf16(Q6_Vqf16_vmpy_VhfVhf(*t, m)); }
   }
 }
+
+/* Krea 2: per-head RMSNorm (eps=1e-5) followed by pairwise RoPE. `x` is one
+   32-row slab in crouton layout; cos/sin are [32][head_dim/2], already built
+   from Krea's concatenated 3-axis frequencies [32,48,48]. */
+static inline size_t krea_hidx(int row, int col) {
+  return (size_t)(row >> 1) * 64 + (size_t)(col & 31) * 2 + (row & 1);
+}
+static inline float krea_hload(const uint16_t *x) { __fp16 h; memcpy(&h, x, 2); return (float)h; }
+static inline void krea_hstore(uint16_t *x, float v) { __fp16 h = (__fp16)v; memcpy(x, &h, 2); }
+void k_krea_qk_rope_slab(uint16_t *x, int nct, int hdt, const float *gain, const float *cosT, const float *sinT) {
+  const int d = hdt * 32, heads = nct / hdt;
+  for (int r = 0; r < 32; r++) for (int h = 0; h < heads; h++) {
+    float ss = 0.f;
+    for (int c = 0; c < d; c++) {
+      const int tile = h * hdt + c / 32;
+      const float a = krea_hload(x + (size_t)tile * 1024 + krea_hidx(r, c));
+      ss += a * a;
+    }
+    const float inv = 1.f / sqrtf(ss / (float)d + 1e-5f);
+    for (int j = 0; j < d / 2; j++) {
+      const int c0 = 2 * j, c1 = c0 + 1;
+      const int t0 = h * hdt + c0 / 32, t1 = h * hdt + c1 / 32;
+      const float a = krea_hload(x + (size_t)t0 * 1024 + krea_hidx(r, c0)) * inv * gain[c0];
+      const float b = krea_hload(x + (size_t)t1 * 1024 + krea_hidx(r, c1)) * inv * gain[c1];
+      const float cs = cosT[(size_t)r * (d / 2) + j], sn = sinT[(size_t)r * (d / 2) + j];
+      krea_hstore(x + (size_t)t0 * 1024 + krea_hidx(r, c0), a * cs - b * sn);
+      krea_hstore(x + (size_t)t1 * 1024 + krea_hidx(r, c1), a * sn + b * cs);
+    }
+  }
+}
+/* The attended features are multiplied by sigmoid(attn.gate(x)) elementwise,
+   before the output projection. This is intentionally distinct from Klein's
+   per-head 2*sigmoid gate. */
+void k_krea_sigmoid_mul_slab(uint16_t *x, const uint16_t *gate, int nct) {
+  const size_t n = (size_t)nct * 1024;
+  for (size_t i = 0; i < n; i++) {
+    const float g = krea_hload(gate + i);
+    const float s = 1.f / (1.f + expf(-g));
+    krea_hstore(x + i, krea_hload(x + i) * s);
+  }
+}

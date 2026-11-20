@@ -38,7 +38,7 @@ static void vcp(void *d, const void *s, size_t bytes) {
 
 /* ---------------- simple parallel kernels ---------------- */
 typedef struct { const float *x; u16 *h; const HVX_Vector *M, *N; int ns; const HVX_Vector *M1, *N1; int ns0; float eps; const HVX_Vector *M2, *N2; int ns2, ns3; } par_t;
-static void p_ln(void *a, int i, int n) { par_t *p = (par_t *)a; for (int s = i; s < p->ns; s += n) k_rmsmod_s(p->x + (size_t)s * NCB * 1024, p->h + (size_t)s * NCB * T16, 1, p->M, p->N, 1e-6f); }
+static void p_ln(void *a, int i, int n) { par_t *p = (par_t *)a; const float eps = p->eps > 0.f ? p->eps : 1e-6f; for (int s = i; s < p->ns; s += n) k_rmsmod_s(p->x + (size_t)s * NCB * 1024, p->h + (size_t)s * NCB * T16, 1, p->M, p->N, eps); }
 
 typedef struct { float *x; const u16 *t; const float *w; float sc; int ns; } pn_t;
 static void p_pn(void *a, int i, int n) { pn_t *p = (pn_t *)a; for (int s = i; s < p->ns; s += n) k_postnorm_slab(p->x + (size_t)s * NCB * 1024, p->t + (size_t)s * NCB * T16, p->w, p->sc); }
@@ -48,6 +48,10 @@ static void p_qn(void *a, int i, int n) { qn_t *p = (qn_t *)a; for (int s = i; s
   k_qknorm_rope_slab(p->k + (size_t)s * p->nct * T16, p->nct, p->hdt, p->kg, p->cs + s * p->tbl, p->sn + s * p->tbl, 1); } }
 typedef struct { u16 *x; const float *w, *cs, *sn; int ns, nct, hdt, rope; size_t tbl; } qn1_t;   /* q or k alone (LTX DiT attention ops) */
 static void p_qn1(void *a, int i, int n) { qn1_t *p = (qn1_t *)a; for (int s = i; s < p->ns; s += n) k_qknorm_rope_slab(p->x + (size_t)s * p->nct * T16, p->nct, p->hdt, p->w, p->rope ? p->cs + s * p->tbl : 0, p->rope ? p->sn + s * p->tbl : 0, p->rope); }
+typedef struct { u16 *x; const float *gain, *cs, *sn; int ns, nct, hdt; size_t tbl; } krea_qn_t;
+static void p_krea_qn(void *a, int i, int n) { krea_qn_t *p = (krea_qn_t *)a; for (int s = i; s < p->ns; s += n) k_krea_qk_rope_slab(p->x + (size_t)s * p->nct * T16, p->nct, p->hdt, p->gain, p->cs + (size_t)s * p->tbl, p->sn + (size_t)s * p->tbl); }
+typedef struct { u16 *x; const u16 *gate; int ns, nct; } krea_gate_t;
+static void p_krea_gate(void *a, int i, int n) { krea_gate_t *p = (krea_gate_t *)a; for (int s = i; s < p->ns; s += n) k_krea_sigmoid_mul_slab(p->x + (size_t)s * p->nct * T16, p->gate + (size_t)s * p->nct * T16, p->nct); }
 typedef struct { u16 *o; const u16 *gl; int ns, nct, hdt, nh; } gt_t;
 static void p_gt(void *a, int i, int n) { gt_t *p = (gt_t *)a; for (int s = i; s < p->ns; s += n) k_gate_slab(p->o + (size_t)s * p->nct * T16, p->gl + (size_t)s * 2 * T16, p->nh, p->hdt); }
 /* H3: slabs < ns0 (image rows) use M/N, the others (text rows) M1/N1; RMSNorm eps from P.eps */
@@ -615,6 +619,38 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
       gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 4; e.x32 = x; e.gate = mk[0] + 5 * 5376; e.gate2 = mk[1] + 5 * 5376; e.ns0 = nimg; if (rs3 > rs2) { e.gate3 = mkR + 5 * 5376; e.ns2 = rs2; e.ns3 = rs3; } e.prev = t16; if (h3lora) { e.dlt = D; e.dnt = 168; }
       gemm_run_geo(hr, ntok, 7168, WB(H3_DN), 5376, t16, vt, &e, &d1); } TICK();
     g_rope_eps = 1e-6f; gemm_set_q8(1);
+    goto done;
+  }
+  if (meta[M_MODE] == KREA_MODE) {   /* Krea 2 Turbo single-stream block; K2B1/q4a. x += pregate*attn(pre-norm(x)); x += postgate*SwiGLU(post-norm(x)). */
+    const krea_hdr_t *H = (const krea_hdr_t *)wts;
+    if (H->magic != KREA_MAGIC || NCB != 192 || H->fmt[KREA_QKV] != 2 || H->fmt[KREA_GATE] != 2 || H->fmt[KREA_ATTN_OUT] != 2 || H->fmt[KREA_FFN_GU] != 2 || H->fmt[KREA_FFN_DOWN] != 2 ||
+        H->nb[KREA_QKV] != 288 || H->kb[KREA_QKV] != 192 || H->nb[KREA_GATE] != 192 || H->kb[KREA_GATE] != 192 || H->nb[KREA_ATTN_OUT] != 192 || H->kb[KREA_ATTN_OUT] != 192 || H->nb[KREA_FFN_GU] != 1024 || H->kb[KREA_FFN_GU] != 192 || H->nb[KREA_FFN_DOWN] != 192 || H->kb[KREA_FFN_DOWN] != 512) { *rc = -71; goto done; }
+    const uint32_t *off = H->off; const float *gn = (const float *)(wts + off[KREA_GAIN]), *tproj = mod, *lin = (const float *)(wts + off[KREA_MOD]);
+    float *km = (float *)BUF(M_ROWS);
+    for (int i = 0; i < 6 * DIM; i++) km[i] = tproj[i] + lin[i];
+    const float *pregate = km + 2 * DIM, *postscale = km + 3 * DIM, *postshift = km + 4 * DIM, *postgate = km + 5 * DIM;
+    gemm_set_q8(2); P.eps = 1e-5f;
+    k_rms_prep(LM, LN, gn + 256, km + DIM, km); pool_run(p_ln, &P); TICK();
+    /* Fused Q/K/V output tiles are contiguous in the first scratch buffer; split into the native GQA buffers. */
+    gemm_run_geo(h16, ntok, DIM, WB(off[KREA_QKV]), 9216, mid, vt, 0, 0);
+    gemm_run_geo(h16, ntok, DIM, WB(off[KREA_GATE]), DIM, t16, vt, 0, 0); TICK();
+    for (int s = 0; s < ns; s++) {
+      const u16 *src = mid + (size_t)s * 288 * T16;
+      vcp(q16 + (size_t)s * 192 * T16, src, (size_t)192 * 2048);
+      vcp(k16 + (size_t)s * 48 * T16, src + (size_t)192 * T16, (size_t)48 * 2048);
+      vcp(v16 + (size_t)s * 48 * T16, src + (size_t)240 * T16, (size_t)48 * 2048);
+    }
+    { const size_t tbl = (size_t)32 * 64; krea_qn_t qn = {q16, gn, cosT, sinT, ns, 192, 4, tbl}; pool_run(p_krea_qn, &qn); qn.x = k16; qn.gain = gn + 128; qn.nct = 48; pool_run(p_krea_qn, &qn); } TICK();
+    g_hdt = 4; attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], 0, 0, 192, 48, 4, vt); TICK();
+    { krea_gate_t pg = {o16, t16, ns, 192}; pool_run(p_krea_gate, &pg); } TICK();
+    { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = pregate;
+      gemm_run_geo(o16, ntok, DIM, WB(off[KREA_ATTN_OUT]), DIM, t16, vt, &e, 0); } TICK();
+    k_rms_prep(LM, LN, gn + 6400, postshift, postscale); pool_run(p_ln, &P); TICK();
+    { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 6; e.tabs = g_tabs2; e.scr = g_scr;
+      gemm_run_geo(h16, ntok, DIM, WB(off[KREA_FFN_GU]), 32768, mid, vt, &e, 0); } TICK();
+    { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = postgate;
+      gemm_run_geo(mid, ntok, 16384, WB(off[KREA_FFN_DOWN]), DIM, t16, vt, &e, 0); } TICK();
+    gemm_set_q8(1); P.eps = 0.f; g_hdt = 4;
     goto done;
   }
   if (meta[M_MODE] == 70) {   /* FLUX.3 Klein DiT block (anima/flux3): PARALLEL block, x += gate * (O(attn(LNmod(x))) + DN(silu(g) * u)), hidden 3072 (96 tiles), 24 heads x 128, ffn 9216, plain int8 (no ConvRot).

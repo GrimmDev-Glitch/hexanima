@@ -19,6 +19,12 @@ enum { M_X = 0, M_COS, M_SIN, M_H, M_Q, M_K, M_V, M_O, M_T, M_MID, M_LQ, M_LO, M
 /* Qwen3.5 layer pack header (first 4096 bytes): int32 off[8], fmt[8], nb[8], kb[8], voff; matrices in order. delta: qkv, z, ab, out, gu, dn; full: q, kv, o, gu, dn */
 typedef struct { int off[8], fmt[8], nb[8], kb[8], voff; } te_hdr_t;
 
+/* Krea 2 Turbo DiT block pack, mode 71 (krea/pack_krea.py), version K2B1. */
+#define KREA_MODE 71
+#define KREA_MAGIC 0x3142324Bu /* little-endian bytes "K2B1" */
+enum { KREA_QKV, KREA_GATE, KREA_ATTN_OUT, KREA_FFN_GU, KREA_FFN_DOWN, KREA_GAIN, KREA_MOD, KREA_UNUSED };
+typedef struct { uint32_t magic, off[8], fmt[8], nb[8], kb[8]; } krea_hdr_t;
+
 /* Qwen-Image-2.1 DiT block pack (qwen/export_qwen.py): MODE 40. q,k,v,o [nb128][kb132], gate/proj [nb768][kb132], down [nb128][kb388], A matrices, gain */
 #define QW_Q 0u
 #define QW_K 19464192u
