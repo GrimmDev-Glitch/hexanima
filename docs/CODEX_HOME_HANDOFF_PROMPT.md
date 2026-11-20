@@ -6,6 +6,19 @@ Copia el texto de abajo en Codex con la carpeta `Hexanima` abierta.
 
 Continúa el trabajo de este repositorio en español. Primero inspecciona `git status`, `git log`, `docs/PROGRESS.md`, `krea/README.md` y los scripts de build afectados. No restaures ni sobrescribas cambios del usuario. Mantén la app en español e inglés. No hagas release ni commit/push hasta que te lo pida.
 
+## Preparar el entorno de casa
+
+Comprueba qué está instalado antes de descargar nada. Si falta una dependencia necesaria, instálala o descárgala para poder continuar; usa fuentes oficiales y comprueba versión/ruta al terminar. Conserva SDK, entornos Python, pesos, tokens y artefactos fuera de Git y nunca imprimas ni guardes credenciales en el repositorio.
+
+- **WSL2 Ubuntu + Docker Desktop**, con la integración de la distro activa y `docker version` mostrando cliente y servidor. Usa Bash/WSL para los scripts del repo. Descarga las imágenes si faltan: `ghcr.io/snapdragon-toolchain/arm64-android:v0.8` (Hexagon SDK 6.7.0.0, Hexagon Clang 21.0.04 y Android NDK) y `eclipse-temurin:17-jdk` (build Java de la app).
+- **Android SDK Linux** accesible desde WSL en `~/anima-npu/sdk/android` o mediante `ANDROID_SDK_ROOT`, con `build-tools/34.0.0`, `platforms/android-34` y `platform-tools`/ADB. Si no está, instálalo con las Android Command-line Tools oficiales. `app/build.sh` genera una debug keystore si falta; no uses la clave de release para una Dev APK.
+- **Qualcomm AI Runtime SDK (QAIRT) 2.28.0.241029 para Linux x86_64**, en `~/anima-npu/sdk/qairt/2.28.0.241029`, requerido por los contextos QNN V79/MOSS. Descárgalo del portal oficial de Qualcomm si falta; si exige cuenta, licencia o aceptación, pide al usuario completar ese acceso. No sustituyas la versión silenciosamente: la app incluye runtime 2.28. QAIRT 2.50 solo hace falta si se retoma el trabajo de LTX.
+- **Python 3.10 y dependencias del repo**: comprueba/reutiliza `~/anima-npu/work/.venv` (`numpy`, `safetensors`, PyTorch CPU, ONNX 1.16.1, `lxml`, `mako`) para utilidades de conversión/referencia. Para el convertidor de QAIRT, sigue `moss/qnn/build_vae.sh` y usa el entorno compatible `moss/.venv-qairt`; si faltan librerías de sistema de QAIRT, instala `libc++-dev`, `libc++abi-dev` y `libunwind` en el entorno de build según haga falta.
+- **Hugging Face CLI (`hf`)**: comprueba el acceso al repo gated de Krea. Si la sesión de casa no está iniciada, pide al usuario iniciar sesión y aceptar las condiciones de Krea. No leas, muestres ni copies el token a archivos del repo.
+- **Git con acceso a `origin` y ADB**: comprueba `git remote -v`; para pruebas de teléfono instala/usa `platform-tools` y confirma `adb devices`. No instales la Dev V79 en el POCO SD8G2. Antes de bajar pesos, mide el espacio libre y estima el espacio de checkpoints, temporales y conversión.
+
+No hace falta instalar un JDK en Windows para compilar la app: `app/build.sh` ejecuta `eclipse-temurin:17-jdk` en Docker. Si WSL/Docker o QAIRT requieren permisos, explica qué componente y versión hacen falta y pide el acceso correspondiente; no cambies seguridad del equipo por tu cuenta.
+
 ## Objetivos de esta sesión
 
 Revisa y continúa **Krea 2 Turbo para Snapdragon 8 Gen 2 (SM8550/V73)** y el **port experimental para Snapdragon 8 Elite (SM8750/V79)**. Son trabajos de investigación y prueba: separa con claridad lo que compila de lo que ya generó una imagen correcta en un teléfono real.
