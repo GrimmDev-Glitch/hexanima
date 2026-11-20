@@ -28,7 +28,7 @@ ADSPP=${BIN:-$A}
 # Snapdragon 8 Gen 2 (Hexagon V73) needs its own build of the DiT kernels: it ships as libmega_skel_v73.so and is copied under the name the DSP
 # loader looks for into a dir listed before $BIN (same trick as moss.sh); the QNN contexts pick their V73 skel by themselves
 SOC=$(getprop ro.soc.model)
-case "$SOC" in SM8550|SM8650) DSPA=v73;; *) DSPA=;; esac
+case "$SOC" in SM8550|SM8650|SM8735) DSPA=v73;; *) DSPA=;; esac
 if [ -n "$DSPA" ] && [ -f "$BIN/libmega_skel_$DSPA.so" ]; then
   mkdir -p $A/dsp_$DSPA; cmp -s "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so || cp -f "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so
   ADSPP="$A/dsp_$DSPA;$BIN"

@@ -57,12 +57,13 @@ final class Moss {
         if (!v.isDirectory() && !v.mkdirs()) throw new IOException("cannot create " + v);
         String[][] links = {{"te", "te"}, {"embd.q4k", "embd.q4k"}, {"vae", "vae"},
             {"vae_v73", "vae_v73"},
+            {"vae_v79", "vae_v79"},
             {"tok_merges.txt", "tok_merges.txt"}, {"tok_special.txt", "tok_special.txt"}, {"tok_vocab.txt", "tok_vocab.txt"},
             {"glue8.bin", "glue8.bin"}, {"lora8", "lora8"},
             {"dit", key + "/dit"}, {"ref", key + "/ref"}, {"glue.bin", key + "/glue.bin"}};
         for (String[] pair : links) {
             File target = new File(m, pair[1]);
-            if (!target.exists() && (pair[0].equals("vae_v73") || pair[0].equals("glue8.bin") || pair[0].equals("lora8"))) continue;
+            if (!target.exists() && (pair[0].equals("vae_v73") || pair[0].equals("vae_v79") || pair[0].equals("glue8.bin") || pair[0].equals("lora8"))) continue;
             if (!target.exists()) throw new IOException("MOSS variant missing shared file " + target.getName());
             java.nio.file.Path link = new File(v, pair[0]).toPath();
             try {
@@ -85,6 +86,20 @@ final class Moss {
             byte[] b = new byte[1 << 20]; for (int n; (n = in.read(b)) >= 0; ) if (n > 0) stream.write(b, 0, n);
         } catch (IOException e) { part.delete(); throw new IOException(L.s("Falta el contexto MOSS V73; compila con tools/stage_jnilibs.sh.", "MOSS V73 context is missing; stage it with tools/stage_jnilibs.sh."), e); }
         if (part.length() != 64032744L || !part.renameTo(out)) { part.delete(); out.delete(); throw new IOException("invalid MOSS V73 VAE context"); }
+    }
+
+    /** QAIRT 2.28 context built for Snapdragon 8 Elite / Hexagon V79. */
+    static void ensureV79Vae(File home, AssetManager assets) throws IOException {
+        if (!Compat.dspArch().equals("v79")) return;
+        final long expected = 64712680L;
+        File out = new File(new File(dir(home), "vae_v79"), "vae_512x512.bin");
+        if (out.isFile() && out.length() == expected) return;
+        File parent = out.getParentFile(); if (!parent.mkdirs() && !parent.isDirectory()) throw new IOException("cannot create " + parent);
+        File part = new File(parent, out.getName() + ".part"); part.delete();
+        try (InputStream in = assets.open("moss/vae_v79/vae_512x512.bin"); FileOutputStream stream = new FileOutputStream(part)) {
+            byte[] b = new byte[1 << 20]; for (int n; (n = in.read(b)) >= 0; ) if (n > 0) stream.write(b, 0, n);
+        } catch (IOException e) { part.delete(); throw new IOException(L.s("Falta el contexto MOSS V79; compila con tools/stage_jnilibs.sh.", "MOSS V79 context is missing; stage it with tools/stage_jnilibs.sh."), e); }
+        if (part.length() != expected || !part.renameTo(out)) { part.delete(); out.delete(); throw new IOException("invalid MOSS V79 VAE context"); }
     }
 
     /** size presets (W×H): around 1 Mpx is what the 4-step adapter was trained on (1024², 896×1152, 832×1216, 768×1344 and their landscape twins); smaller ones are faster */

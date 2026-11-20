@@ -1,3 +1,9 @@
+# Novedades de 1.9.6-v79-sd8e-dev
+Prueba experimental para Snapdragon 8 Elite (SM8750): rutas V79 de MOSS y Mage, VAE MOSS V79 y Real-ESRGAN V79. Anima y Qwen se bloquean porque sus contextos V79 aún no están incluidos. No se ha probado en un teléfono SD8E; exporta los registros inmediatamente si falla.
+
+# Novedades de 1.9.6-v73.3-8sG4-test
+Ruta experimental de prueba para Snapdragon 8s Gen 4 (SM8735) reutilizando kernels V73. FP16 y la compatibilidad de contextos QNN aún no están validados; informa resultados por modelo y exporta los registros si falla.
+
 # Novedades de 1.9.6-v73.2
 Edición de fotos con Qwen: se corrigió un tamaño vertical que el runner de la NPU rechazaba, la sintaxis del shell de Android y el inicio del VAE cuando la generación no puede continuar.
 Ajustes puede buscar Releases de GitHub, verificar el SHA-256 del APK e instalar la actualización conservando los datos de la app.

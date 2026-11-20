@@ -1284,6 +1284,7 @@ public class Main extends MainEdit {
 
     void toggleModel() {
         if (isMoss() || isQwen() || isMage()) return;   // these runners load per generation
+        if (Compat.dspArch().equals("v79")) { Toast.makeText(this, L.s("Anima todavía no tiene contextos V79 en esta Dev APK. Prueba MOSS o Mage.", "Anima does not have V79 contexts in this Dev APK yet. Try MOSS or Mage."), Toast.LENGTH_LONG).show(); return; }
         final boolean want = !loaded;
         setModelUi(loaded, true, want ? L.s("Загружаю модель…", "Loading the model…") : L.s("Выгружаю модель…", "Unloading the model…"));
         ex.submit(() -> {

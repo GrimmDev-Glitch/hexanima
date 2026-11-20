@@ -4,6 +4,7 @@ set -e; cd "$(dirname "$0")/.."; J=app/jnilibs/lib/arm64-v8a; Q=~/anima-npu/sdk/
 cp phone/animad $J/libanimad.so; cp hexagon/mega/out/megarun $J/libmegarun.so; cp hexagon/mega/out/libmega_skel.so $J/
 cp phone/animaconv $J/libanimaconv.so   # Anima checkpoint -> app model pack, on the phone (phone/animaconv.cpp)
 cp hexagon/mega/out/libmega_skel_v73.so $J/   # Snapdragon 8 Gen 2 build (hexagon/mega/build.sh with ARCH=v73); anima.sh puts it in front of the V69 one
+[ -f hexagon/mega/out/libmega_skel_v79.so ] && cp hexagon/mega/out/libmega_skel_v79.so $J/   # Snapdragon 8 Elite; experimental skeleton, not used by Anima until its V79 contexts are ported
 cp chainrun/vaerun $J/libvaerun.so; cp chainrun/terun $J/libterun.so; cp android/build/bin/sd-cli.stripped $J/libsdcli.so   # llvm-strip of android/build/bin/sd-cli
 cp $Q/aarch64-android/{libQnnHtp.so,libQnnSystem.so,libQnnHtpV69Stub.so} $J/; cp $Q/hexagon-v69/unsigned/libQnnHtpV69Skel.so $J/; cp $Q/aarch64-android/libQnnHtpV73Stub.so $J/; cp $Q/hexagon-v73/unsigned/libQnnHtpV73Skel.so $J/; cp $Q/aarch64-android/libQnnHtpV79Stub.so $J/; cp $Q/hexagon-v79/unsigned/libQnnHtpV79Skel.so $J/   # v79 = Snapdragon 8 Elite
 # SM8650 / Hexagon V75 reportedly runs the V73 kernels; provide the V75 QNN names as aliases.
@@ -26,6 +27,8 @@ if [ ! -f "$J/libmossskel_v73.so" ] || [ "$(sha256sum "$J/libmossskel_v73.so" | 
   exit 1
 fi
 [ -f "$MOSS/qnn/out_v73/vae_512x512.bin" ] && { mkdir -p app/assets/moss/vae_v73; cp "$MOSS/qnn/out_v73/vae_512x512.bin" app/assets/moss/vae_v73/vae_512x512.bin; }
+[ -f "$MOSS/hexagon/mega/out/libmega_skel_v79.so" ] && cp "$MOSS/hexagon/mega/out/libmega_skel_v79.so" "$J/libmossskel_v79.so"
+[ -f "$MOSS/qnn/out_v79_228/vae_512x512.bin" ] && { mkdir -p app/assets/moss/vae_v79; cp "$MOSS/qnn/out_v79_228/vae_512x512.bin" app/assets/moss/vae_v79/vae_512x512.bin; }
 # Qwen-Image-2.1 (optional, from the research tree): runner, its DSP skel (libqwenskel.so -> files/qwen/dsp/libmega_skel.so), the VAE decoder tiler and the VAE encoder tiler
 QW=${QWEN_DIR:-qwen}
 if [ -f "$QW/qwenrun/out/qwenrun" ]; then
@@ -42,6 +45,8 @@ if [ -f "$MB/magerun/out/magerun" ] && [ -f "$MB/hexagon/mega/out/libmega_skel_v
   cp "$MB/magerun/out/magerun" "$J/libmagerun_mage.so"
   cp "$MB/hexagon/mega/out/libmega_skel_v73.so" "$J/libmageskel_v73.so"
 fi
+if [ -f mage/magerun/out/magerun ]; then cp mage/magerun/out/magerun "$J/libmagerun_mage.so"; fi
+[ -f mage/hexagon/mega/out/libmega_skel_v79.so ] && cp mage/hexagon/mega/out/libmega_skel_v79.so "$J/libmageskel_v79.so"
 # picture upscaler: Real-ESRGAN General x4v3 (BSD-3), one 256x256 -> 1024x1024 fp16 HTP context per Hexagon generation (upscale/build.sh 256 ARCH), run by libvaerun.so
 for a in v69 v73 v79; do [ -f upscale/out_$a/esrgan_256.bin ] && cp upscale/out_$a/esrgan_256.bin $J/libesrgan_$a.so; done
 # "Detailed" upscaler: 4x-UltraSharp (Kim2091, CC BY-NC-SA 4.0; MODEL=ultrasharp upscale/build.sh 256 ARCH), same runner; offered only where its context exists

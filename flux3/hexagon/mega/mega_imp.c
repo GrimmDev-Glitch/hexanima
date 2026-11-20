@@ -25,7 +25,7 @@ void hmx8_store_before(uint8_t*,uint32_t);
 void power_max(void *);
 void hmx8_bias(uint8_t*);
 void hmx_clr(void);
-#ifdef V79
+#ifdef V79_HMX_PROBE
 void hmx79_st(uint8_t*, uint32_t, uint32_t);
 void hmx79_acc_p(uint8_t*, uint32_t, uint8_t*, uint32_t);
 void hmx79_acc_s(uint8_t*, uint32_t, uint8_t*, uint32_t);
@@ -151,7 +151,7 @@ done:
 
 
 
-#ifdef V79
+#ifdef V79_HMX_PROBE
 /* scan HMX ctrl words: records (form, ac, wc, first nonzero halfword) for every combination that produces a non-zero tile (ones x ones) */
 static int hmx_scan(uint8_t *vt, int32_t *rec, int maxrec) {
   uint8_t *va = vt, *vw = vt + 65536, *vo = vt + 131072, *vb = vt + 196608;
@@ -202,7 +202,7 @@ int mega_dump(remote_handle64 h, int mode, const uint8_t *act, int actLen, const
   if (lrc) { *rcout = -2; HAP_compute_res_release(ctx); return 0; }
   if (hbusy) *hbusy = 1; else if (mtx.lock) mtx.lock(mtx.mutex);
   if (mode & 0x800) { uint64_t t0 = HAP_perf_get_time_us(); while (HAP_perf_get_time_us() - t0 < 200000) {} }   /* let the HMX power domain settle */
-#ifdef V79
+#ifdef V79_HMX_PROBE
   if (mode & 0x80000000) { int32_t *rec = (int32_t *)out; int n = hmx_scan(vt, rec + 4, (outLen / 4 - 4) / 4); rec[0] = n; HAP_compute_res_hmx_unlock(ctx); HAP_compute_res_release(ctx); return 0; }
 #endif
   uint32_t c = ((mode >> 8) & 3) ? ((mode >> 8) & 3) : 1;
@@ -229,7 +229,7 @@ int mega_dump(remote_handle64 h, int mode, const uint8_t *act, int actLen, const
   if (mode & 0x4000) { hmx8_bias(vb); }     /* bias = mxmem(zero block) like QNN */
   uint32_t low = (mode & 0x1000000) ? 0x70 : (mode & 0x2000000) ? 0x7C : 0x7C; if (mode & 0x4000000) low = 0;
   uint32_t ac = (c << 11) | low, wc = (c << 11) - 1;
-#ifdef V79
+#ifdef V79_HMX_PROBE
   if (mode & 0x38000000) {
     static const uint32_t T[8] = {0x7ff, 0x70, 0x7f0, 0x7c, 0x1c, 0x3ff, 0x77f, 0x7f}; uint32_t a1 = T[(mode >> 24) & 7], w1 = 0x7ff;
     if (mode & 0x08000000) { memcpy(&a1, wgt + wgtLen - 8, 4); memcpy(&w1, wgt + wgtLen - 4, 4); }
@@ -238,7 +238,7 @@ int mega_dump(remote_handle64 h, int mode, const uint8_t *act, int actLen, const
   else
 #endif
   if (mode & 0x80) hmx_acc(va, ac, vw, wc); else hmx8_acc(va, ac, vw, wc);
-#ifdef V79
+#ifdef V79_HMX_PROBE
   if (mode & 0x8000) { hmx8_bias2(vb); hmx79_st(vo, 0, (mode >> 16) & 0xFF); { int32_t *ri = (int32_t *)(vo + 16352); ri[0] = pr1; ri[1] = pr2; ri[2] = lrc; ri[3] = (int32_t)caps; ri[4] = l4rc; ri[5] = l3rc; } memcpy(out, vo, outLen > 16384 ? 16384 : outLen); if (hbusy) *hbusy = 0; else if (mtx.unlock) mtx.unlock(mtx.mutex); HAP_compute_res_hmx_unlock(ctx); HAP_compute_res_release(ctx); return 0; }
 #endif
   int st = mode & 15;

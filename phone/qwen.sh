@@ -9,7 +9,7 @@ if [ "$1" = stop ]; then for p in libqwenrun.so libvaeenc.so libqvaetile.so; do 
 IDS=$1 DROP=$2 W=$3 H=$4 SEED=$5 STEPS=$6 OUT=$7 ED=$8
 ARCH=v69; SKEL=$BIN/libqwenskel.so
 case "$(getprop ro.soc.model)" in
-  SM8550|SM8650)
+  SM8550|SM8650|SM8735)
     ARCH=v73
     SKEL=$BIN/libqwenskel_v73.so
     ;;

@@ -1034,6 +1034,8 @@ Import model	Importar modelo
 Cancelling…	Cancelando…
 Internal storage	Almacenamiento interno
 Chip %s: not supported, a Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 / 8 Gen 3 is required	Chip %s: no compatible; se requiere Snapdragon 8 Gen 1 / 8+ Gen 1 / 8 Gen 2 / 8 Gen 3
+Hexagon V73 experimental · FP16 unverified	Hexagon V73 experimental · FP16 sin validar
+Chip %s: experimental V73 route; FP16 and contexts need validation	Chip %s: ruta V73 experimental; falta validar FP16 y los contextos
 The manifest contains duplicate files or invalid file data.	El manifiesto contiene archivos duplicados o datos inválidos.
 The pack is missing essential Anima model files.	El paquete no contiene los archivos esenciales del modelo Anima.
 The pack is missing Anima model blocks.	El paquete no contiene los bloques del modelo Anima.
@@ -1046,3 +1048,9 @@ Chip %s · %s\n\n%s	Chip %s · %s\n\n%s
 The pack is incomplete: a shared Anima component is missing.	El paquete está incompleto: falta un componente compartido de Anima.
 The sparse-file manifest is invalid.	El manifiesto de archivos dispersos es inválido.
 The pack is missing headers needed to rebuild its model files.	El paquete no contiene los encabezados necesarios para reconstruir los archivos dispersos.
+# V79 dev compatibility notes
+SD8 Elite: V79 experimental; test MOSS/Mage. Anima and Qwen do not have V79 contexts yet.	SD8 Elite: V79 experimental; prueba MOSS/Mage. Anima y Qwen aún no tienen contextos V79.
+Hexagon V79 experimental · MOSS/Mage	Hexagon V79 experimental · MOSS/Mage
+Anima does not have V79 contexts in this Dev APK yet. Try MOSS or Mage.	Anima todavía no tiene contextos V79 en esta Dev APK. Prueba MOSS o Mage.
+This V79 Dev build only includes experimental MOSS and Mage routes; Anima/Qwen are not ported yet.	Esta Dev V79 solo incluye rutas experimentales para MOSS y Mage; Anima/Qwen aún no están porteados.
+MOSS V79 context is missing; stage it with tools/stage_jnilibs.sh.	Falta el contexto MOSS V79; inclúyelo con tools/stage_jnilibs.sh.

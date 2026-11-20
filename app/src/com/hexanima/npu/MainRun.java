@@ -175,6 +175,10 @@ abstract class MainRun extends MainLora {
         } catch (Exception e) { ui.post(() -> Toast.makeText(this, L.f("Error de generación: %s (registro files/mage/mage.log)", "Generation error: %s (log files/mage/mage.log)", e.getMessage()), Toast.LENGTH_LONG).show()); return null; }
     }
     File runOne(String pr, String seedS, int w, int h, long t0) {
+        if (Compat.dspArch().equals("v79") && !isMoss() && !isMage()) {
+            ui.post(() -> Toast.makeText(this, L.s("Esta Dev V79 solo incluye rutas experimentales para MOSS y Mage; Anima/Qwen aún no están porteados.", "This V79 Dev build only includes experimental MOSS and Mage routes; Anima/Qwen are not ported yet."), Toast.LENGTH_LONG).show());
+            return null;
+        }
         if (isMage() || isQwen()) {
             File o = isMage() ? runOneMage(pr, seedS, w, h, t0) : runOneQwen(pr, seedS, w, h, t0);
             return o;   // (a second "refine" pass was tried: Mage invents details - abs, skin marks - instead of cleaning them)
@@ -278,7 +282,7 @@ abstract class MainRun extends MainLora {
     /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
     File runOneMoss(String pr, String seedS, int w, int h, long t0) {
         final File home = getFilesDir(), M = Moss.dir(home);
-        try { Moss.ensureV73Vae(home, getAssets()); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "VAE: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
+        try { if (Compat.dspArch().equals("v79")) Moss.ensureV79Vae(home, getAssets()); else Moss.ensureV73Vae(home, getAssets()); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "VAE: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
         final File MR;
         try { MR = Moss.isVariant(model) ? Moss.variantView(home, model) : M; }
         catch (Exception e) { ui.post(() -> Toast.makeText(this, "MOSS variant: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }

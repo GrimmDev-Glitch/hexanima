@@ -14,9 +14,10 @@ ARCH=${ARCH:-v69}
 case "$ARCH" in
   v69) SOC_MODEL=${SOC_MODEL:-36} ;;
   v73) SOC_MODEL=${SOC_MODEL:-43} ;;
+  v79) SOC_MODEL=${SOC_MODEL:-69} ;;
   *) echo "unsupported ARCH: $ARCH" >&2; exit 2 ;;
 esac
-OUT=out; [ "$ARCH" = v69 ] || OUT=out_$ARCH
+OUT=${OUTDIR:-out}; [ -n "${OUTDIR:-}" ] || { [ "$ARCH" = v69 ] || OUT=out_$ARCH; }
 mkdir -p "$OUT"
 echo "{\"graphs\":[{\"vtcm_mb\":8,\"graph_names\":[\"$N\"],\"O\":3.0,\"fp16_relaxed_precision\":1}],\"devices\":[{\"dsp_arch\":\"$ARCH\",\"soc_model\":$SOC_MODEL,\"cores\":[{\"perf_profile\":\"burst\",\"rpc_control_latency\":100}]}]}" > "$OUT/htp_config_$N.json"
 echo "{\"backend_extensions\":{\"shared_library_path\":\"libQnnHtpNetRunExtensions.so\",\"config_file_path\":\"$PWD/$OUT/htp_config_$N.json\"}}" > "$OUT/htp_backend_$N.json"
