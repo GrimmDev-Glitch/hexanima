@@ -277,10 +277,6 @@ abstract class MainRun extends MainLora {
     }
     /** one MOSS-Image picture: tokenise here, text encoder + DiT + VAE on the NPU through moss.sh, PNG with the settings inside */
     File runOneMoss(String pr, String seedS, int w, int h, long t0) {
-        if ("SM8650".equals(Compat.soc())) {
-            ui.post(() -> Toast.makeText(this, L.s("MOSS aún no está validado en Snapdragon 8 Gen 3 (Hexagon V75).", "MOSS is not yet validated on Snapdragon 8 Gen 3 (Hexagon V75)."), Toast.LENGTH_LONG).show());
-            return null;
-        }
         final File home = getFilesDir(), M = Moss.dir(home);
         try { Moss.ensureV73Vae(home, getAssets()); } catch (Exception e) { ui.post(() -> Toast.makeText(this, "VAE: " + e.getMessage(), Toast.LENGTH_LONG).show()); return null; }
         final File MR;

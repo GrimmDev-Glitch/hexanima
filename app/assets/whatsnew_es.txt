@@ -1,7 +1,7 @@
 # Novedades de 1.9.6-v73.2
-Edición de fotos con Qwen: se corrigió un tamaño vertical que el runner de la NPU rechazaba y el VAE ya no arranca si la generación no puede continuar.
+Edición de fotos con Qwen: se corrigió un tamaño vertical que el runner de la NPU rechazaba, la sintaxis del shell de Android y el inicio del VAE cuando la generación no puede continuar.
 Ajustes puede buscar Releases de GitHub, verificar el SHA-256 del APK e instalar la actualización conservando los datos de la app.
-Compartir usa el proveedor de galería correcto en Dev. MOSS bloquea los Snapdragon 8 Gen 3 no compatibles antes de iniciar el código nativo.
+Compartir usa el proveedor de galería correcto en Dev. MOSS intenta la ruta V73 existente en Snapdragon 8 Gen 3 (experimental).
 # Incluido en 1.9.6
 Importar y exportar modelos Anima en carpetas: verifica manifiesto, tamaños y SHA-256 antes de restaurar; si la importación falla o se cancela, revierte los archivos nuevos.
 Catálogo de modelos sin conexión: consulta los modelos guardados aunque no haya internet; las descargas quedan desactivadas hasta reconectar.

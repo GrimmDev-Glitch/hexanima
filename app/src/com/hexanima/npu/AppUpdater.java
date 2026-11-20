@@ -23,12 +23,12 @@ final class AppUpdater {
                 JSONObject rel=new JSONObject(get(API)); String tag=rel.optString("tag_name",""); JSONObject asset=null; org.json.JSONArray as=rel.optJSONArray("assets");
                 if(as!=null)for(int i=0;i<as.length();i++){JSONObject x=as.getJSONObject(i);if(x.optString("name").toLowerCase(java.util.Locale.ROOT).endsWith(".apk")){asset=x;break;}}
                 if(asset==null)throw new IOException(L.s("El Release no contiene un APK","The release has no APK asset"));
-                int cur=a.getPackageManager().getPackageInfo(a.getPackageName(),0).versionCode; long size=asset.optLong("size",0); if(size<=0)throw new IOException("Invalid APK size");
+                android.content.pm.PackageInfo installed=a.getPackageManager().getPackageInfo(a.getPackageName(),0); File installedApk=new File(installed.applicationInfo.sourceDir); long size=asset.optLong("size",0); if(size<=0)throw new IOException("Invalid APK size");
                 download(asset.getString("browser_download_url"),tmp,size); String digest=asset.optString("digest","");
                 if(!digest.matches("sha256:[0-9a-fA-F]{64}")||!digest.substring(7).equalsIgnoreCase(sha256(tmp)))throw new IOException(L.s("No coincide el SHA-256 del APK","APK SHA-256 does not match the release"));
                 android.content.pm.PackageInfo pi=a.getPackageManager().getPackageArchiveInfo(tmp.getPath(),0);
                 if(pi==null||!a.getPackageName().equals(pi.packageName))throw new IOException(L.s("El APK no corresponde a HexAnima","The APK is not HexAnima"));
-                if(pi.versionCode<=cur){tmp.delete();show(a,L.s("Ya tienes la última versión","You already have the latest version"));return;}
+                if(pi.versionCode<installed.versionCode || (pi.versionCode==installed.versionCode && installedApk.isFile() && digest.substring(7).equalsIgnoreCase(sha256(installedApk)))){tmp.delete();show(a,L.s("Ya tienes la última versión","You already have the latest version"));return;}
                 if(!tmp.renameTo(out)){try(InputStream in=new FileInputStream(tmp);OutputStream o=new FileOutputStream(out)){byte[] b=new byte[65536];for(int n;(n=in.read(b))>0;)o.write(b,0,n);}tmp.delete();}
                 msg=L.f("Versión %s verificada","Version %s verified",tag);ready=true;
             }catch(Exception e){tmp.delete();msg=L.f("No se pudo actualizar: %s","Update failed: %s",String.valueOf(e.getMessage()));}

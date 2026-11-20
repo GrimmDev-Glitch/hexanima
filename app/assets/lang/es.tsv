@@ -1046,4 +1046,3 @@ Chip %s · %s\n\n%s	Chip %s · %s\n\n%s
 The pack is incomplete: a shared Anima component is missing.	El paquete está incompleto: falta un componente compartido de Anima.
 The sparse-file manifest is invalid.	El manifiesto de archivos dispersos es inválido.
 The pack is missing headers needed to rebuild its model files.	El paquete no contiene los encabezados necesarios para reconstruir los archivos dispersos.
-MOSS is not yet validated on Snapdragon 8 Gen 3 (Hexagon V75).	MOSS aún no está validado en Snapdragon 8 Gen 3 (Hexagon V75).
