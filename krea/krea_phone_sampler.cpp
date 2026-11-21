@@ -3,11 +3,22 @@
 #define KREA_TEXT_FUSE_LIBRARY
 #include "krea_text_fuse_cpu.cpp"
 #include <chrono>
+#include <cerrno>
+#include <cstdint>
 #include <sys/wait.h>
 
 static constexpr int HIDDEN=6144, IMG=256, TXT=32, NTOK=TXT+IMG, LATENT=16, LH=32, LW=32, PATCH=64;
 static bool read_raw(const char* path,float* dst,size_t n){std::ifstream f(path,std::ios::binary);return f&&bool(f.read((char*)dst,n*4))&&f.peek()==EOF;}
 static bool write_raw(const char* path,const float* src,size_t n){std::ofstream f(path,std::ios::binary);f.write((const char*)src,n*4);return bool(f);}
+static uint64_t splitmix64(uint64_t& state){uint64_t z=(state+=0x9e3779b97f4a7c15ULL);z=(z^(z>>30))*0xbf58476d1ce4e5b9ULL;z=(z^(z>>27))*0x94d049bb133111ebULL;return z^(z>>31);}
+static double uniform01(uint64_t& state){return ((splitmix64(state)>>11)+0.5)*(1.0/9007199254740992.0);}
+static void make_noise(uint64_t seed,float* out,size_t n){uint64_t state=seed;constexpr double tau=6.283185307179586476925286766559;for(size_t i=0;i<n;i+=2){double r=sqrt(-2.0*log(uniform01(state))),a=tau*uniform01(state);out[i]=(float)(r*cos(a));if(i+1<n)out[i+1]=(float)(r*sin(a));}}
+static void png_be32(std::vector<uint8_t>&out,uint32_t v){out.push_back((uint8_t)(v>>24));out.push_back((uint8_t)(v>>16));out.push_back((uint8_t)(v>>8));out.push_back((uint8_t)v);}
+static uint32_t png_crc(const uint8_t*p,size_t n){uint32_t c=0xffffffffu;for(size_t i=0;i<n;i++){c^=p[i];for(int b=0;b<8;b++)c=(c>>1)^(0xedb88320u&-(c&1));}return ~c;}
+static void png_chunk(std::vector<uint8_t>&out,const char*type,const std::vector<uint8_t>&data){size_t at=out.size();png_be32(out,(uint32_t)data.size());out.insert(out.end(),type,type+4);out.insert(out.end(),data.begin(),data.end());png_be32(out,png_crc(out.data()+at+4,data.size()+4));}
+static bool write_png(const char*rgb_path,const char*png_path){std::vector<float>rgb((size_t)IMG*IMG*3);if(!read_raw(rgb_path,rgb.data(),rgb.size()))return false;std::vector<uint8_t>raw((size_t)IMG*(IMG*3+1));for(int y=0;y<IMG;y++){size_t row=(size_t)y*(IMG*3+1);raw[row]=0;for(int x=0;x<IMG*3;x++){float v=rgb[(size_t)y*IMG*3+x];if(!std::isfinite(v))return false;long q=lrintf((v+1.f)*127.5f);raw[row+1+x]=(uint8_t)(q<0?0:q>255?255:q);}}
+  std::vector<uint8_t>z={0x78,0x01};for(size_t off=0;off<raw.size();){uint16_t n=(uint16_t)std::min<size_t>(65535,raw.size()-off);bool last=off+n==raw.size();z.push_back(last?1:0);z.push_back((uint8_t)n);z.push_back((uint8_t)(n>>8));uint16_t inv=(uint16_t)~n;z.push_back((uint8_t)inv);z.push_back((uint8_t)(inv>>8));z.insert(z.end(),raw.begin()+off,raw.begin()+off+n);off+=n;}uint32_t a=1,b=0;for(uint8_t q:raw){a=(a+q)%65521;b=(b+a)%65521;}png_be32(z,(b<<16)|a);
+  std::vector<uint8_t>png={137,80,78,71,13,10,26,10},ihdr;png_be32(ihdr,IMG);png_be32(ihdr,IMG);ihdr.insert(ihdr.end(),{8,2,0,0,0});png_chunk(png,"IHDR",ihdr);png_chunk(png,"IDAT",z);png_chunk(png,"IEND",{});std::ofstream f(png_path,std::ios::binary);f.write((const char*)png.data(),png.size());return bool(f);}
 static void gelu_tanh(float*x,size_t n){const float c=0.7978845608028654f;for(size_t i=0;i<n;i++){float a=x[i];x[i]=0.5f*a*(1.f+tanhf(c*(a+0.044715f*a*a*a)));}}
 static void rms6144(const float*x,float*y,int rows,const Weight&scale){for(int r=0;r<rows;r++){const float*a=x+(size_t)r*HIDDEN;float*b=y+(size_t)r*HIDDEN;double ss=0;for(int c=0;c<HIDDEN;c++)ss+=(double)a[c]*a[c];float inv=1.f/sqrtf((float)(ss/HIDDEN)+1e-5f);for(int c=0;c<HIDDEN;c++)b[c]=a[c]*inv*(load1(scale,c)+1.f);}}
 static void make_timestep(float t,float* tvec,float* mod){
@@ -36,11 +47,12 @@ static void last_layer(const float*rows,const float*tvec,const float*mod,float*v
 static bool call_vae(const char*vae_dir,const char*weights,const char*latent,const char*rgb){pid_t p=fork();if(p<0)return false;if(!p){if(chdir(vae_dir)){perror("chdir VAE");_exit(126);}execl("./krea_vae_cpu","krea_vae_cpu",weights,latent,rgb,(char*)nullptr);perror("exec VAE");_exit(127);}int st=0;waitpid(p,&st,0);return WIFEXITED(st)&&WEXITSTATUS(st)==0;}
 
 int main(int argc,char**argv){
-  if(argc!=9){fprintf(stderr,"usage: krea_phone_sampler WEIGHTS.kft CONTEXT.f32 NOISE.f32 OUT_LATENT.f32 Q8_DIR VAE_DIR VAE_WEIGHTS VAE_RGB.f32\n");return 2;}
+  if(argc!=9){fprintf(stderr,"usage: krea_phone_sampler WEIGHTS.kft CONTEXT.f32 NOISE.f32|seed:N OUT_LATENT.f32 Q8_DIR VAE_DIR VAE_WEIGHTS VAE_RGB.f32\n");return 2;}
   load_pack(argv[1]);std::vector<float>padded((size_t)512*HIDDEN);if(!read_raw(argv[2],padded.data(),padded.size())){fprintf(stderr,"invalid Krea context\n");return 2;}
   std::vector<float>ctx((size_t)TXT*HIDDEN,0.f);memcpy(ctx.data(),padded.data(),17*HIDDEN*4);memcpy(ctx.data()+(size_t)17*HIDDEN,padded.data()+(size_t)507*HIDDEN,5*HIDDEN*4);
   std::vector<float>latent((size_t)LATENT*LH*LW),rows((size_t)NTOK*HIDDEN),tiles(rows.size()),mod((size_t)6*HIDDEN),tvec(HIDDEN),img((size_t)IMG*HIDDEN),vel((size_t)LATENT*LH*LW),cosv((size_t)NTOK*64),sinv(cosv.size());
-  if(!read_raw(argv[3],latent.data(),latent.size())){fprintf(stderr,"invalid initial noise\n");return 2;}for(float v:latent)if(!std::isfinite(v)){fprintf(stderr,"noise has non-finite values\n");return 2;}
+  if(!strncmp(argv[3],"seed:",5)){char*end=nullptr;errno=0;unsigned long long seed=strtoull(argv[3]+5,&end,10);if(errno||!end||*end){fprintf(stderr,"invalid noise seed\n");return 2;}make_noise((uint64_t)seed,latent.data(),latent.size());fprintf(stderr,"generated initial Gaussian noise on device (seed=%llu)\n",seed);}
+  else if(!read_raw(argv[3],latent.data(),latent.size())){fprintf(stderr,"invalid initial noise\n");return 2;}for(float v:latent)if(!std::isfinite(v)){fprintf(stderr,"noise has non-finite values\n");return 2;}
   std::vector<int32_t>mask(NTOK);make_mask(mask.data());make_rope(cosv.data(),sinv.data());std::string dir=argv[5];
   {std::ofstream f(dir+"/cos.bin",std::ios::binary);f.write((char*)cosv.data(),cosv.size()*4);if(!f)return 3;}
   {std::ofstream f(dir+"/sin.bin",std::ios::binary);f.write((char*)sinv.data(),sinv.size()*4);if(!f)return 3;}
@@ -54,5 +66,5 @@ int main(int argc,char**argv){
     std::vector<float>tiled(rows.size());if(!read_raw("x32_out.bin",tiled.data(),tiled.size())){fprintf(stderr,"missing Q8 output at step %d\n",step+1);return 4;}tiles_to_rows(tiled.data(),rows.data());last_layer(rows.data(),tvec.data(),mod.data(),vel.data());double rms=0;for(size_t i=0;i<latent.size();i++){latent[i]+=(float)(ts[step+1]-ts[step])*vel[i];rms+=(double)latent[i]*latent[i];}if(dbg&&step==0){std::string p=std::string(dbg)+"/";write_raw((p+"out-rows.f32").c_str(),rows.data(),rows.size());write_raw((p+"velocity.f32").c_str(),vel.data(),vel.size());write_raw((p+"latent-step1.f32").c_str(),latent.data(),latent.size());}fprintf(stderr,"Krea phone step %d/8 done in %.2fs latent_rms=%g\n",step+1,std::chrono::duration<float>(std::chrono::steady_clock::now()-started).count(),sqrt(rms/latent.size()));
   }
   if(!write_raw(argv[4],latent.data(),latent.size())){perror("write latent");return 5;}for(float v:latent)if(!std::isfinite(v)){fprintf(stderr,"final latent contains non-finite values\n");return 5;}
-  if(!getenv("KREA_SKIP_VAE")){if(!call_vae(argv[6],argv[7],argv[4],argv[8])){fprintf(stderr,"phone VAE decode failed\n");return 6;}fprintf(stderr,"Krea phone sampler and VAE completed; RGB float output: %s\n",argv[8]);}else fprintf(stderr,"Krea phone sampler completed; VAE skipped by diagnostic setting\n");return 0;
+  if(!getenv("KREA_SKIP_VAE")){if(!call_vae(argv[6],argv[7],argv[4],argv[8])){fprintf(stderr,"phone VAE decode failed\n");return 6;}std::string png=argv[8];if(png.size()>=4&&png.substr(png.size()-4)==".f32")png.resize(png.size()-4);png+=".png";if(!write_png(argv[8],png.c_str())){fprintf(stderr,"phone PNG encoding failed\n");return 7;}fprintf(stderr,"Krea phone sampler and VAE completed; RGB float: %s; PNG: %s\n",argv[8],png.c_str());}else fprintf(stderr,"Krea phone sampler completed; VAE skipped by diagnostic setting\n");return 0;
 }

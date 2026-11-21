@@ -51,7 +51,7 @@ static Layout make_layout_te(int ns) {
   Layout L; memset(&L, 0, sizeof L); const size_t ntok = (size_t)ns * 32; size_t off = 0;
   struct E { int id; size_t b; } ent[] = {
     {M_X, ntok * TD * 4}, {M_COS, (size_t)ns * 8192}, {M_SIN, (size_t)ns * 8192}, {M_H, ntok * 4096 * 2}, {M_Q, ntok * 4096 * 2}, {M_K, ntok * 1024 * 2}, {M_V, ntok * 1024 * 2},
-    {M_O, ntok * 4096 * 2}, {M_T, ntok * TD * 2}, {M_MID, ntok * 9728 * 2}, {M_ROWS, 4096}, {M_CS, 4096}, {M_LQ, 4096}, {M_LO, 4096}, {M_LU, 4096}, {M_LD, 4096}};
+    {M_O, ntok * 4096 * 2}, {M_T, ntok * TD * 2}, {M_MID, ntok * 9728 * 2}, {M_ROWS, 4096}, {M_CS, (size_t)ntok * 4}, {M_LQ, 4096}, {M_LO, 4096}, {M_LU, 4096}, {M_LD, 4096}};
   for (auto& e : ent) { L.meta[e.id] = (int)off; off += up4k(e.b); }
   L.total = off; return L;
 }
@@ -135,17 +135,30 @@ static bool encode_text(const std::vector<int>& ids, int drop, std::vector<f32>&
           t += e.nm; p += std::max(gh, gw);
         } else { flat[t * 3] = flat[t * 3 + 1] = flat[t * 3 + 2] = p; t++; p++; }
       } }
+    int* key_valid = (int*)(blob + g_LT.meta[M_CS]); for (int t = 0; t < ntok; t++) key_valid[t] = t < T && ids[t] != 151643;
     f32* cs = (f32*)(blob + g_LT.meta[M_COS]); f32* sn = (f32*)(blob + g_LT.meta[M_SIN]); memset(cs, 0, (size_t)ns * 8192); memset(sn, 0, (size_t)ns * 8192);
     par_for(T, [&](int t) { for (int d = 0; d < 64; d++) { const int ax = (d % 3 == 1 && d < 60) ? 1 : (d % 3 == 2 && d < 60) ? 2 : 0; const double a = flat[t * 3 + ax] * pow(5e6, -(double)d / 64.0); const size_t idx = (((size_t)(t / 32) * 2 + d / 32) * 1024) + (t % 32) * 32 + d % 32; cs[idx] = (f32)cos(a); sn[idx] = (f32)sin(a); } }); }
   sync_clean(g_blobTE);
   std::vector<f32> mod(18432, 0.f); for (int i = 8192; i < 12288; i++) mod[i] = 1.f;
+  const char* hidden_dump = getenv("MAGE_DUMP_HIDDEN"); const bool stable_krea_hidden = hidden_dump && *hidden_dump;
   int meta[M_NMETA]; for (int i = 0; i < M_NMETA; i++) meta[i] = g_LT.meta[i];
   meta[M_NW] = 3; meta[M_NCB] = 80; meta[M_MODE] = 22; meta[M_FMT] = 1; meta[M_NTOK] = ntok; meta[M_NVALID] = T; meta[M_STOP] = 0;
   const bool dsk = eds && !eds->empty();
   if (!stream_files(g_tefiles, g_te, [&](int l, Buf& w) {
-    meta[M_FIRST] = l == 0 || (dsk && l >= 1 && l <= 3); meta[M_REL] = l == NL_TE - 1 || (dsk && l < 3);
+    meta[M_FIRST] = l == 0 || (dsk && l >= 1 && l <= 3) || (stable_krea_hidden && !dsk); meta[M_REL] = l == NL_TE - 1 || (dsk && l < 3) || (stable_krea_hidden && !dsk);
     if (call(g_LT, meta, w, 0, g_blobTE, mod.data(), (int)mod.size())) return false;
     if (dsk && l < 3) { sync_inval(g_blobTE); for (const EditIn& e : *eds) add_rows_x32((f32*)(blob + g_LT.meta[M_X]), e.k0, e.nm, e.ds[l].data()); sync_clean(g_blobTE); }   // DeepStack: every picture's rows
+    // Krea 2 consumes Qwen hidden_states 2,5,...,35 (the embedding state is
+    // hidden_states[0]), so capture the corresponding post-layer activations.
+    const char* dump = getenv("MAGE_DUMP_HIDDEN");
+    if (dump && *dump && !dsk && l % 3 == 1) {
+      sync_inval(g_blobTE);
+      std::vector<f32> hidden((size_t)T * TD); x32_to_rows((const f32*)(blob + g_LT.meta[M_X]), T, TD, hidden.data());
+      char path[1024]; snprintf(path, sizeof path, "%s/hidden_%02d.f32", dump, l + 1);
+      FILE* f = fopen(path, "wb"); if (!f) { fprintf(stderr, "cannot write %s\n", path); return false; }
+      const bool ok = fwrite(hidden.data(), 4, hidden.size(), f) == hidden.size(); fclose(f);
+      if (!ok) { fprintf(stderr, "short write %s\n", path); return false; }
+    }
     return true; }, getenv("MAGE_KEEPTE") ? NL_TE : 0)) return false;
   sync_inval(g_blobTE);
   std::vector<f32> rows((size_t)T * TD); x32_to_rows((const f32*)(blob + g_LT.meta[M_X]), T, TD, rows.data());
@@ -440,6 +453,22 @@ static void finish_rgb(const std::vector<f32>& z, int h, int w) {   // MAGE_RGB=
   const char* p = getenv("MAGE_RGB"); if (!p || !*p) return; std::vector<f32> rgb((size_t)h * w * 256 * 3); vae_decode(z.data(), h, w, rgb.data());
   FILE* f = fopen(p, "wb"); fwrite(rgb.data(), 4, rgb.size(), f); fclose(f);
 }
+static bool load_text_encoder_only(const std::string& dir) {
+  g_dir = dir; size_t mx = 0;
+  const std::string te_dir = dir + "/" + (getenv("MAGE_TE") ? getenv("MAGE_TE") : "te");
+  for (int l = 0; l < NL_TE; l++) {
+    char p[1024]; snprintf(p, sizeof p, "%s/te%02d.bin", te_dir.c_str(), l);
+    struct stat st; if (stat(p, &st)) return false; mx = std::max<size_t>(mx, st.st_size); g_tefiles.push_back(p);
+  }
+  const std::string ep = te_dir + "/embd.q8";
+  int fd = open(ep.c_str(), O_RDONLY); if (fd < 0) return false;
+  struct stat st; if (fstat(fd, &st)) { close(fd); return false; }
+  g_embd_len = st.st_size; g_embd = (uint8_t*)mmap(nullptr, g_embd_len, PROT_READ, MAP_PRIVATE, fd, 0); close(fd);
+  if (g_embd == MAP_FAILED) { g_embd = nullptr; return false; }
+  if (!readraw((te_dir + "/tefinal.bin").c_str(), g_tefinal, TD)) return false;
+  g_te[0] = make_buf(mx); g_te[1] = make_buf(mx); g_all.push_back(&g_te[0]); g_all.push_back(&g_te[1]);
+  return g_te[0].p && g_te[1].p;
+}
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0);
   rpcmem_init();
@@ -465,6 +494,18 @@ int main(int argc, char** argv) {
       { struct stat st; if (!getenv("MAGE_NODSPVAE") && !stat((g_dir + "/vaepack.bin").c_str(), &st)) { g_vpack = make_buf(st.st_size); if (g_vpack.p && read_into(g_dir + "/vaepack.bin", g_vpack.p, g_vpack.sz, true) == (size_t)st.st_size) {
           sync_clean(g_vpack); FILE* f = fopen((g_dir + "/vaepack.idx").c_str(), "r"); char nm[64]; unsigned long long off; int K, N; while (f && fscanf(f, "%63s %llu %d %d", nm, &off, &K, &N) == 4) g_vp[nm] = {(size_t)off, K, N}; if (f) fclose(f); } } }
       printf("loaded %.1f\n", now() - t0); continue;
+    }
+    if (cmd == "loadte") {
+      std::string dir; ss >> dir; double t0 = now();
+      if (!load_text_encoder_only(dir)) { printf("error te-load\n"); continue; }
+      printf("loaded-te %.1f\n", now() - t0); continue;
+    }
+    if (cmd == "enc") {   // enc IDS.i32 DROP; optionally MAGE_DUMP_HIDDEN=DIR writes Qwen hidden states 2,5,...,35
+      std::string idsf; int drop; ss >> idsf >> drop;
+      std::vector<int> ids; { FILE* f = fopen(idsf.c_str(), "rb"); if (!f) { printf("error ids\n"); continue; } fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); ids.resize(n / 4); const bool ok = fread(ids.data(), 4, ids.size(), f) == ids.size(); fclose(f); if (!ok) { printf("error ids-read\n"); continue; } }
+      std::vector<f32> tx; if (!encode_text(ids, drop, tx)) { printf("error te\n"); continue; }
+      if (getenv("MAGE_DUMP_TX")) { FILE* f = fopen(getenv("MAGE_DUMP_TX"), "wb"); if (!f || fwrite(tx.data(), 4, tx.size(), f) != tx.size()) { if (f) fclose(f); printf("error tx-write\n"); continue; } fclose(f); }
+      printf("encoded %d tokens\n", (int)tx.size() / TD); continue;
     }
     if (cmd == "gen") {   // gen TX.f32 NT H W SEED STEPS OUT.z    (TX: fp32 [NT][2560] text-encoder output after the final norm)
       std::string txf, outz; int nt, H, W, steps; unsigned seed; ss >> txf >> nt >> H >> W >> seed >> steps >> outz;
