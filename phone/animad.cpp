@@ -246,7 +246,7 @@ static void writefile(const std::string& p, const void* d, size_t n) {
     fclose(f);
 }
 
-struct Chain { FILE* in; FILE* out; pid_t pid; };
+struct Chain { FILE* in; FILE* out; pid_t pid; const char* name; };
 static Chain spawn(const std::string& ph, int first, int count, const std::string& bdir) {
     int pin[2], pout[2];
     if (pipe(pin) || pipe(pout)) die("pipe");
@@ -261,7 +261,7 @@ static Chain spawn(const std::string& ph, int first, int count, const std::strin
         _exit(127);
     }
     close(pin[0]); close(pout[1]);
-    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid};
+    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid, "chainrun"};
 }
 // helper executables: ./name in the work dir (root setup) or $ANIMAD_BIN/libname.so (the app ships them as native libs, the only place an app may exec from)
 static std::string binpath(const char* n) { const char* d = getenv("ANIMAD_BIN"); return d ? std::string(d) + "/lib" + n + ".so" : std::string("./") + n; }
@@ -279,7 +279,7 @@ static Chain spawn_mega(const std::string& ph, int first, int count, const std::
         _exit(127);
     }
     close(pin[0]); close(pout[1]);
-    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid};
+    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid, "megarun"};
 }
 static Chain spawn_vae(const std::string& ph) {
     int pin[2], pout[2];
@@ -294,7 +294,7 @@ static Chain spawn_vae(const std::string& ph) {
         _exit(127);
     }
     close(pin[0]); close(pout[1]);
-    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid};
+    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid, "vaerun"};
 }
 static Chain spawn_te(const std::string& ph) {
     int pin[2], pout[2];
@@ -309,13 +309,15 @@ static Chain spawn_te(const std::string& ph) {
         _exit(127);
     }
     close(pin[0]); close(pout[1]);
-    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid};
+    return {fdopen(pin[1], "w"), fdopen(pout[0], "r"), pid, "terun"};
 }
 static std::string waitline(Chain& c, const char* a, const char* b) {
     char line[4096];
     while (fgets(line, sizeof line, c.out)) {
         if (!strncmp(line, a, strlen(a)) || (b && !strncmp(line, b, strlen(b)))) return line;
-        if (strstr(line, "ERROR") || strstr(line, "failed")) fprintf(stderr, "chainrun: %s", line);
+        if (strstr(line, "ERROR") || strstr(line, "failed") || !strncmp(line, "terun:", 6) || !strncmp(line, "vaerun:", 7) ||
+            !strncmp(line, "QNN[ERROR]", 10) || !strncmp(line, "QNN[WARN]", 9) || !strncmp(line, "QNN[INFO]", 9))
+            fprintf(stderr, "%s: %s", c.name, line);
         else if (!strncmp(line, "megarun: LoRA", 13)) fprintf(stderr, "%s", line);   // which LoRA was folded into which blocks
     }
     die("chainrun exited");

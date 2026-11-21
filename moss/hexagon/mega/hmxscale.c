@@ -1,14 +1,15 @@
 #include <stdint.h>
 
-/* V73+ needs 256 bytes in VTCM for the HMX convert scale/bias block. */
-__attribute__((visibility("hidden"))) uint8_t *hmx_scale_blk;
-
-void hmx_scale_init(uint8_t *vtcm) {
+/* Use the shared V73+ convert-unit store path proven by Mage on V79. */
 #if __HEXAGON_ARCH__ >= 73
+static uint8_t *g_hmx_bias;
+void hmx_store_cvt(uint8_t *out, uint32_t m, uint8_t *bias);
+void hmx_scale_init(uint8_t *vtcm) {
   volatile uint32_t *w = (volatile uint32_t *)vtcm;
-  for (int i = 0; i < 64; i++) w[i] = i < 32 ? 0x3C00u : 0u;  /* scale 1.0, bias 0 */
-  hmx_scale_blk = vtcm;
-#else
-  (void)vtcm;
-#endif
+  for (int i = 0; i < 64; i++) w[i] = i < 32 ? 0x3C00u : 0u;
+  g_hmx_bias = vtcm;
 }
+void hmx_store(uint8_t *out, uint32_t m) { hmx_store_cvt(out, m, g_hmx_bias); }
+#else
+void hmx_scale_init(uint8_t *vtcm) { (void)vtcm; }
+#endif

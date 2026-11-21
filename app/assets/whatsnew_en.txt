@@ -1,3 +1,63 @@
+# 1.9.6-v79-sd8e-dev19
+SD8E Dev19: diagnostic-only MOSS VAE input/output statistics to distinguish a latent-range problem from a decoder problem. Please test near 1 MP, within the Rapid-MOSS adapter's training range.
+
+# 1.9.6-v79-sd8e-dev18
+SD8E Dev18: versions the MOSS embedding cache and recomputes text/refiner output after the RMS update instead of reusing stale Dev15 results.
+
+# 1.9.6-v79-sd8e-dev17
+SD8E Dev17: records per-block and per-step MOSS distributions; runs the full finite-value scan once per step to reduce diagnostic overhead.
+
+# 1.9.6-v79-sd8e-dev16
+SD8E Dev16: uses scalar RMSNorm across MOSS V79 text and DiT paths, with per-stage checks for the first DiT block.
+
+# 1.9.6-v79-sd8e-dev15
+SD8E Dev15: uses scalar RMSNorm in MOSS refiner blocks and reports per-stage finite checks.
+
+# 1.9.6-v79-sd8e-dev14
+SD8E Dev14: uses scalar RMSNorm for MOSS final text normalization and logs FP16 projection input/output health.
+
+# 1.9.6-v79-sd8e-dev13
+SD8E Dev13: stop MOSS before DiT if its text encoder emits non-finite values, and log the first corrupted value.
+
+# New in 1.9.6-v73.4-sm8735-dev7
+SM8735 diagnostic probe: fixes APK native-library paths so Android can load the runners, and switches the HTP runtime to QAIRT 2.51 with QNN SoC model 85 diagnostics. Device compatibility and image generation remain unverified.
+
+# New in 1.9.6-v73.4-sm8735-dev6
+SM8735 diagnostic probe: switches the HTP runtime to QAIRT 2.51, which recognizes the SM8735 family, and keeps QNN SoC model 85 diagnostics. The phone firmware previously reported a QAIRT 2.28 V73 remote stub; device compatibility and image generation remain unverified.
+
+# New in 1.9.6-v73.4-sm8735-dev5
+SM8735 diagnostic probe: uses QAIRT 2.50 and explicitly passes QNN SoC model 85 to deviceCreate, while retaining QNN provider logs. The firmware reported a QAIRT 2.28 V73 stub in Dev3, so runtime compatibility remains unverified.
+
+# New in 1.9.6-v73.4-sm8735-dev4
+SM8735 diagnostics: selects the bundled QAIRT 2.28 HTP V73 host/stub/skel set to match the 2.28 remote stub reported by Dev3. This tests runtime negotiation only; model contexts and image generation remain unverified.
+
+# New in 1.9.6-v73.4-sm8735-dev3
+SM8735 diagnostics: logs QNN provider/runtime details from the VAE runner and labels each child process in exported logs. Also reports the shared text-encoder stub separately when exporting a model.
+
+# New in 1.9.6-v73.4-sm8735-dev2
+SM8735 diagnostics: forwards QNN runtime/provider details and device-creation messages into the exported log. QAIRT 2.50 now reaches deviceCreate but returns incompatible binaries; model contexts and FP16 remain unverified.
+
+# New in 1.9.6-v73.4-sm8735-dev1
+SM8735 diagnostic Dev: Anima tries the bundled QAIRT 2.50 HTP runtime instead of the 2.28 default and records the provider, API/build ID and startup logs. Contexts and FP16 remain unverified; this build does not claim generation support.
+
+# 1.9.6-v79-sd8e-dev12
+SD8E Dev12: corrects the FP16 tile layout in MOSS text RMSNorm’s V79 scalar reference path.
+
+# 1.9.6-v79-sd8e-dev11
+SD8E Dev11: sends MOSS internal metrics to the Android log over RPC to identify which stage creates non-finite values.
+
+# 1.9.6-v79-sd8e-dev10
+SD8E Dev10: adds per-stage metrics in the first MOSS text block to locate the first corrupted tensor.
+
+# 1.9.6-v79-sd8e-dev9
+SD8E Dev9: tests Mage’s shared HMX conversion path to address non-finite values in the MOSS text encoder.
+
+# 1.9.6-v79-sd8e-dev8
+SD8E Dev8: adds per-layer input and output traces to the MOSS text encoder and refiner.
+
+# 1.9.6-v79-sd8e-dev7
+SD8E Dev7: logs MOSS text encoder output and Mage first window input to locate non-finite values.
+
 # New in 1.9.6-v79-sd8e-dev5
 Snapdragon 8 Elite diagnostic Dev: logs the first DiT block input and output for MOSS and Mage to pinpoint where non-finite values begin. This build diagnoses the failure; it does not claim to fix it.
 

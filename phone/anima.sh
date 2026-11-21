@@ -33,6 +33,20 @@ if [ -n "$DSPA" ] && [ -f "$BIN/libmega_skel_$DSPA.so" ]; then
   mkdir -p $A/dsp_$DSPA; cmp -s "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so || cp -f "$BIN/libmega_skel_$DSPA.so" $A/dsp_$DSPA/libmega_skel.so
   ADSPP="$A/dsp_$DSPA;$BIN"
 fi
+# SM8735 Dev6: probe the newer QAIRT 2.51 runtime, which includes SM8735
+# awareness. This does not establish that the phone's 2.28 remote V73 stub is
+# compatible; retain the explicit SoC model request for diagnostic logging.
+if [ "$SOC" = SM8735 ] && [ -n "$BIN" ] && [ -f "$BIN/libqnn251htp.so" ] && [ -f "$BIN/libqnn251system.so" ]; then
+  Q=$A/qnn251; mkdir -p "$Q"
+  ln -sf "$BIN/libqnn251htp.so" "$Q/libQnnHtp.so"
+  ln -sf "$BIN/libqnn251system.so" "$Q/libQnnSystem.so"
+  ln -sf "$BIN/libqnn251v73stub.so" "$Q/libQnnHtpV73Stub.so"
+  ln -sf "$BIN/libqnn251v73skel.so" "$Q/libQnnHtpV73Skel.so"
+  LIBS="$Q:$BIN:/system/lib64:/vendor/lib64"; export LIBS
+  ADSPP="$Q;$ADSPP"
+  ANIMAD_QNN_SOC_MODEL=85; export ANIMAD_QNN_SOC_MODEL
+  echo "anima.sh: SM8735 selecting QAIRT 2.51 HTP V73 runtime with explicit SoC model 85"
+fi
 # The reported SM8650/V75 device supports five concurrent DSP sessions. A 40-block Anima model
 # uses three HMX workers there (14/14/12), leaving sessions for the VAE and text encoder.
 if [ "$SOC" = SM8650 ] && [ -n "$MDIR" ] && [ -f "$A/$MDIR/blk39.bin" ]; then
@@ -45,7 +59,7 @@ if [ "$1" = stop ]; then touch $ROOT/quit; if pidof $NS >/dev/null; then printf 
   if pidof $NA >/dev/null; then kill -9 $(pidof $NA); fi; for p in $NH; do pidof $p >/dev/null && kill -9 $(pidof $p); done; rm -f $ROOT/quit; exit 0; fi
 if [ "$1" = status ]; then if pidof $NA >/dev/null && grep -q serving $A/animad.log; then echo loaded; else echo unloaded; fi; exit 0; fi
 load_fail() {
-  { echo "Anima runner failed to start (chip ${HEXARCH:-unknown}): $1"; [ -f "$2" ] && tail -n 25 "$2"; } > "$A/load_error"
+  { echo "Anima runner failed to start (chip ${HEXARCH:-unknown}): $1"; [ -f "$2" ] && tail -n 60 "$2"; } > "$A/load_error"
   sh "$0" stop
   exit 3
 }

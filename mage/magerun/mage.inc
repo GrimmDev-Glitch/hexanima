@@ -221,6 +221,7 @@ static bool run_dit(const std::vector<f32>& tx, int nt, int h, int w, unsigned s
         for (int pass = 0; pass < 2; pass++) for (int wn = 0; wn < nwin; wn++) {
           const int w0 = wn * wns, nws = std::min(wns, ns - w0); const int ni0 = std::max(0, std::min(nsI - w0, nws));
           memcpy(blob + g_LM.meta[M_X], &Xh[(size_t)w0 * XS], (size_t)nws * XS * 4); memcpy(blob + g_LM.meta[M_COS], &Ch[(size_t)w0 * CS], (size_t)nws * CS * 4); memcpy(blob + g_LM.meta[M_SIN], &Sh[(size_t)w0 * CS], (size_t)nws * CS * 4);
+          if (s == 0 && b == 0 && pass == 0 && wn == 0) mage_debug_input(s, (const f32*)(blob + g_LM.meta[M_X]), (size_t)nws * 32 * D);
           sync_clean(g_blobM);
           meta[M_NTOK] = nws * 32; meta[M_BA] = ni0; meta[M_A2] = ntok; meta[M_A4] = pass == 0 ? 1 : 2; meta[M_A9] = w0; meta[M_FIRST] = (b == 0 && pass == 0 && wn == 0) ? 1 : 2; meta[M_REL] = (b == NB - 1 && pass == 1 && wn == nwin - 1) ? 1 : 2; meta[M_FMT] = 0;
           if (call(g_LM, meta, w, 0, g_blobM, mb, 16 * D)) return false;
@@ -447,7 +448,7 @@ static std::string tx_cache_path(const std::vector<int>& ids, int drop, const st
   const char* d = getenv("MAGE_CACHE"); if (!d || !*d) return ""; uint64_t k = fnv(ids.data(), ids.size() * 4, 1469598103934665603ull); k = fnv(&drop, 4, k); if (pxs) for (const auto& px : *pxs) k = fnv(px.data(), px.size() * 4, k);
   char b[64]; snprintf(b, sizeof b, "/tx_%016llx.f32", (unsigned long long)k); return std::string(d) + b;
 }
-static bool tx_cache_load(const std::string& p, size_t n, std::vector<f32>& tx) { if (p.empty()) return false; FILE* f = fopen(p.c_str(), "rb"); if (!f) return false; tx.resize(n); bool ok = fread(tx.data(), 4, n, f) == n; fclose(f); return ok; }
+static bool tx_cache_load(const std::string& p, size_t n, std::vector<f32>& tx) { if (p.empty()) return false; FILE* f = fopen(p.c_str(), "rb"); if (!f) return false; tx.resize(n); bool ok = fread(tx.data(), 4, n, f) == n; fclose(f); if (ok) for (f32 v : tx) if (!std::isfinite(v)) { fprintf(stderr, "discarding non-finite text cache\n"); ok = false; break; } return ok; }
 static void tx_cache_save(const std::string& p, const std::vector<f32>& tx) { if (p.empty()) return; FILE* f = fopen(p.c_str(), "wb"); if (!f) return; fwrite(tx.data(), 4, tx.size(), f); fclose(f); }
 static void finish_rgb(const std::vector<f32>& z, int h, int w) {   // MAGE_RGB=path: decode the latent tokens with the VAE and write fp32 rgb [H][W][3]
   const char* p = getenv("MAGE_RGB"); if (!p || !*p) return; std::vector<f32> rgb((size_t)h * w * 256 * 3); vae_decode(z.data(), h, w, rgb.data());

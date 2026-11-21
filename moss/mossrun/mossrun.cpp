@@ -188,10 +188,22 @@ static Buf g_blobTE; static Layout g_LT;  // TE + refiner blob (capacity MAXT to
 static Buf g_blobD; static Layout g_LD; static int g_blobD_ntok = 0;
 
 static int call(const Layout& L, int* meta, Buf& w, size_t woff, const Buf& blob, const f32* mod, int nmod) {
-  int times[32]; int rc = 0; meta[M_WOFF] = (int)woff;
+  int times[64] = {}; int rc = 0; meta[M_WOFF] = (int)woff;
   if (!map_buf(w)) return -1;
-  int r = mega_block(g_h, meta, M_NMETA, w.fd, blob.fd, (const uint8_t*)mod, nmod * 4, times, 32, &rc);
+  int r = mega_block(g_h, meta, M_NMETA, w.fd, blob.fd, (const uint8_t*)mod, nmod * 4, times, 64, &rc);
   if (r || rc) { fprintf(stderr, "mega_block r=0x%x rc=%d mode=%d\n", r, rc, meta[M_MODE]); return -1; }
+  if (getenv("MOSS_DEBUG_STATS") && meta[M_MODE] == 20 && meta[M_FIRST]) fprintf(stderr, "diag moss-kernel-rpc rms=%d q=%d k=%d v=%d qkv_rows=%d delta=%d output=%d\n", times[25], times[26], times[27], times[28], times[29], times[30], times[31]);
+  if (getenv("MOSS_DEBUG_STATS") && meta[M_MODE] == 30) fprintf(stderr, "diag moss-final-rms nonfinite=%d\n", times[25]);
+  if (getenv("MOSS_DEBUG_STATS") && meta[M_MODE] == 2 && meta[M_FIRST]) fprintf(stderr, "diag moss-ref-proj input_nonfinite=%d output_nonfinite=%d\n", times[25], times[26]);
+  if (getenv("MOSS_DEBUG_STATS") && meta[M_MODE] == 1) fprintf(stderr, "diag moss-refblock attn_rms=%d q=%d k=%d v=%d attn_out=%d residual=%d ff_rms=%d\n", times[25], times[26], times[27], times[28], times[29], times[30], times[31]);
+  if (getenv("MOSS_DEBUG_STATS") && meta[M_MODE] == 0 && meta[M_FIRST]) fprintf(stderr, "diag moss-dit-block attn_rms=%d q=%d k=%d v=%d attn_out=%d residual=%d ff_rms=%d\n", times[25], times[26], times[27], times[28], times[29], times[30], times[31]);
+  if (getenv("MOSS_DEBUG_TAIL") && meta[M_MODE] == 0 && meta[M_BLOCK] >= 39) {
+    static const char* labels[] = {"attn-rms", "attn-out", "attn-residual", "ff-rms", "ff-down", "block-out"};
+    for (int i = 0; i < 6; i++) {
+      float v[4]; memcpy(v, times + 32 + i * 5, sizeof v);
+      fprintf(stderr, "diag moss-tail block=%d %s finite=%d/4096 min=%.7g max=%.7g mean=%.7g sd=%.7g\n", meta[M_BLOCK], labels[i], times[36 + i * 5], v[0], v[1], (double)v[2], (double)v[3]);
+    }
+  }
   return 0;
 }
 
@@ -209,6 +221,7 @@ static void rope_tables(const f32* bands, int H, int W, int T, int ntok, f32* cs
 }
 
 // ------------------------------------------------------------------ text encoder + refiner on the NPU
+static void debug_input(const char* model, int step, const f32* x, size_t n);
 static const std::vector<float> consts_tile() { std::vector<float> v; return v; }
 static void fill_consts(uint8_t* blob, const Layout& L, int ns) {   // L buffers: fp16 1.0 in column 0 of every 4th tile (bias row selector)
   auto fill = [&](int id, size_t ntiles) { __fp16* t = (__fp16*)(blob + L.meta[id]); memset(t, 0, ntiles * 2048);
@@ -233,7 +246,10 @@ static bool encode_text(const std::vector<int>& ids, std::vector<f32>& tx) {
   std::vector<std::string> tef; for (int i = 0; i <= NLAYER_TE; i++) { char p[512]; snprintf(p, sizeof p, "%s/te/te%02d.bin", g_dir.c_str(), i); tef.push_back(p); }
   bool ok = stream_files(tef, g_te, [&](int i, Buf& b) {
     meta[M_MODE] = i == NLAYER_TE ? 30 : (i % 4 == 3 ? 21 : 20); meta[M_FIRST] = i == 0; meta[M_REL] = i == NLAYER_TE;
-    return call(L, meta, b, 0, g_blobTE, mod.data(), 18432) == 0; });
+    if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobTE); debug_input(i == NLAYER_TE ? "te-final-in" : "te-layer-in", i, (const f32*)(blob + L.meta[M_X]), (size_t)ntokT * 4096); }
+    if (call(L, meta, b, 0, g_blobTE, mod.data(), 18432)) return false;
+    if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobTE); debug_input(i == NLAYER_TE ? "te-final-out" : "te-layer-out", i, (const f32*)(blob + L.meta[M_X]), (size_t)ntokT * 4096); }
+    return true; });
   if (!ok) return false;
   fprintf(stderr, "te: %.2fs\n", now() - t0); t0 = now();
   // ---- refiner: h16 (TE output tiles, already in M_H) -> proj -> 2 blocks; NCB 96 ----
@@ -245,10 +261,13 @@ static bool encode_text(const std::vector<int>& ids, std::vector<f32>& tx) {
   sync_clean(g_blobTE);
   meta[M_NCB] = 96; meta[M_NW] = 3;
   { std::vector<std::string> rf; for (const char* n : {"proj", "ref0", "ref1"}) rf.push_back(g_dir + "/ref/" + n + ".bin");
-    ok = stream_files(rf, g_te, [&](int i, Buf& b) { meta[M_MODE] = i == 0 ? 2 : 1; meta[M_FIRST] = i == 0; meta[M_REL] = i == 2; return call(L, meta, b, 0, g_blobTE, rmod.data(), 18432) == 0; }); }
+    ok = stream_files(rf, g_te, [&](int i, Buf& b) { meta[M_MODE] = i == 0 ? 2 : 1; meta[M_FIRST] = i == 0; meta[M_REL] = i == 2; if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobTE); debug_input("refiner-in", i, (const f32*)(blob + L.meta[M_X]), (size_t)ntokT * 3072); } if (call(L, meta, b, 0, g_blobTE, rmod.data(), 18432)) return false; if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobTE); debug_input("refiner-out", i, (const f32*)(blob + L.meta[M_X]), (size_t)ntokT * 3072); } return true; }); }
   if (!ok) return false;
   sync_inval(g_blobTE);
   tx.assign((size_t)T * 3072, 0.f); x32_to_rows((const f32*)(blob + L.meta[M_X]), T, 3072, tx.data());
+  size_t bad = 0, first = tx.size(); uint32_t bits = 0;
+  for (size_t i = 0; i < tx.size(); i++) if (!std::isfinite(tx[i])) { if (!bad) { first = i; memcpy(&bits, &tx[i], sizeof bits); } bad++; }
+  if (bad) { fprintf(stderr, "error: text encoder produced %zu non-finite values (first=%zu bits=0x%08x); DiT skipped\n", bad, first, bits); return false; }
   fprintf(stderr, "refiner: %.2fs\n", now() - t0);
   return true;
 }
@@ -272,16 +291,24 @@ static void time_vecs(float code, std::vector<f32>& mod, std::vector<f32>& head)
 }
 
 // ------------------------------------------------------------------ DiT sampler
+static constexpr uint32_t TX_CACHE_MAGIC = 0x4358544d;   // "MTXC" in the on-disk little-endian format
+static constexpr uint32_t TX_CACHE_VERSION = 2;         // bump when text encoder/refiner outputs change
 static uint64_t ids_hash(const std::vector<int>& ids) { uint64_t h = 1469598103934665603ull ^ 0x4d4f5353ull; for (int v : ids) { h ^= (uint32_t)v; h *= 1099511628211ull; } return h; }
 static bool load_tx(const std::vector<int>& ids, std::vector<f32>& tx) {   // the text side depends on the prompt only: reuse it for the next seed / picture
   FILE* f = fopen((g_dir + "/tx.cache").c_str(), "rb"); if (!f) return false;
-  uint64_t h = 0; int T = 0; bool ok = fread(&h, 8, 1, f) == 1 && fread(&T, 4, 1, f) == 1 && h == ids_hash(ids) && T == (int)ids.size();
+  uint32_t magic = 0, version = 0; uint64_t h = 0; int T = 0;
+  bool ok = fread(&magic, 4, 1, f) == 1 && magic == TX_CACHE_MAGIC;
+  if (ok) ok = fread(&version, 4, 1, f) == 1 && version == TX_CACHE_VERSION;
+  if (ok) ok = fread(&h, 8, 1, f) == 1 && fread(&T, 4, 1, f) == 1 && h == ids_hash(ids) && T == (int)ids.size();
   if (ok) { tx.resize((size_t)T * 3072); ok = fread(tx.data(), 4, tx.size(), f) == tx.size(); }
-  fclose(f); return ok;
+  fclose(f); if (ok) for (f32 v : tx) if (!std::isfinite(v)) { fprintf(stderr, "discarding non-finite text cache\n"); ok = false; break; } return ok;
 }
 static void save_tx(const std::vector<int>& ids, const std::vector<f32>& tx) {
-  FILE* f = fopen((g_dir + "/tx.cache").c_str(), "wb"); if (!f) return; uint64_t h = ids_hash(ids); int T = (int)ids.size();
-  fwrite(&h, 8, 1, f); fwrite(&T, 4, 1, f); fwrite(tx.data(), 4, tx.size(), f); fclose(f);
+  const std::string path = g_dir + "/tx.cache", tmp = path + ".tmp";
+  FILE* f = fopen(tmp.c_str(), "wb"); if (!f) return; uint32_t magic = TX_CACHE_MAGIC, version = TX_CACHE_VERSION; uint64_t h = ids_hash(ids); int T = (int)ids.size();
+  bool ok = fwrite(&magic, 4, 1, f) == 1 && fwrite(&version, 4, 1, f) == 1 && fwrite(&h, 8, 1, f) == 1 && fwrite(&T, 4, 1, f) == 1 && fwrite(tx.data(), 4, tx.size(), f) == tx.size();
+  fflush(f); fsync(fileno(f)); fclose(f);
+  if (!ok || rename(tmp.c_str(), path.c_str())) remove(tmp.c_str());
 }
 static void upsample2(const f32* src, int h, int w, f32* dst) {   // [128][h][w] -> [128][2h][2w], bilinear with half-pixel centres
   par_for(128, [&](int c) { for (int y = 0; y < 2 * h; y++) { float fy = (y + 0.5f) / 2 - 0.5f; int y0 = (int)floorf(fy); float ty = fy - y0; int ya = std::max(0, std::min(h - 1, y0)), yb = std::max(0, std::min(h - 1, y0 + 1));
@@ -325,6 +352,33 @@ static bool debug_nonfinite(const char* model, int step, int block, const f32* x
   fflush(stderr); return bad != 0;
 }
 
+static bool debug_summary(const char* model, int step, const f32* x, size_t n) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return false;
+  size_t bad = 0, first = n, finite = 0; uint32_t bits = 0; double sum = 0, sum2 = 0;
+  f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
+  for (size_t i = 0; i < n; i++) {
+    const f32 v = x[i];
+    if (!std::isfinite(v)) { if (!bad) { first = i; memcpy(&bits, x + i, sizeof bits); } bad++; continue; }
+    finite++; mn = std::min(mn, v); mx = std::max(mx, v); sum += v; sum2 += (double)v * v;
+  }
+  const double mean = finite ? sum / finite : 0, var = finite ? std::max(0.0, sum2 / finite - mean * mean) : 0;
+  fprintf(stderr, "diag %s step=%d finite=%zu/%zu min=%.7g max=%.7g mean=%.7g sd=%.7g", model, step, finite, n, (double)mn, (double)mx, mean, sqrt(var));
+  if (bad) fprintf(stderr, " first_nonfinite=%zu bits=0x%08x", first, bits);
+  fprintf(stderr, "\n"); fflush(stderr); return bad != 0;
+}
+
+static void debug_sample(const char* model, int step, int block, const f32* x, size_t n) {
+  const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0") || !n) return;
+  const size_t samples = std::min(n, (size_t)4096); size_t finite = 0;
+  double sum = 0, sum2 = 0; f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
+  for (size_t i = 0; i < samples; i++) {
+    const f32 v = x[i * n / samples]; if (!std::isfinite(v)) continue;
+    finite++; mn = std::min(mn, v); mx = std::max(mx, v); sum += v; sum2 += (double)v * v;
+  }
+  const double mean = finite ? sum / finite : 0, var = finite ? std::max(0.0, sum2 / finite - mean * mean) : 0;
+  fprintf(stderr, "diag %s step=%d block=%d sample_finite=%zu/%zu min=%.7g max=%.7g mean=%.7g sd=%.7g\n", model, step, block, finite, samples, (double)mn, (double)mx, mean, sqrt(var));
+}
+
 static void debug_input(const char* model, int step, const f32* x, size_t n) {
   const char* enabled = getenv("MOSS_DEBUG_STATS"); if (!enabled || !*enabled || !strcmp(enabled, "0")) return;
   size_t bad = 0, first = n; uint32_t bits = 0; f32 mn = std::numeric_limits<f32>::infinity(), mx = -std::numeric_limits<f32>::infinity();
@@ -347,6 +401,7 @@ static void wait_preview_ack(const char* path, int step) {
 static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned seed, int steps, const std::string& outz) {
   double tall = now(); std::vector<f32> tx;
   if (load_tx(ids, tx)) fprintf(stderr, "te: cached\n"); else { if (!encode_text(ids, tx)) return false; save_tx(ids, tx); }
+  debug_input("text-encoder", 0, tx.data(), tx.size());
   const int T = (int)ids.size(), H = Hpx / 16, W = Wpx / 16, Nimg = H * W, N = Nimg + T, ntok = (N + 31) / 32 * 32;
   const int LR = getenv("MOSS_LOWRES") ? atoi(getenv("MOSS_LOWRES")) : 0; const double LS = getenv("MOSS_LOWSCALE") ? atof(getenv("MOSS_LOWSCALE")) : 2.0;
   const bool low = LR > 0 && LR < steps && H % 2 == 0 && W % 2 == 0; const int Hl = H / 2, Wl = W / 2, Nl = Hl * Wl;   // first LR steps on a half-size latent (a quarter of the tokens)
@@ -390,20 +445,22 @@ static bool generate(const std::vector<int>& ids, int Hpx, int Wpx, unsigned see
     sync_clean(g_blobD); tD = now();
     std::vector<std::string> df; for (int k = 0; k < NLAYER_DIT; k++) { char p[512]; snprintf(p, sizeof p, "%s/dit/blk%02d.bin", g_dir.c_str(), k); df.push_back(p); }
     if (!stream_files(df, g_te, [&](int k, Buf& b) {
-      meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; meta[M_LOKR] = !memcmp(b.p + DIT_PACK, "MLKR", 4) ? DIT_PACK : 0;
+      meta[M_FIRST] = k == 0; meta[M_REL] = k == NLAYER_DIT - 1; meta[M_LOKR] = !memcmp(b.p + DIT_PACK, "MLKR", 4) ? DIT_PACK : 0; meta[M_BLOCK] = k;
       if (call(L, meta, b, 0, g_blobD, modv.data(), 18432)) return false;
-      if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobD); if (debug_nonfinite("dit-block", s, k, (const f32*)(blob + L.meta[M_X]), (size_t)Ns * 3072)) return false; }
+      if (getenv("MOSS_DEBUG_STATS")) { sync_inval(g_blobD); debug_sample("dit-block", s, k, (const f32*)(blob + L.meta[M_X]), (size_t)Ns * 3072); }
       return true;
     }, g_keep_blocks)) return false;
-    sync_inval(g_blobD); tE = now();
+    sync_inval(g_blobD);
+    if (debug_nonfinite("dit-step", s, -1, (const f32*)(blob + L.meta[M_X]), (size_t)Ns * 3072)) return false;
+    tE = now();
     x32_to_rows((const f32*)(blob + L.meta[M_X]), Ni, 3072, outrows.data());
     par_for(Ni / 16 + 1, [&](int blk) { for (int t = blk * 16; t < std::min(Ni, blk * 16 + 16); t++) {
       f32* r = &outrows[(size_t)t * 3072]; double ss = 0; for (int i = 0; i < 3072; i++) ss += (double)r[i] * r[i]; const float rs = 1.f / sqrtf((float)(ss / 3072) + 1e-6f);
       for (int i = 0; i < 3072; i++) r[i] = r[i] * rs * nfin[i] * (1.f + head[3072 + i]) + head[i];
       for (int o = 0; o < 128; o++) { const f32* w = Wfin + (size_t)o * 3072; float a = 0; for (int i = 0; i < 3072; i++) a += w[i] * r[i]; v[(size_t)o * Ni + t] = a; } } });
-    if (debug_nonfinite("head-v", s, -1, v.data(), (size_t)128 * Ni)) return false;
+    if (debug_summary("head-v", s, v.data(), (size_t)128 * Ni)) return false;
     for (size_t i = 0; i < (size_t)128 * Ni; i++) x0s[i] = zs[i] - v[i];
-    if (debug_nonfinite("sampler-x0", s, -1, x0s, (size_t)128 * Ni)) return false;
+    if (debug_summary("sampler-x0", s, x0s, (size_t)128 * Ni)) return false;
     fprintf(stderr, "  step %d%s: mix+embed %.0f ms, time/mod %.0f ms, to-x32 %.0f ms, DSP blocks %.0f ms, head+sampler %.0f ms\n", s, lowstep ? " (low-res)" : "", (tB - tA) * 1e3, (tC - tB) * 1e3, (tD - tC) * 1e3, (tE - tD) * 1e3, (now() - tE) * 1e3);
     const char* previewPath = getenv("MOSS_PREVIEW_Z");
     const char* previewAck = getenv("MOSS_PREVIEW_ACK"); bool previewPending = false;

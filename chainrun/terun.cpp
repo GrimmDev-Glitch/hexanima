@@ -19,9 +19,43 @@
 
 static QNN_INTERFACE_VER_TYPE qi;
 static QNN_SYSTEM_INTERFACE_VER_TYPE qsi;
+static Qnn_LogHandle_t qnn_logger = nullptr;
+
+static const char* logLevelName(QnnLog_Level_t level) {
+  switch (level) {
+    case QNN_LOG_LEVEL_ERROR: return "ERROR";
+    case QNN_LOG_LEVEL_WARN: return "WARN";
+    case QNN_LOG_LEVEL_INFO: return "INFO";
+    case QNN_LOG_LEVEL_VERBOSE: return "VERBOSE";
+    case QNN_LOG_LEVEL_DEBUG: return "DEBUG";
+    default: return "?";
+  }
+}
+
+static void qnnLog(const char* fmt, QnnLog_Level_t level, uint64_t, va_list args) {
+  if (!fmt) return;
+  flockfile(stderr);
+  fprintf(stderr, "QNN[%s] ", logLevelName(level));
+  vfprintf(stderr, fmt, args);
+  fputc('\n', stderr);
+  funlockfile(stderr);
+}
+
+static const char* errorName(Qnn_ErrorHandle_t e) {
+  switch (e) {
+    case QNN_SUCCESS: return "QNN_SUCCESS";
+    case QNN_BACKEND_ERROR_CANNOT_INITIALIZE: return "QNN_BACKEND_ERROR_CANNOT_INITIALIZE";
+    case QNN_BACKEND_ERROR_UNSUPPORTED_PLATFORM: return "QNN_BACKEND_ERROR_UNSUPPORTED_PLATFORM";
+    case QNN_BACKEND_ERROR_NOT_SUPPORTED: return "QNN_BACKEND_ERROR_NOT_SUPPORTED";
+    case QNN_COMMON_ERROR_INCOMPATIBLE_BINARIES: return "QNN_COMMON_ERROR_INCOMPATIBLE_BINARIES";
+    case QNN_DEVICE_ERROR_HARDWARE_UNAVAILABLE: return "QNN_DEVICE_ERROR_HARDWARE_UNAVAILABLE";
+    case QNN_CONTEXT_ERROR_CREATE_FROM_BINARY: return "QNN_CONTEXT_ERROR_CREATE_FROM_BINARY";
+    default: return "unknown QNN error";
+  }
+}
 
 static bool check(Qnn_ErrorHandle_t e, const char* what) {
-  if (e != QNN_SUCCESS) { fprintf(stderr, "ERROR %s: 0x%lx\n", what, (unsigned long)e); return false; }
+  if (e != QNN_SUCCESS) { fprintf(stderr, "ERROR %s: 0x%lx (%s)\n", what, (unsigned long)e, errorName(e)); return false; }
   return true;
 }
 
@@ -64,14 +98,39 @@ int main(int argc, char** argv) {
   typedef Qnn_ErrorHandle_t (*GetSP)(const QnnSystemInterface_t***, uint32_t*);
   const QnnInterface_t** provs = nullptr; uint32_t np = 0;
   if (!check(((GetP)dlsym(hb, "QnnInterface_getProviders"))(&provs, &np), "getProviders")) return 1;
+  if (!np || !provs || !provs[0]) { fprintf(stderr, "terun: HTP provider list is empty\n"); return 1; }
+  const QnnInterface_t* provider = provs[0];
   qi = provs[0]->QNN_INTERFACE_VER_NAME;
+  fprintf(stderr, "terun: HTP provider=%s backendId=%u coreApi=%u.%u.%u backendApi=%u.%u.%u\n",
+          provider->providerName ? provider->providerName : "(unnamed)", provider->backendId,
+          provider->apiVersion.coreApiVersion.major, provider->apiVersion.coreApiVersion.minor,
+          provider->apiVersion.coreApiVersion.patch, provider->apiVersion.backendApiVersion.major,
+          provider->apiVersion.backendApiVersion.minor, provider->apiVersion.backendApiVersion.patch);
+  if (qi.logCreate) {
+    Qnn_ErrorHandle_t le = qi.logCreate(qnnLog, QNN_LOG_LEVEL_INFO, &qnn_logger);
+    if (le != QNN_SUCCESS) fprintf(stderr, "terun: QNN logger unavailable: 0x%lx (%s)\n", (unsigned long)le, errorName(le));
+  } else {
+    fprintf(stderr, "terun: HTP provider does not expose logCreate\n");
+  }
   const QnnSystemInterface_t** sprovs = nullptr; uint32_t nsp = 0;
   if (!check(((GetSP)dlsym(hs, "QnnSystemInterface_getProviders"))(&sprovs, &nsp), "getSystemProviders")) return 1;
   qsi = sprovs[0]->QNN_SYSTEM_INTERFACE_VER_NAME;
   Qnn_BackendHandle_t backend = nullptr;
-  if (!check(qi.backendCreate(nullptr, nullptr, &backend), "backendCreate")) return 1;
+  Qnn_ErrorHandle_t be = qi.backendCreate(qnn_logger, nullptr, &backend);
+  if (be != QNN_SUCCESS) {
+    fprintf(stderr, "ERROR backendCreate: 0x%lx (%s)\n", (unsigned long)be, errorName(be));
+    return 1;
+  }
+  if (qi.backendGetBuildId) {
+    const char* buildId = nullptr;
+    if (qi.backendGetBuildId(&buildId) == QNN_SUCCESS && buildId) fprintf(stderr, "terun: HTP buildId=%s\n", buildId);
+  }
+  if (qi.backendGetApiVersion) {
+    Qnn_ApiVersion_t v = QNN_API_VERSION_INIT;
+    if (qi.backendGetApiVersion(&v) == QNN_SUCCESS) fprintf(stderr, "terun: HTP runtimeApi core=%u.%u.%u backend=%u.%u.%u\n", v.coreApiVersion.major, v.coreApiVersion.minor, v.coreApiVersion.patch, v.backendApiVersion.major, v.backendApiVersion.minor, v.backendApiVersion.patch);
+  }
   Qnn_DeviceHandle_t device = nullptr;
-  if (!check(qi.deviceCreate(nullptr, nullptr, &device), "deviceCreate")) return 1;
+  if (!check(qi.deviceCreate(qnn_logger, nullptr, &device), "deviceCreate")) return 1;
   // power votes: max corners, or the lower "cool" corners (the DSP runs at the highest vote of all its clients, so every NPU process votes the same way).
   // Cool: MEGA_COOL set (always), or the file MEGA_COOL_FILE exists (the app creates it while the phone is warm); checked before every run
   QnnDevice_Infrastructure_t infra = nullptr;

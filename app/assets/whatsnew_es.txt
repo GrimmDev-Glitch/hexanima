@@ -1,3 +1,62 @@
+# 1.9.6-v79-sd8e-dev19
+Dev19 SD8E: añade estadísticas diagnósticas de entrada/salida del VAE MOSS para separar un problema de rango del latente de uno del decodificador. Probar cerca de 1 MP, dentro del rango de entrenamiento del adaptador Rapid-MOSS.
+
+# 1.9.6-v79-sd8e-dev18
+Dev18 SD8E: versiona la caché de embeddings MOSS y recalcula texto/refiner una vez después de la actualización de RMS, evitando reutilizar resultados de Dev15.
+# 1.9.6-v79-sd8e-dev17
+Dev17 SD8E: mide distribución por bloque y por paso en MOSS; limita la comprobación completa de finitud a una vez por paso para reducir el costo del diagnóstico.
+
+# 1.9.6-v79-sd8e-dev16
+Dev16 SD8E: usa RMSNorm escalar en las rutas MOSS V79 de texto y DiT, con comprobaciones por etapa del primer bloque DiT.
+
+# 1.9.6-v79-sd8e-dev15
+Dev15 SD8E: usa RMSNorm escalar en los bloques del refiner MOSS e informa finitud por etapa.
+
+# 1.9.6-v79-sd8e-dev14
+Dev14 SD8E: usa RMSNorm escalar en la normalización final de texto de MOSS y registra el estado FP16 de entrada/salida de la proyección.
+
+# 1.9.6-v79-sd8e-dev13
+Dev13 SD8E: detiene MOSS antes del DiT si el codificador de texto produce valores no finitos y registra el primero.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev7
+Sonda diagnóstica SM8735: corrige las rutas de bibliotecas nativas en la APK para que Android pueda cargar los runners y cambia el runtime HTP a QAIRT 2.51 con diagnóstico del modelo SoC QNN 85. La compatibilidad del dispositivo y la generación siguen sin validar.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev6
+Sonda diagnóstica SM8735: cambia el runtime HTP a QAIRT 2.51, que reconoce la familia SM8735, y conserva el diagnóstico del modelo SoC QNN 85. El firmware del teléfono informó previamente un stub remoto V73 QAIRT 2.28; la compatibilidad del dispositivo y la generación siguen sin validar.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev5
+Sonda diagnóstica SM8735: usa QAIRT 2.50 y pasa explícitamente el modelo SoC QNN 85 a deviceCreate, conservando los registros del proveedor QNN. Dev3 detectó en el firmware un stub V73 QAIRT 2.28, así que la compatibilidad del runtime sigue sin validar.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev4
+Diagnóstico SM8735: selecciona el conjunto HTP V73 QAIRT 2.28 incluido (host/stub/skel) para coincidir con el stub remoto 2.28 detectado por Dev3. Solo prueba la negociación del runtime; los contextos del modelo y la generación siguen sin validar.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev3
+Diagnóstico SM8735: registra proveedor/runtime QNN del runner VAE e identifica cada proceso en los registros exportados. También informa por separado si falta el archivo disperso compartido del codificador de texto al exportar un modelo.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev2
+Diagnóstico SM8735: incluye en el registro exportado la información del runtime/proveedor QNN y los mensajes de creación del dispositivo. QAIRT 2.50 llega a deviceCreate, pero devuelve bibliotecas incompatibles; contextos y FP16 siguen sin validar.
+
+# Novedades de 1.9.6-v73.4-sm8735-dev1
+Dev de diagnóstico SM8735: Anima prueba el runtime QAIRT 2.50 HTP incluido en vez del 2.28 habitual y registra el proveedor, las API/build ID y los mensajes de inicio. Los contextos y FP16 siguen sin validar; esta versión no declara compatibilidad para generar.
+
+# 1.9.6-v79-sd8e-dev12
+Dev12 SD8E: corrige el orden de los bloques FP16 en la normalización RMS de texto de MOSS para V79.
+
+# 1.9.6-v79-sd8e-dev11
+Dev11 SD8E: transporta las métricas internas de MOSS al registro Android por RPC para poder detectar qué etapa genera valores no finitos.
+
+# 1.9.6-v79-sd8e-dev10
+Dev10 SD8E: añade métricas por etapa del primer bloque del codificador MOSS para localizar el primer tensor corrupto.
+
+# 1.9.6-v79-sd8e-dev9
+Dev9 SD8E: prueba la ruta de conversión HMX compartida de Mage para corregir los valores no finitos del codificador de MOSS.
+
+# 1.9.6-v79-sd8e-dev8
+Dev8 SD8E: añade trazas de entrada y salida por capa en el codificador de texto y el refiner de MOSS.
+
+# 1.9.6-v79-sd8e-dev7
+Dev7 SD8E: registra la salida del codificador de texto de MOSS y la entrada de la primera ventana de Mage para localizar valores no finitos.
+
 # Novedades de 1.9.6-v79-sd8e-dev5
 Dev de diagnóstico para Snapdragon 8 Elite: registra la entrada y salida del primer bloque DiT de MOSS y Mage para localizar dónde aparecen valores no finitos. Esta versión diagnostica el fallo; todavía no lo corrige.
 

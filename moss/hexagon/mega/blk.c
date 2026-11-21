@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <math.h>
 #include <hexagon_types.h>
 #include <hexagon_protos.h>
 #include "HAP_compute_res.h"
@@ -19,6 +21,49 @@ void hmx_clr(void);
 typedef uint16_t u16;
 #define T16 1024          /* halfwords per h16 tile */
 #define VT_TAB (7u << 20) /* tables at the top 1 MB of VTCM */
+
+static int te_diag16(const char *tag, const u16 *p, size_t n) {
+  size_t bad = 0, first = n; for (size_t i = 0; i < n; i++) if ((p[i] & 0x7c00u) == 0x7c00u) { if (!bad) first = i; bad++; }
+  printf("diag moss-kernel %s finite=%u/%u", tag, (unsigned)(n - bad), (unsigned)n);
+  if (bad) printf(" first_nonfinite=%u bits=0x%04x", (unsigned)first, p[first]); printf("\n"); return (int)bad;
+}
+static int te_diag32(const char *tag, const float *p, size_t n) {
+  size_t bad = 0, first = n; for (size_t i = 0; i < n; i++) { union { float f; uint32_t u; } v; v.f = p[i]; if ((v.u & 0x7f800000u) == 0x7f800000u) { if (!bad) first = i; bad++; } }
+  printf("diag moss-kernel %s finite=%u/%u", tag, (unsigned)(n - bad), (unsigned)n);
+  if (bad) { union { float f; uint32_t u; } v; v.f = p[first]; printf(" first_nonfinite=%u bits=0x%08x", (unsigned)first, (unsigned)v.u); } printf("\n"); return (int)bad;
+}
+static void te_diag_sample16(const u16 *p, size_t n, int *out) {
+  size_t count = n < 4096 ? n : 4096, finite = 0; double sum = 0, sum2 = 0;
+  float mn = INFINITY, mx = -INFINITY;
+  for (size_t i = 0; i < count; i++) { float v = (__fp16)p[i]; if (!isfinite(v)) continue; finite++; if (v < mn) mn = v; if (v > mx) mx = v; sum += v; sum2 += (double)v * v; }
+  double mean = finite ? sum / finite : 0, var = finite ? fmax(0, sum2 / finite - mean * mean) : 0;
+  float v[4] = {mn, mx, (float)mean, (float)sqrt(var)}; memcpy(out, v, sizeof v); out[4] = (int)finite;
+}
+static void te_diag_sample32(const float *p, size_t n, int *out) {
+  size_t count = n < 4096 ? n : 4096, finite = 0; double sum = 0, sum2 = 0;
+  float mn = INFINITY, mx = -INFINITY;
+  for (size_t i = 0; i < count; i++) { float v = p[i]; if (!isfinite(v)) continue; finite++; if (v < mn) mn = v; if (v > mx) mx = v; sum += v; sum2 += (double)v * v; }
+  double mean = finite ? sum / finite : 0, var = finite ? fmax(0, sum2 / finite - mean * mean) : 0;
+  float v[4] = {mn, mx, (float)mean, (float)sqrt(var)}; memcpy(out, v, sizeof v); out[4] = (int)finite;
+}
+/* Scalar reference RMSNorm for MOSS widths on V79; shift/scale may be null. */
+static void k_rms_ref(const float *x, u16 *h, int ns, const float *gain,
+                      const float *shift, const float *scale, int width) {
+  for (int s = 0; s < ns; s++) for (int r = 0; r < 32; r++) {
+    double ss = 0.0;
+    for (int c = 0; c < width; c++) { size_t ix = (size_t)s * NCB * 1024 + (size_t)(c / 32) * 1024 + r * 32 + c % 32; float v = x[ix]; ss += (double)v * v; }
+    const float inv = 1.f / sqrtf((float)(ss / width) + 1e-6f);
+    for (int c = 0; c < width; c++) {
+      const size_t tile = (size_t)s * NCB * 1024 + (size_t)(c / 32) * 1024;
+      const size_t xi = tile + r * 32 + c % 32;
+      const size_t hi = tile + (size_t)(r / 2) * 64 + (c % 32) * 2 + (r & 1);
+      float y = x[xi] * inv * gain[c];
+      if (scale) y *= 1.f + scale[c];
+      if (shift) y += shift[c];
+      union { __fp16 h; uint16_t u; } v; v.h = (__fp16)y; h[hi] = v.u;
+    }
+  }
+}
 
 static u16 *g_et, *g_tabs, *g_tabs2; static HVX_Vector *g_scr;   /* tables (exp, 3 SiTU) + per-worker gather scratch */
 
@@ -202,27 +247,35 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
 #define TICK() do { uint32_t t1 = us_now(); if (ti < ntimes) times[ti++] = (int)(t1 - t0); t0 = t1; if (meta[M_STOP] && ti >= meta[M_STOP]) goto done; } while (0)
   par_t P; memset(&P, 0, sizeof P); P.ns = ns; P.x = x; P.h = h16; P.M = LM; P.N = LN;
   const float *sh_a = mod, *sc_a = mod + DIM, *gt_a = mod + 2 * DIM, *sh_f = mod + 3 * DIM, *sc_f = mod + 4 * DIM, *gt_f = mod + 5 * DIM;
+  const int diag_tail = getenv("MOSS_DEBUG_TAIL") && meta[M_MODE] == 0 && meta[M_BLOCK] >= 39;
   const gemm_geo_t gq = {NCB, NCB + 4, 0, Lq, 12, 4}, gk = {NCB, NCB + 4, 0, Lq + 4 * T16, 12, 4}, gv = {NCB, NCB + 4, 0, Lq + 8 * T16, 12, 4};
 
   if (meta[M_MODE] == 20 || meta[M_MODE] == 21) {   /* Qwen3.5 layer: x += attn(rms(x)); x += ffn(rms(x)); everything on 4096-wide tiles */
     const te_hdr_t *H = (const te_hdr_t *)wts; const float *vec = (const float *)(wts + H->voff);
     const int T = meta[M_NVALID]; float *R = (float *)BUF(M_ROWS); const int full = meta[M_MODE] == 21;
+    const int diag = meta[M_MODE] == 20 && meta[M_FIRST];
     const float *ones = mod + 2 * 4096;
     const int igu = full ? 3 : 4, idn = full ? 4 : 5;
-    k_rms_prep(LM, LN, vec, g_zero, g_zero); pool_run(p_ln, &P); TICK();
+    k_rms_prep(LM, LN, vec, g_zero, g_zero);
+#ifdef V79
+    k_rms_ref(x, h16, ns, vec, 0, 0, 4096);
+#else
+    pool_run(p_ln, &P);
+#endif
+    if (diag) times[25] = te_diag16("rms", h16, (size_t)ntok * 4096); TICK();
     tej_t J; memset(&J, 0, sizeof J); J.ns = ns; J.T = T;
     gemm_epi_t eo; memset(&eo, 0, sizeof eo); eo.mode = 1; eo.x32 = x; eo.gate = ones;
     if (!full) {
       float *R0 = R, *R1 = R0 + (size_t)ntok * 8192, *R2 = R1 + (size_t)ntok * 8192, *R3 = R2 + (size_t)ntok * 4096, *R4 = R3 + (size_t)ntok * 64;
-      gemm_set_q8(H->fmt[0]); gemm_run_geo(h16, ntok, 4096, WB(H->off[0]), 8192, mid, vt, 0, 0);
-      gemm_set_q8(H->fmt[1]); gemm_run_geo(h16, ntok, 4096, WB(H->off[1]), 4096, q16, vt, 0, 0);
-      gemm_set_q8(H->fmt[2]); gemm_run_geo(h16, ntok, 4096, WB(H->off[2]), 64, t16, vt, 0, 0); TICK();
-      J.t = mid; J.r = R0; J.nct = 256; pool_run(j_t2r, &J); J.t = q16; J.r = R2; J.nct = 128; pool_run(j_t2r, &J); J.t = t16; J.r = R3; J.nct = 2; pool_run(j_t2r, &J); TICK();
+      gemm_set_q8(H->fmt[0]); gemm_run_geo(h16, ntok, 4096, WB(H->off[0]), 8192, mid, vt, 0, 0); if (diag) times[26] = te_diag16("q-gemm", mid, (size_t)ntok * 8192);
+      gemm_set_q8(H->fmt[1]); gemm_run_geo(h16, ntok, 4096, WB(H->off[1]), 4096, q16, vt, 0, 0); if (diag) times[27] = te_diag16("k-gemm", q16, (size_t)ntok * 4096);
+      gemm_set_q8(H->fmt[2]); gemm_run_geo(h16, ntok, 4096, WB(H->off[2]), 64, t16, vt, 0, 0); if (diag) times[28] = te_diag16("v-gemm", t16, (size_t)ntok * 64); TICK();
+      J.t = mid; J.r = R0; J.nct = 256; pool_run(j_t2r, &J); J.t = q16; J.r = R2; J.nct = 128; pool_run(j_t2r, &J); J.t = t16; J.r = R3; J.nct = 2; pool_run(j_t2r, &J); if (diag) times[29] = te_diag32("qkv-rows", R0, (size_t)ntok * 8192) + te_diag32("k-rows", R2, (size_t)ntok * 4096) + te_diag32("v-rows", R3, (size_t)ntok * 64); TICK();
       memset(R4, 0, (size_t)ntok * 4096 * 4);
       J.a = R0; J.o = R1; J.b = vec + 8192; pool_run(j_conv, &J);
-      J.a = R1; J.b = R3; J.c = R2; J.o = R4; J.d = vec + 8192 + 32768; J.e = J.d + 32; J.f = J.d + 64; pool_run(j_delta, &J); TICK();
+      J.a = R1; J.b = R3; J.c = R2; J.o = R4; J.d = vec + 8192 + 32768; J.e = J.d + 32; J.f = J.d + 64; pool_run(j_delta, &J); if (diag) times[30] = te_diag32("delta", R4, (size_t)ntok * 4096); TICK();
       J.r = R4; J.t2 = o16; J.nct = 128; pool_run(j_r2t, &J); TICK();
-      gemm_set_q8(H->fmt[3]); gemm_run_geo(o16, ntok, 4096, WB(H->off[3]), 4096, t16, vt, &eo, 0); TICK();
+      gemm_set_q8(H->fmt[3]); gemm_run_geo(o16, ntok, 4096, WB(H->off[3]), 4096, t16, vt, &eo, 0); if (diag) times[31] = te_diag16("out-proj", t16, (size_t)ntok * 4096) + te_diag32("residual-x", x, (size_t)ntok * 4096); TICK();
     } else {
       float *Rq = R, *Rkv = Rq + (size_t)ntok * 8192, *Ro = Rkv + (size_t)ntok * 2048;
       gemm_set_q8(H->fmt[0]); gemm_run_geo(h16, ntok, 4096, WB(H->off[0]), 8192, mid, vt, 0, 0);
@@ -235,7 +288,12 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
       gemm_set_q8(H->fmt[2]); gemm_run_geo(o16, ntok, 4096, WB(H->off[2]), 4096, t16, vt, &eo, 0); TICK();
     }
     /* ffn */
-    k_rms_prep(LM, LN, vec + 4096, g_zero, g_zero); pool_run(p_ln, &P);
+    k_rms_prep(LM, LN, vec + 4096, g_zero, g_zero);
+#ifdef V79
+    k_rms_ref(x, h16, ns, vec + 4096, 0, 0, 4096);
+#else
+    pool_run(p_ln, &P);
+#endif
     { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 6; e.tabs = g_tabs2; e.scr = g_scr; gemm_set_q8(H->fmt[igu]);
       gemm_run_geo(h16, ntok, 4096, WB(H->off[igu]), 24576, mid, vt, &e, 0); }
     { gemm_epi_t e1; memset(&e1, 0, sizeof e1); e1.mode = 4; e1.x32 = x; e1.gate = ones; e1.prev = t16; gemm_set_q8(H->fmt[idn]);
@@ -245,7 +303,13 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
     gemm_set_q8(1); goto done;
   }
   if (meta[M_MODE] == 30) {   /* final norm: h16 = rms(x) * w (pack = f32 weight vector) */
-    k_rms_prep(LM, LN, (const float *)wts, g_zero, g_zero); pool_run(p_ln, &P); TICK(); goto done;
+#ifdef V79
+    k_rms_ref(x, h16, ns, (const float *)wts, 0, 0, 4096);
+    if (getenv("MOSS_DEBUG_STATS")) times[25] = te_diag16("final-rms", h16, (size_t)ntok * 4096);
+#else
+    k_rms_prep(LM, LN, (const float *)wts, g_zero, g_zero); pool_run(p_ln, &P);
+#endif
+    TICK(); goto done;
   }
   if (meta[M_MODE] == 11) { *rc = 111; gemm_dq_var(meta[M_STOP]); gemm_dq_tiles((uint8_t *)mid, wts, 16, meta[M_FMT]); goto done; }   /* dequant test: first 16 tiles -> mid */
   if (meta[M_MODE] == 10) {   /* Qwen3.5 FFN: x += down(silu(gate(rms(x)))*up(rms(x))); pack: [gate/up interleaved q4a nb 768 kb 128][down q8 nb 128 kb 384][post norm w f32 4096] */
@@ -261,32 +325,59 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
     goto done;
   }
   if (meta[M_MODE] == 2) {   /* text projection: h16 = text tiles [slab][128 cb]; weights = pack at offset 0 [96 nb][132 kb] */
+    if (getenv("MOSS_DEBUG_STATS")) times[25] = te_diag16("projection-input", h16, (size_t)ntok * 128 * T16);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = gt_a;
     const gemm_geo_t gp = {4096 / 32, 4096 / 32 + 4, 0, Lq, 4, 4};
-    gemm_run_geo(h16, ntok, 4096 + 128, WB(0), DIM, t16, vt, &e, &gp); TICK(); goto done;
+    gemm_run_geo(h16, ntok, 4096 + 128, WB(0), DIM, t16, vt, &e, &gp);
+    if (getenv("MOSS_DEBUG_STATS")) times[26] = te_diag16("projection-output", t16, (size_t)ntok * 96 * T16);
+    TICK(); goto done;
   }
   /* ---- attention half ---- */
+  const int diag_refblock = getenv("MOSS_DEBUG_STATS") && (meta[M_MODE] == 1 || (meta[M_MODE] == 0 && meta[M_FIRST]));
+#ifdef V79
+  k_rms_ref(x, h16, ns, gain + 256, sh_a, sc_a, DIM);
+#else
   k_rms_prep(LM, LN, gain + 256, sh_a, sc_a);
-  pool_run(p_ln, &P); TICK();
+  pool_run(p_ln, &P);
+#endif
+  if (diag_refblock) times[25] = te_diag16(meta[M_MODE] == 0 ? "dit-attn-rms" : "refiner-attn-rms", h16, (size_t)ntok * NCB * T16);
+  if (diag_tail) te_diag_sample16(h16, (size_t)ntok * NCB * T16, times + 32);
+  TICK();
   const int nolora = meta[M_MODE] == 1;
   if (!nolora) gemm_run(h16, ntok, DIM, WB(W_AQKV), 384, Lq, vt); TICK();
   if (lokr) lokr_projection(lokr, 0, h16, ntok, DIM, mid, midStride, 0, 9216, t16, vt);
   { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 3; e.rope = 1; e.gain = gain; e.cosT = cosT; e.sinT = sinT;
     if (lokr && (lokr->mask & 1)) { e.add = mid; e.add_stride_tiles = midStride; e.add_col0 = 0; }
     gemm_run_geo(h16, ntok, DIM + 128, WB(W_Q), DIM, q16, vt, &e, &gq);
+    if (diag_refblock) times[26] = te_diag16(meta[M_MODE] == 0 ? "dit-q" : "refiner-q", q16, (size_t)ntok * NCB * T16);
     e.gain = gain + 128; if (lokr && (lokr->mask & 1)) e.add_col0 = 96; gemm_run_geo(h16, ntok, DIM + 128, WB(W_K), DIM, k16, vt, &e, &gk);
+    if (diag_refblock) times[27] = te_diag16(meta[M_MODE] == 0 ? "dit-k" : "refiner-k", k16, (size_t)ntok * NCB * T16);
     if (lokr && (lokr->mask & 1)) e.add_col0 = 192; else e.add = 0;
-    gemm_run_geo(h16, ntok, DIM + 128, WB(W_V), DIM, v16, vt, &e, &gv); } TICK();
-  attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], vt); TICK();
+    gemm_run_geo(h16, ntok, DIM + 128, WB(W_V), DIM, v16, vt, &e, &gv);
+    if (diag_refblock) times[28] = te_diag16(meta[M_MODE] == 0 ? "dit-v" : "refiner-v", v16, (size_t)ntok * NCB * T16); } TICK();
+  attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], vt);
+  if (diag_refblock) times[29] = te_diag16(meta[M_MODE] == 0 ? "dit-attn-out" : "refiner-attn-out", o16, (size_t)ntok * NCB * T16);
+  if (diag_tail) te_diag_sample16(o16, (size_t)ntok * NCB * T16, times + 37);
+  TICK();
   if (lokr) lokr_projection(lokr, 1, o16, ntok, DIM, mid, midStride, 0, DIM, t16, vt);
   { if (!nolora) gemm_run(o16, ntok, DIM, WB(W_AO), 128, Lo, vt);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = gt_a;
     if (lokr && (lokr->mask & (1u << 1))) { e.add = mid; e.add_stride_tiles = midStride; e.add_col0 = 0; }
     const gemm_geo_t go = {NCB, NCB + 4, 0, Lo, 4, 4};
-    gemm_run_geo(o16, ntok, DIM + 128, WB(W_O), DIM, t16, vt, &e, &go); } TICK();
+    gemm_run_geo(o16, ntok, DIM + 128, WB(W_O), DIM, t16, vt, &e, &go); }
+  if (diag_refblock) times[30] = te_diag32(meta[M_MODE] == 0 ? "dit-attn-residual" : "refiner-attn-residual", x, (size_t)ntok * DIM);
+  if (diag_tail) te_diag_sample32(x, (size_t)ntok * DIM, times + 42);
+  TICK();
   /* ---- FFN half ---- */
+#ifdef V79
+  k_rms_ref(x, h16, ns, gain + 256 + DIM, sh_f, sc_f, DIM);
+#else
   k_rms_prep(LM, LN, gain + 256 + DIM, sh_f, sc_f);
-  pool_run(p_ln, &P); TICK();
+  pool_run(p_ln, &P);
+#endif
+  if (diag_refblock) times[31] = te_diag16(meta[M_MODE] == 0 ? "dit-ff-rms" : "refiner-ff-rms", h16, (size_t)ntok * NCB * T16);
+  if (diag_tail) te_diag_sample16(h16, (size_t)ntok * NCB * T16, times + 47);
+  TICK();
   if (lokr) lokr_projection(lokr, 2, h16, ntok, DIM, mid, midStride, 0, 16384, t16, vt);
   { if (!nolora) gemm_run(h16, ntok, DIM, WB(W_AUG), 128, Lu, vt);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 5; e.tabs = g_tabs; e.scr = g_scr;
@@ -297,9 +388,11 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
   { if (!nolora) gemm_run(mid, ntok, 8192, WB(W_ADN), 128, Ld, vt);
     const gemm_geo_t g0 = {256, 260, 0, 0, 0, 0}, g1 = {256, 260, 128, Ld, 4, 4};
     gemm_run_geo(mid, ntok, 4096, WB(W_DN), DIM, t16, vt, 0, &g0);
+    if (diag_tail) te_diag_sample16(t16, (size_t)ntok * NCB * T16, times + 52);
     gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 4; e.x32 = x; e.gate = gt_f; e.prev = t16;
     if (lokr && (lokr->mask & (1u << 3))) { e.add = h16; e.add_stride_tiles = hidStride; e.add_col0 = 0; }
     gemm_run_geo(mid, ntok, 4096 + 128, WB(W_DN), DIM, t16, vt, &e, &g1); } TICK();
+  if (diag_tail) te_diag_sample32(x, (size_t)ntok * DIM, times + 57);
 done:
   for (int i = 0; i < 6 && 17 + i < ntimes; i++) times[17 + i] = (int)g_acc[i];
   memset(g_acc, 0, sizeof g_acc);

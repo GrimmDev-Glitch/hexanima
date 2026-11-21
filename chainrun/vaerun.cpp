@@ -2,7 +2,9 @@
 // binary; files are always fp32. Commands on stdin: "run IN OUT" -> prints "done <ms>"; "quit".
 // usage: vaerun BACKEND.so SYSTEM.so CONTEXT.bin
 #include <dlfcn.h>
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -19,9 +21,42 @@
 
 static QNN_INTERFACE_VER_TYPE qi;
 static QNN_SYSTEM_INTERFACE_VER_TYPE qsi;
+static Qnn_LogHandle_t qnn_logger = nullptr;
+
+static const char* logLevelName(QnnLog_Level_t level) {
+  switch (level) {
+    case QNN_LOG_LEVEL_ERROR: return "ERROR";
+    case QNN_LOG_LEVEL_WARN: return "WARN";
+    case QNN_LOG_LEVEL_INFO: return "INFO";
+    case QNN_LOG_LEVEL_VERBOSE: return "VERBOSE";
+    case QNN_LOG_LEVEL_DEBUG: return "DEBUG";
+    default: return "?";
+  }
+}
+
+static void qnnLog(const char* fmt, QnnLog_Level_t level, uint64_t, va_list args) {
+  if (!fmt) return;
+  flockfile(stderr);
+  fprintf(stderr, "QNN[%s] ", logLevelName(level));
+  vfprintf(stderr, fmt, args);
+  fputc('\n', stderr);
+  funlockfile(stderr);
+}
+
+static const char* errorName(Qnn_ErrorHandle_t e) {
+  switch (e) {
+    case QNN_SUCCESS: return "QNN_SUCCESS";
+    case QNN_BACKEND_ERROR_CANNOT_INITIALIZE: return "QNN_BACKEND_ERROR_CANNOT_INITIALIZE";
+    case QNN_BACKEND_ERROR_UNSUPPORTED_PLATFORM: return "QNN_BACKEND_ERROR_UNSUPPORTED_PLATFORM";
+    case QNN_COMMON_ERROR_INCOMPATIBLE_BINARIES: return "QNN_COMMON_ERROR_INCOMPATIBLE_BINARIES";
+    case QNN_DEVICE_ERROR_HARDWARE_UNAVAILABLE: return "QNN_DEVICE_ERROR_HARDWARE_UNAVAILABLE";
+    case QNN_CONTEXT_ERROR_CREATE_FROM_BINARY: return "QNN_CONTEXT_ERROR_CREATE_FROM_BINARY";
+    default: return "unknown QNN error";
+  }
+}
 
 static bool check(Qnn_ErrorHandle_t e, const char* what) {
-  if (e != QNN_SUCCESS) { fprintf(stderr, "ERROR %s: 0x%lx\n", what, (unsigned long)e); return false; }
+  if (e != QNN_SUCCESS) { fprintf(stderr, "ERROR %s: 0x%lx (%s)\n", what, (unsigned long)e, errorName(e)); return false; }
   return true;
 }
 
@@ -55,6 +90,30 @@ static uint32_t tElems(const Qnn_Tensor_t& t) {
 
 static uint32_t tType(const Qnn_Tensor_t& t) { return t.version == QNN_TENSOR_VERSION_1 ? t.v1.dataType : t.v2.dataType; }
 
+static bool debugStats() {
+  const char* v = getenv("MOSS_DEBUG_STATS"); return v && *v && strcmp(v, "0");
+}
+
+template <class T> static void diagTensor(const char* tag, const T* p, size_t n) {
+  if (!debugStats() || !n) return;
+  size_t finite = 0; double sum = 0.0, sum2 = 0.0;
+  float mn = INFINITY, mx = -INFINITY;
+  for (size_t i = 0; i < n; i++) {
+    const float v = (float)p[i]; if (!std::isfinite(v)) continue;
+    finite++; mn = std::min(mn, v); mx = std::max(mx, v); sum += v; sum2 += (double)v * v;
+  }
+  const double mean = finite ? sum / finite : 0.0;
+  const double variance = finite ? std::max(0.0, sum2 / finite - mean * mean) : 0.0;
+  fprintf(stderr, "diag %s finite=%zu/%zu min=%.7g max=%.7g mean=%.7g sd=%.7g\n",
+          tag, finite, n, (double)mn, (double)mx, mean, sqrt(variance));
+}
+
+static void diagRgb(const float* p, uint32_t w, uint32_t h) {
+  if (!debugStats()) return;
+  const size_t plane = (size_t)w * h;
+  for (int c = 0; c < 3; c++) diagTensor((std::string("vae-rgb[") + char('0' + c) + "]").c_str(), p + (size_t)c * plane, plane);
+}
+
 int main(int argc, char** argv) {
   if (argc < 4) { fprintf(stderr, "usage: vaerun BACKEND SYSTEM CONTEXT.bin\n"); return 2; }
   void* hb = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
@@ -64,14 +123,48 @@ int main(int argc, char** argv) {
   typedef Qnn_ErrorHandle_t (*GetSP)(const QnnSystemInterface_t***, uint32_t*);
   const QnnInterface_t** provs = nullptr; uint32_t np = 0;
   if (!check(((GetP)dlsym(hb, "QnnInterface_getProviders"))(&provs, &np), "getProviders")) return 1;
+  if (!np || !provs || !provs[0]) { fprintf(stderr, "vaerun: HTP provider list is empty\n"); return 1; }
+  const QnnInterface_t* provider = provs[0];
   qi = provs[0]->QNN_INTERFACE_VER_NAME;
+  fprintf(stderr, "vaerun: HTP provider=%s backendId=%u coreApi=%u.%u.%u backendApi=%u.%u.%u\n",
+          provider->providerName ? provider->providerName : "(unnamed)", provider->backendId,
+          provider->apiVersion.coreApiVersion.major, provider->apiVersion.coreApiVersion.minor,
+          provider->apiVersion.coreApiVersion.patch, provider->apiVersion.backendApiVersion.major,
+          provider->apiVersion.backendApiVersion.minor, provider->apiVersion.backendApiVersion.patch);
+  if (qi.logCreate) {
+    Qnn_ErrorHandle_t le = qi.logCreate(qnnLog, QNN_LOG_LEVEL_INFO, &qnn_logger);
+    if (le != QNN_SUCCESS) fprintf(stderr, "vaerun: QNN logger unavailable: 0x%lx (%s)\n", (unsigned long)le, errorName(le));
+  } else {
+    fprintf(stderr, "vaerun: HTP provider does not expose logCreate\n");
+  }
   const QnnSystemInterface_t** sprovs = nullptr; uint32_t nsp = 0;
   if (!check(((GetSP)dlsym(hs, "QnnSystemInterface_getProviders"))(&sprovs, &nsp), "getSystemProviders")) return 1;
   qsi = sprovs[0]->QNN_SYSTEM_INTERFACE_VER_NAME;
   Qnn_BackendHandle_t backend = nullptr;
-  if (!check(qi.backendCreate(nullptr, nullptr, &backend), "backendCreate")) return 1;
+  Qnn_ErrorHandle_t be = qi.backendCreate(qnn_logger, nullptr, &backend);
+  if (be != QNN_SUCCESS) { fprintf(stderr, "ERROR backendCreate: 0x%lx (%s)\n", (unsigned long)be, errorName(be)); return 1; }
+  if (qi.backendGetBuildId) { const char* id = nullptr; if (qi.backendGetBuildId(&id) == QNN_SUCCESS && id) fprintf(stderr, "vaerun: HTP buildId=%s\n", id); }
+  if (qi.backendGetApiVersion) { Qnn_ApiVersion_t v = QNN_API_VERSION_INIT; if (qi.backendGetApiVersion(&v) == QNN_SUCCESS) fprintf(stderr, "vaerun: HTP runtimeApi core=%u.%u.%u backend=%u.%u.%u\n", v.coreApiVersion.major, v.coreApiVersion.minor, v.coreApiVersion.patch, v.backendApiVersion.major, v.backendApiVersion.minor, v.backendApiVersion.patch); }
   Qnn_DeviceHandle_t device = nullptr;
-  if (!check(qi.deviceCreate(nullptr, nullptr, &device), "deviceCreate")) return 1;
+  QnnHtpDevice_CustomConfig_t htp_soc_config{};
+  QnnDevice_Config_t device_config = QNN_DEVICE_CONFIG_INIT;
+  const QnnDevice_Config_t* device_configs[] = {nullptr, nullptr};
+  const char* soc_model_env = getenv("ANIMAD_QNN_SOC_MODEL");
+  if (soc_model_env && *soc_model_env) {
+    char* end = nullptr;
+    unsigned long soc_model = strtoul(soc_model_env, &end, 10);
+    if (end && *end == '\0' && soc_model > 0 && soc_model <= UINT32_MAX) {
+      htp_soc_config.option = QNN_HTP_DEVICE_CONFIG_OPTION_SOC;
+      htp_soc_config.socModel = (uint32_t)soc_model;
+      device_config.option = QNN_DEVICE_CONFIG_OPTION_CUSTOM;
+      device_config.customConfig = &htp_soc_config;
+      device_configs[0] = &device_config;
+      fprintf(stderr, "vaerun: requesting HTP SoC model=%lu through device config\n", soc_model);
+    } else {
+      fprintf(stderr, "vaerun: ignoring invalid ANIMAD_QNN_SOC_MODEL='%s'\n", soc_model_env);
+    }
+  }
+  if (!check(qi.deviceCreate(qnn_logger, device_configs[0] ? device_configs : nullptr, &device), "deviceCreate")) return 1;
   // power votes: max corners, or the lower "cool" corners (the DSP runs at the highest vote of all its clients, so every NPU process votes the same way).
   // Cool: MEGA_COOL set (always), or the file MEGA_COOL_FILE exists (the app creates it while the phone is warm); checked before every run
   QnnDevice_Infrastructure_t infra = nullptr;
@@ -133,7 +226,9 @@ int main(int argc, char** argv) {
     if (cmd != "run") continue;
     auto b = readFile(fi);
     if (b.size() != ni * 4) { fprintf(stderr, "bad input size %s\n", fi.c_str()); printf("error\n"); fflush(stdout); continue; }
+    diagTensor("vae-input", (const float*)b.data(), ni);
     if (in16) { const float* s = (const float*)b.data(); __fp16* d = (__fp16*)ibuf.data(); for (uint32_t i = 0; i < ni; i++) d[i] = (__fp16)s[i]; } else memcpy(ibuf.data(), b.data(), b.size());
+    if (in16) diagTensor("vae-input-fp16", (const __fp16*)ibuf.data(), ni);
     set_power(cool_now());
     auto s0 = std::chrono::steady_clock::now();
     bool ok = qi.graphExecute(graph, &tin, 1, &tout, 1, nullptr, nullptr) == QNN_SUCCESS;
@@ -141,6 +236,8 @@ int main(int argc, char** argv) {
     if (!ok) { fprintf(stderr, "execute failed\n"); printf("error\n"); fflush(stdout); continue; }
     std::vector<float> o(no);
     if (out16) { const __fp16* s = (const __fp16*)obuf.data(); for (uint32_t i = 0; i < no; i++) o[i] = (float)s[i]; } else memcpy(o.data(), obuf.data(), no * 4);
+    if (no == 3u * 512u * 512u) diagRgb(o.data(), 512, 512);
+    else if (no % 3u == 0) diagTensor("vae-output", o.data(), no);
     FILE* f = fopen(fo.c_str(), "wb"); fwrite(o.data(), 4, no, f); fclose(f);
     printf("done %.0f\n", ms); fflush(stdout);
   }

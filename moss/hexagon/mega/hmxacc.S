@@ -10,34 +10,38 @@ hmx_acc:
     jumpr R31;
 }
 .size hmx_acc, .-hmx_acc
+#if __HEXAGON_ARCH__ < 73
 .p2align 4,,15
 .global hmx_store
 .type hmx_store, @function
 hmx_store:
-#if __HEXAGON_ARCH__ < 73
 {
     mxmem(R0, R1):after.hf = acc;
 }
-#else
-/* V73+: FP16 HMX stores pass through the convert unit, which reads a scale/bias block from VTCM. */
 {
-    R2 = add(PC, ##hmx_scale_blk@PCREL)
-    R3 = #2
+    jumpr R31;
 }
+.size hmx_store, .-hmx_store
+#else
+/* v73+: the accumulator is drained through a bias/scale block in VTCM (R2 = its address): bias = mxmem2, cvt.hf = acc(#2), mxmem = cvt (see Hexagon SDK libs/qhl_hmx) */
+.p2align 4,,15
+.global hmx_store_cvt
+.type hmx_store_cvt, @function
+hmx_store_cvt:
 {
-    R2 = memw(R2)
+    R6 = #2
 }
 {
     bias = mxmem2(R2)
 }
 {
-    cvt.hf = acc(R3)
+    cvt.hf = acc(R6)
 }
 {
     mxmem(R0, R1) = cvt;
 }
-#endif
 {
     jumpr R31;
 }
-.size hmx_store, .-hmx_store
+.size hmx_store_cvt, .-hmx_store_cvt
+#endif
