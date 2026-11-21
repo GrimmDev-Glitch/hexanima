@@ -1,6 +1,6 @@
 # HexAnima — tablero de trabajo
 
-Actualizado: 20 nov 2026. Los porcentajes distinguen código implementado de pruebas completadas; una función no pasa a 100% hasta verificarla.
+Actualizado: 21 nov 2026. Los porcentajes distinguen código implementado de pruebas completadas; una función no pasa a 100% hasta verificarla.
 
 ## Objetivo del proyecto
 
@@ -18,7 +18,7 @@ Adaptar HexAnima a Snapdragon 8 Gen 1/8+ Gen 1, 8 Gen 2, 8 Gen 3, 8 Elite, 8 Gen
 | Importar/exportar packs de modelos | █████████▌ 95% | En el POCO, un manifiesto incompleto se rechazó sin crear archivos ni marcador de instalación; el caso de hash incorrecto tampoco dejó archivo ni `.part`. Se corrigió el respaldo del VAE y del codificador compartido, se reforzó la validación del pack y se añadió rollback transaccional; falta probar exportación y cancelación con la APK final. |
 | Cola de generación | █████████░ 90% | El código permite cambiar la cantidad pendiente durante una tanda y mantiene fija la imagen activa; las cuadrículas comparativas no se pueden alterar. Falta validarlo en el teléfono. |
 | Errores de carga y progreso | ███████░░░ 70% | La Dev finaliza la espera si el runner Anima no arranca o no queda listo y muestra un diálogo con chip y últimas líneas del registro. Compilación y prueba física pendientes; luego comparar el progreso de generación con upstream. |
-| Krea 2 Turbo en Snapdragon 8 Gen 2 | ██░░░░░░░░ 20% | Kernel V73 experimental modo 71 y runner sintético compilados y ejecutados en el POCO (32 tokens, 3 workers, sin error DSP; diferencia máxima 3.73e-9 con pesos cero). Esto valida despacho y buffers, no pesos ni imágenes. Acceso HF concedido; no se han descargado pesos. Faltan conversión y referencia con pesos reales, RoPE/atención completa a resolución objetivo, encoder/fusión, sampler, VAE, filtros exigidos por licencia e integración en la app. |
+| Krea 2 Turbo en Snapdragon 8 Gen 2 | ████████░░ 80% | En el POCO se extrajeron estados Qwen3-VL, se ejecutaron en el teléfono la fusión, los 28 bloques Q8 × 8 pasos y el VAE oficial Qwen Image. Dos corridas completas con los mismos insumos dieron latente y RGB idénticos; imagen 256×256. El VAE coincide con Diffusers CPU (RMSE 0,00225; correlación 0,99999) y el primer bloque DSP con referencia Q8 CPU (error relativo 1,01%; coseno 0,99997). El ruido inicial se generó en el PC; se compactan 22 tokens activos a 32 para evitar el error conocido con máscaras largas. Todavía faltan paridad completa/calidad a más resoluciones, manejo de recursos/licencia y salvaguardas de contenido e integración en la app. Pesos y artefactos permanecen en `work/` ignorado y en el directorio temporal del teléfono; no se publicaron. |
 | SeedVR2 / RIFE | Pendiente | Medir almacenamiento, memoria, temperatura y velocidad antes de adaptar. |
 | LTX-2.5 | Pendiente | Comparar requisitos con el prototipo LTX-Video 2B, recordando que son arquitecturas distintas. |
 | MiniMax-H3-Image / Ref2VA | Pendiente | Estudiar integración, recursos y licencias después de las evaluaciones anteriores. |
@@ -29,7 +29,7 @@ Adaptar HexAnima a Snapdragon 8 Gen 1/8+ Gen 1, 8 Gen 2, 8 Gen 3, 8 Elite, 8 Gen
 | Snapdragon | SoC | Hexagon | Estado de HexAnima |
 |---|---|---|---|
 | 8 Gen 1 / 8+ Gen 1 | SM8450 / SM8475 | V69 | La app tiene ruta V69; el fallo reportado requiere reproducirse y corregirse antes de ofrecer APK de prueba. |
-| 8 Gen 2 | SM8550 | V73 | POCO F6 Pro de referencia; ruta actual probada para generación y metadatos. Próximo banco para Krea 2 Turbo y regresión de funciones. |
+| 8 Gen 2 | SM8550 | V73 | POCO F6 Pro de referencia; ruta actual probada para generación y metadatos. Krea ejecutó codificador Qwen, fusión de texto, denoising Q8 (28 bloques × 8 pasos) y VAE oficial en el teléfono; dos corridas completas fueron idénticas. El ruido inicial aún se preparó en el PC. |
 | 8 Gen 3 | SM8650 | V75 | APK candidata reutiliza kernels/contextos V73 según el reporte, añade alias QNN V75 y reduce Anima de 40 bloques a 3 workers (14/14/12); falta validación física y por función. |
 | 8s Gen 4 | SM8735 | V73 reportado; sin confirmar en tabla QAIRT | APK Dev de diagnóstico preparada con ruta V73 experimental; falta validar FP16, contextos QNN y cada función en un teléfono real. |
 | 8 Elite | SM8750 | V79 | Pruebas OnePlus CPH2649: MOSS generó una imagen amarilla; los registros siguientes muestran NaN desde el primer bloque DiT en MOSS y Mage (VAE no ejecutado). Dev5 añade estadísticas de entrada/salida para aislar el problema. Sigue sin compatibilidad funcional validada; ESRGAN aún sin resultado comunicado. Anima/Qwen siguen bloqueados. |
@@ -39,7 +39,7 @@ Adaptar HexAnima a Snapdragon 8 Gen 1/8+ Gen 1, 8 Gen 2, 8 Gen 3, 8 Elite, 8 Gen
 ## Próximos hitos
 
 1. Probar en el POCO la APK final de importación/exportación y el aviso cuando falla la carga; después validar la cola y cerrar las mejoras de gestión de modelos.
-2. Estudiar Krea 2 Turbo en el Snapdragon 8 Gen 2.
+2. Validar la paridad de extremo a extremo de Krea y más resoluciones; corregir máscara DSP larga y revisar licencia/filtros antes de integrarlo en la app.
 3. Evaluar SeedVR2/RIFE midiendo almacenamiento, RAM, temperatura y velocidad en el teléfono.
 4. Estudiar LTX-2.5 usando LTX-Video 2B solo como referencia; luego abordar MiniMax-H3-Image y Ref2VA considerando integración, recursos y licencias.
 5. Cuando el bloque funcional esté atendido, retomar el trabajo de ports: resolver el fallo Gen 1, validar la candidata Gen 3 y preparar APK Dev para cada chip; mantener una matriz de regresión por chip, modelo y función.

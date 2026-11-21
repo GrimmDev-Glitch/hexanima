@@ -103,14 +103,14 @@ static uint64_t g_acc[24];
 #define PC() HAP_perf_get_time_us()
 static u16 g_km[64] __attribute__((aligned(128)));
 static u16 g_cm[16 * 64] __attribute__((aligned(128)));   /* causal diagonal-tile masks, one vector per row pair: lane l = key c*2 + (row&1); masked when c > row */
-#define MAXPART 16
+#define MAXPART 32
 #define MAXPT 512
-static u16 g_pm[MAXPART * 16 * 64] __attribute__((aligned(128))); static int g_pk[MAXPT], g_pmi[MAXPT];
+static u16 g_pm[MAXPART * 16 * 64] __attribute__((aligned(128))), g_pmask_pattern[MAXPART * 16 * 64] __attribute__((aligned(128))); static int g_pk[MAXPT], g_pmi[MAXPT];
 /* causal == 2: block-causal; each bidirectional block (condition image) [ba,bb) of bl[0..5] = {ba,bb,...} (three at most; ba == bb: unused).
    Row i sees the keys j < lim(i), lim(i) = i + 1, or the end of its block when it lies inside one. */
 static int row_lim(int i, const int *bl) { int l = i + 1; for (int b = 0; b < 3; b++) if (i >= bl[2 * b] && i < bl[2 * b + 1] && bl[2 * b + 1] > l) l = bl[2 * b + 1]; return l; }
 static int nks_of(int s, int nkb, int causal, const int *bl) {
-  if (!causal) return nkb;
+  if (!causal || causal == 4) return nkb;
   int n = s + 1;
   if (causal == 2) for (int b = 0; b < 3; b++) if (32 * s + 31 >= bl[2 * b] && 32 * s < bl[2 * b + 1]) { const int e = (bl[2 * b + 1] + 31) / 32; if (e > n) n = e; }
   return n < nkb ? n : nkb;
@@ -125,6 +125,29 @@ static int build_partial(int s, int nks, const int *bl) {   /* partially visible
     if (m == nm) { if (nm == MAXPART) return -1; memcpy(cl[nm], c, 32);
       for (int p = 0; p < 16; p++) for (int l = 0; l < 64; l++) g_pm[(nm * 16 + p) * 64 + l] = (l >> 1) < c[2 * p + (l & 1)] ? 0 : 0xFFFF;
       nm++; }
+    if (np == MAXPT) return -1;
+    g_pk[np] = kt; g_pmi[np] = m; np++;
+  }
+  return np;
+}
+/* causal == 3: Qwen causal attention with an arbitrary key-padding mask.
+   key_valid has one int per token in the host-visible M_CS area. */
+static int build_partial_pad(int s, int nks, const int *key_valid, int nvalid, int causal) {
+  int np = 0, nm = 0;
+  for (int kt = 0; kt < nks; kt++) {
+    int any = 0; u16 cur[16 * 64]; const int k0 = kt * 32;
+    for (int p = 0; p < 16; p++) for (int l = 0; l < 64; l++) {
+      const int q = s * 32 + 2 * p + (l & 1), k = k0 + (l >> 1);
+      int masked = q >= nvalid ? (k != 0) : (k >= nvalid || !key_valid[k] || (causal && k > q));
+      cur[p * 64 + l] = masked ? 0xFFFF : 0; any |= masked;
+    }
+    if (!any) continue;
+    int m = 0; for (; m < nm; m++) if (!memcmp(g_pmask_pattern + m * 16 * 64, cur, sizeof cur)) break;
+    if (m == nm) {
+      if (nm == MAXPART) return -1;
+      memcpy(g_pmask_pattern + nm * 16 * 64, cur, sizeof cur);
+      memcpy(g_pm + nm * 16 * 64, cur, sizeof cur); nm++;
+    }
     if (np == MAXPT) return -1;
     g_pk[np] = kt; g_pmi[np] = m; np++;
   }
@@ -230,8 +253,8 @@ static void attn_run(const u16 *q, const u16 *k, const u16 *v, u16 *o, int nq, i
         }
       }
       g_acc[1] += PC() - c1;
-      int npart = 0; if (causal == 2 && s < nq) npart = build_partial(s, nks, bl);
-      sm_t sm = {Sb[b], Pb[b], nks, causal ? (const HVX_Vector *)g_cm : km, causal == 1, npart, g_pk, g_pmi, causal == 2 ? (const HVX_Vector *)g_pm : 0};
+      int npart = 0; if (causal == 2 && s < nq) npart = build_partial(s, nks, bl); else if ((causal == 3 || causal == 4) && s < nq) npart = build_partial_pad(s, nks, bl, nvalid, causal == 3);
+      sm_t sm = {Sb[b], Pb[b], nks, causal == 1 ? (const HVX_Vector *)g_cm : km, causal == 1, npart, g_pk, g_pmi, (causal == 2 || causal == 3 || causal == 4) ? (const HVX_Vector *)g_pm : 0};
       uint64_t c2 = PC();
       if (s < nq) pool_start(p_softmax, &sm);
       if (s > 0) {   /* PV for slab s-1 while the workers run softmax(s) */
@@ -363,7 +386,7 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
         const uint8_t *kvp = (const uint8_t *)WB(H->off[1]);   /* kv pack = [64 n-blocks][128 kb] records: k = first 32 n-blocks, v = last 32 */
         e.gain = vec + 2 * DIM + 128; gemm_set_q8(H->fmt[1]); gemm_run_geo(h16, ntok, DIM, (const u16 *)kvp, 1024, k16, vt, &e, 0);
         gemm_run_geo(h16, ntok, DIM, (const u16 *)(kvp + (size_t)32 * H->kb[1] * (H->fmt[1] == 2 ? 768 : 1152)), 1024, v16, vt, 0, 0); TICK();
-        attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], 1, 0, 128, 32, 4, vt); TICK();
+        attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], 3, (const int *)BUF(M_CS), 128, 32, 4, vt); TICK();
       } else {
       const int qw = v3 ? 4096 : 8192;
       float *Rq = R, *Rkv = Rq + (size_t)ntok * qw, *Ro = Rkv + (size_t)ntok * 2048, *Kts = Ro + (size_t)ntok * 4096;
@@ -621,15 +644,17 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
     g_rope_eps = 1e-6f; gemm_set_q8(1);
     goto done;
   }
-  if (meta[M_MODE] == KREA_MODE) {   /* Krea 2 Turbo single-stream block; K2B1/q4a. x += pregate*attn(pre-norm(x)); x += postgate*SwiGLU(post-norm(x)). */
+  if (meta[M_MODE] == KREA_MODE || meta[M_MODE] == KREA_Q8_MODE) {   /* Krea 2 Turbo single-stream block; K2B1/q4a or K2B2/q8. */
     const krea_hdr_t *H = (const krea_hdr_t *)wts;
-    if (H->magic != KREA_MAGIC || NCB != 192 || H->fmt[KREA_QKV] != 2 || H->fmt[KREA_GATE] != 2 || H->fmt[KREA_ATTN_OUT] != 2 || H->fmt[KREA_FFN_GU] != 2 || H->fmt[KREA_FFN_DOWN] != 2 ||
+    const int wfmt = meta[M_MODE] == KREA_Q8_MODE ? 1 : 2;
+    const uint32_t magic = meta[M_MODE] == KREA_Q8_MODE ? KREA_Q8_MAGIC : KREA_MAGIC;
+    if (H->magic != magic || NCB != 192 || H->fmt[KREA_QKV] != wfmt || H->fmt[KREA_GATE] != wfmt || H->fmt[KREA_ATTN_OUT] != wfmt || H->fmt[KREA_FFN_GU] != wfmt || H->fmt[KREA_FFN_DOWN] != wfmt ||
         H->nb[KREA_QKV] != 288 || H->kb[KREA_QKV] != 192 || H->nb[KREA_GATE] != 192 || H->kb[KREA_GATE] != 192 || H->nb[KREA_ATTN_OUT] != 192 || H->kb[KREA_ATTN_OUT] != 192 || H->nb[KREA_FFN_GU] != 1024 || H->kb[KREA_FFN_GU] != 192 || H->nb[KREA_FFN_DOWN] != 192 || H->kb[KREA_FFN_DOWN] != 512) { *rc = -71; goto done; }
     const uint32_t *off = H->off; const float *gn = (const float *)(wts + off[KREA_GAIN]), *tproj = mod, *lin = (const float *)(wts + off[KREA_MOD]);
     float *km = (float *)BUF(M_ROWS);
     for (int i = 0; i < 6 * DIM; i++) km[i] = tproj[i] + lin[i];
     const float *pregate = km + 2 * DIM, *postscale = km + 3 * DIM, *postshift = km + 4 * DIM, *postgate = km + 5 * DIM;
-    gemm_set_q8(2); P.eps = 1e-5f;
+    gemm_set_q8(wfmt); P.eps = 1e-5f;
     k_rms_prep(LM, LN, gn + 256, km + DIM, km); pool_run(p_ln, &P); TICK();
     /* Fused Q/K/V output tiles are contiguous in the first scratch buffer; split into the native GQA buffers. */
     gemm_run_geo(h16, ntok, DIM, WB(off[KREA_QKV]), 9216, mid, vt, 0, 0);
@@ -641,7 +666,7 @@ static int mega_block_impl(remote_handle64 hd, const int *meta, int nmeta, int w
       vcp(v16 + (size_t)s * 48 * T16, src + (size_t)240 * T16, (size_t)48 * 2048);
     }
     { const size_t tbl = (size_t)32 * 64; krea_qn_t qn = {q16, gn, cosT, sinT, ns, 192, 4, tbl}; pool_run(p_krea_qn, &qn); qn.x = k16; qn.gain = gn + 128; qn.nct = 48; pool_run(p_krea_qn, &qn); } TICK();
-    g_hdt = 4; attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], 0, 0, 192, 48, 4, vt); TICK();
+    g_hdt = 4; attn_run(q16, k16, v16, o16, ns, ntok, meta[M_NVALID], meta[M_FMT] == 1 ? 4 : 0, meta[M_FMT] == 1 ? (const int *)BUF(M_CS) : 0, 192, 48, 4, vt); TICK();
     { krea_gate_t pg = {o16, t16, ns, 192}; pool_run(p_krea_gate, &pg); } TICK();
     { gemm_epi_t e; memset(&e, 0, sizeof e); e.mode = 1; e.x32 = x; e.gate = pregate;
       gemm_run_geo(o16, ntok, DIM, WB(off[KREA_ATTN_OUT]), DIM, t16, vt, &e, 0); } TICK();
@@ -863,6 +888,7 @@ int mega_block(remote_handle64 hd, const int *meta, int nmeta, int wfd, int bfd,
   const size_t xb = (size_t)meta[M_NTOK] * DIM * 4;
   if (meta[M_FIRST] && meta[M_MODE] != 61) { cache_sync(g_blob + meta[M_X], xb); cache_sync(g_blob + meta[M_COS], (size_t)meta[M_NTOK] / 32 * 8192); cache_sync(g_blob + meta[M_SIN], (size_t)meta[M_NTOK] / 32 * 8192); }
   if ((meta[M_MODE] == 50 || meta[M_MODE] == 51 || meta[M_MODE] == 80 || meta[M_MODE] == 81 || meta[M_MODE] == 82 || meta[M_MODE] == 90 || meta[M_MODE] == 91 || meta[M_MODE] == 92) && meta[M_FIRST]) cache_sync(g_blob + meta[M_HN], 131072);
+  if ((meta[M_MODE] == 22 || meta[M_MODE] == KREA_Q8_MODE) && meta[M_FMT] == 1 && meta[M_FIRST]) cache_sync(g_blob + meta[M_CS], (size_t)meta[M_NTOK] * 4);
   if (meta[M_NPRE]) { const size_t own = (size_t)meta[M_NTOK] * DIM * 2, pre = (size_t)meta[M_NPRE] * 32 * DIM * 2; cache_sync(g_blob + meta[M_K] + own, pre); cache_sync(g_blob + meta[M_V] + own, pre); }
   if (meta[M_MODE] == 61) { cache_sync(g_blob + meta[M_H], (size_t)meta[M_NTOK] / 32 * meta[M_NCB] * 2048); cache_sync(g_blob + meta[M_LQ], (size_t)meta[M_NTOK] / 32 * 4 * 2048); }   /* Mage VAE GEMM: host-written A tiles + bias pattern */
   int r = mega_block_impl(hd, meta, nmeta, wfd, mod, modlen, times, ntimes, rc);

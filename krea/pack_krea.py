@@ -13,7 +13,9 @@ block's RMSNorm/QKNorm gains plus six-way timestep modulation vector.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
+import os
 import struct
 from pathlib import Path
 
@@ -28,7 +30,7 @@ HEAD_DIM = FEATURES // HEADS
 FFN = 16384
 BLOCKS = 28
 HEADER_BYTES = 4096
-HEADER_MAGIC = b"K2B1"
+HEADER_MAGIC = {"q4a": b"K2B1", "q8": b"K2B2"}
 MATRICES = ("qkv", "attn_gate", "attn_out", "ffn_gate_up", "ffn_down")
 
 
@@ -75,6 +77,28 @@ def q4a_pack(weight: np.ndarray) -> bytes:
     return np.ascontiguousarray(records).tobytes()
 
 
+def q8_pack(weight: np.ndarray) -> bytes:
+    """Symmetric int8 tiles with one fp16 scale per output row and 32 inputs."""
+    if weight.ndim != 2:
+        raise ValueError(f"expected matrix, got {weight.shape}")
+    out, inn = weight.shape
+    if out % 32 or inn % 32:
+        raise ValueError(f"q8 dimensions must be multiples of 32: {weight.shape}")
+    groups = np.asarray(weight, dtype=np.float32).reshape(out, inn // 32, 32)
+    scales = np.abs(groups).max(axis=2) / 127.0
+    scales = np.where(scales == 0, 1.0, scales).astype(np.float16).astype(np.float32)
+    q = np.clip(np.rint(groups / scales[:, :, None]), -127, 127).astype(np.int8)
+    q = (q.astype(np.int16) + 128).astype(np.uint8).reshape(out, inn)
+    nb, kb = out // 32, inn // 32
+    # Tile order must match q4a and the HMX GEMM: [N block][K block][K/2][N][2].
+    t = q.reshape(nb, 32, kb, 32).transpose(0, 2, 3, 1)
+    t = t.reshape(nb, kb, 16, 2, 32).transpose(0, 1, 2, 4, 3).reshape(nb, kb, 1024)
+    s = scales.reshape(nb, 32, kb).transpose(0, 2, 1).astype(np.float16)
+    scale_bytes = np.repeat(s, 2, axis=2).view(np.uint8).reshape(nb, kb, 128)
+    records = np.concatenate((scale_bytes, t), axis=2)
+    return np.ascontiguousarray(records).tobytes()
+
+
 def _tensor(f, name: str, shape: tuple[int, ...]) -> np.ndarray:
     try:
         t = f.get_tensor(name)
@@ -85,73 +109,95 @@ def _tensor(f, name: str, shape: tuple[int, ...]) -> np.ndarray:
     return t.float().numpy()
 
 
-def pack_block(f, layer: int) -> tuple[bytes, dict]:
+def _tensor_rows(f, name: str, shape: tuple[int, ...], first: int, last: int) -> np.ndarray:
+    """Read only a row range so the two 16k-wide FFN matrices need not coexist in RAM."""
+    try:
+        view = f.get_slice(name)
+        actual = tuple(view.get_shape())
+        if actual != shape:
+            raise ValueError(f"{name}: expected {shape}, got {actual}")
+        return view[first:last, :].float().numpy()
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"checkpoint is missing or cannot slice {name}") from exc
+
+
+def pack_block(f, layer: int, dest: Path, weight_format: str) -> dict:
+    """Pack one block to a temporary file, releasing each source matrix as soon as possible."""
     p = f"blocks.{layer}."
-    matrix_data = []
-    rows_cols = []
-
-    q = _tensor(f, p + "attn.wq.weight", (FEATURES, FEATURES))
-    k = _tensor(f, p + "attn.wk.weight", (KV_HEADS * HEAD_DIM, FEATURES))
-    v = _tensor(f, p + "attn.wv.weight", (KV_HEADS * HEAD_DIM, FEATURES))
-    matrix_data.append(np.concatenate((q, k, v), axis=0))
-    rows_cols.append(matrix_data[-1].shape)
-
-    for name, shape in (
-        ("attn.gate.weight", (FEATURES, FEATURES)),
-        ("attn.wo.weight", (FEATURES, FEATURES)),
-    ):
-        matrix_data.append(_tensor(f, p + name, shape))
-        rows_cols.append(shape)
-
-    gate = _tensor(f, p + "mlp.gate.weight", (FFN, FEATURES))
-    up = _tensor(f, p + "mlp.up.weight", (FFN, FEATURES))
-    matrix_data.append(interleave_rows(gate, up))
-    rows_cols.append(matrix_data[-1].shape)
-    matrix_data.append(_tensor(f, p + "mlp.down.weight", (FEATURES, FFN)))
-    rows_cols.append((FEATURES, FFN))
-
+    rows_cols = ((9216, FEATURES), (FEATURES, FEATURES), (FEATURES, FEATURES), (2 * FFN, FEATURES), (FEATURES, FFN))
     offsets = [0] * 8
     formats = [0] * 8
     nblocks = [0] * 8
     kblocks = [0] * 8
-    payload = bytearray()
-    for i, (name, matrix, (n, kdim)) in enumerate(zip(MATRICES, matrix_data, rows_cols)):
-        offsets[i] = HEADER_BYTES + len(payload)
-        formats[i] = 2  # q4a, same record format as existing HMX GEMM kernels
+    for i, (n, kdim) in enumerate(rows_cols):
+        formats[i] = 2 if weight_format == "q4a" else 1
         nblocks[i], kblocks[i] = n // 32, kdim // 32
-        payload.extend(q4a_pack(matrix))
+    pack_matrix = q4a_pack if weight_format == "q4a" else q8_pack
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        with tmp.open("wb") as out:
+            out.write(bytes(HEADER_BYTES))
+            for i in range(5):
+                offsets[i] = out.tell()
+                if i == 0:
+                    q = _tensor(f, p + "attn.wq.weight", (FEATURES, FEATURES))
+                    k = _tensor(f, p + "attn.wk.weight", (KV_HEADS * HEAD_DIM, FEATURES))
+                    v = _tensor(f, p + "attn.wv.weight", (KV_HEADS * HEAD_DIM, FEATURES))
+                    matrix = np.concatenate((q, k, v), axis=0)
+                    del q, k, v
+                    out.write(pack_matrix(matrix))
+                    del matrix
+                elif i == 1:
+                    out.write(pack_matrix(_tensor(f, p + "attn.gate.weight", (FEATURES, FEATURES))))
+                elif i == 2:
+                    out.write(pack_matrix(_tensor(f, p + "attn.wo.weight", (FEATURES, FEATURES))))
+                elif i == 3:
+                    gate_name, up_name = p + "mlp.gate.weight", p + "mlp.up.weight"
+                    # Preserve the current 32-row gate/up tile interleave without building
+                    # the 1.6 GB combined projection in host RAM.
+                    for first in range(0, FFN, 32):
+                        gate = _tensor_rows(f, gate_name, (FFN, FEATURES), first, first + 32)
+                        up = _tensor_rows(f, up_name, (FFN, FEATURES), first, first + 32)
+                        rows = np.concatenate((gate, up), axis=0)
+                        out.write(pack_matrix(rows))
+                        del gate, up, rows
+                else:
+                    out.write(pack_matrix(_tensor(f, p + "mlp.down.weight", (FEATURES, FFN))))
+                gc.collect()
 
-    gains = []
-    for name, size in (
-        ("attn.qknorm.qnorm.scale", HEAD_DIM),
-        ("attn.qknorm.knorm.scale", HEAD_DIM),
-        ("prenorm.scale", FEATURES),
-        ("postnorm.scale", FEATURES),
-    ):
-        # Krea's RMSNorm stores a zero-centered scale parameter; forward uses scale + 1.
-        gains.append(_tensor(f, p + name, (size,)) + 1.0)
-    # The shared HMX attention path consumes unscaled QK dot products. Fold
-    # PyTorch's 1/sqrt(head_dim) attention factor into Q's RMSNorm gain.
-    gains[0] /= np.sqrt(np.float32(HEAD_DIM))
-    gain_blob = np.concatenate(gains).astype(np.float32).tobytes()
-    offsets[5] = HEADER_BYTES + len(payload)
-    payload.extend(gain_blob)
+            offsets[5] = out.tell()
+            gains = []
+            for name, size in (("attn.qknorm.qnorm.scale", HEAD_DIM), ("attn.qknorm.knorm.scale", HEAD_DIM),
+                               ("prenorm.scale", FEATURES), ("postnorm.scale", FEATURES)):
+                # Krea's RMSNorm stores a zero-centered scale parameter; forward uses scale + 1.
+                gains.append(_tensor(f, p + name, (size,)) + 1.0)
+            # HMX consumes unscaled QK products: fold PyTorch's 1/sqrt(head_dim) into Q gain.
+            gains[0] /= np.sqrt(np.float32(HEAD_DIM))
+            out.write(np.concatenate(gains).astype(np.float32).tobytes())
+            del gains
+            offsets[6] = out.tell()
+            out.write(_tensor(f, p + "mod.lin", (6 * FEATURES,)).astype(np.float32).tobytes())
+            header = struct.pack("<4s8I8I8I8I", HEADER_MAGIC[weight_format], *offsets, *formats, *nblocks, *kblocks)
+            out.seek(0)
+            out.write(header + bytes(HEADER_BYTES - len(header)))
+            out.flush()
+            os.fsync(out.fileno())
+        tmp.replace(dest)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
 
-    modulation = _tensor(f, p + "mod.lin", (6 * FEATURES,)).astype(np.float32).tobytes()
-    offsets[6] = HEADER_BYTES + len(payload)
-    payload.extend(modulation)
-
-    header = struct.pack("<4s8I8I8I8I", HEADER_MAGIC, *offsets, *formats, *nblocks, *kblocks)
-    header += bytes(HEADER_BYTES - len(header))
     info = {
         "layer": layer,
-        "format": "K2B1/q4a",
-        "matrices": {name: {"offset": offsets[i], "rows": rows_cols[i][0], "cols": rows_cols[i][1], "format": "q4a"} for i, name in enumerate(MATRICES)},
+        "format": f"{HEADER_MAGIC[weight_format].decode()}/{weight_format}",
+        "matrices": {name: {"offset": offsets[i], "rows": rows_cols[i][0], "cols": rows_cols[i][1], "format": weight_format} for i, name in enumerate(MATRICES)},
         "gains_offset": offsets[5],
         "modulation_offset": offsets[6],
-        "bytes": HEADER_BYTES + len(payload),
+        "bytes": dest.stat().st_size,
     }
-    return header + bytes(payload), info
+    return info
 
 
 def main() -> None:
@@ -160,6 +206,7 @@ def main() -> None:
     ap.add_argument("outdir", type=Path)
     ap.add_argument("--first", type=int, default=0)
     ap.add_argument("--last", type=int, default=BLOCKS - 1)
+    ap.add_argument("--weight-format", choices=("q4a", "q8"), default="q4a")
     args = ap.parse_args()
     if args.first < 0 or args.last >= BLOCKS or args.first > args.last:
         ap.error(f"layer range must be within 0..{BLOCKS - 1}")
@@ -168,10 +215,10 @@ def main() -> None:
 
     args.outdir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "format": "K2B1",
+        "format": HEADER_MAGIC[args.weight_format].decode(),
         "checkpoint": args.checkpoint.name,
         "architecture": {"features": FEATURES, "heads": HEADS, "kv_heads": KV_HEADS, "head_dim": HEAD_DIM, "ffn": FFN, "blocks": BLOCKS},
-        "quantization": "asymmetric q4a, groups of 32 input values per output channel",
+        "quantization": f"{'asymmetric q4a' if args.weight_format == 'q4a' else 'symmetric int8 q8'}, groups of 32 input values per output channel",
         "layers": [],
     }
     with safe_open(str(args.checkpoint), framework="pt", device="cpu") as f:
@@ -181,11 +228,10 @@ def main() -> None:
         if missing:
             raise ValueError(f"checkpoint does not look like the official Krea 2 Turbo layout; missing {missing[0]}")
         for i in range(args.first, args.last + 1):
-            data, info = pack_block(f, i)
             dest = args.outdir / f"blk{i:02d}.bin"
-            dest.write_bytes(data)
+            info = pack_block(f, i, dest, args.weight_format)
             manifest["layers"].append(info)
-            print(f"layer {i}: {len(data) / 1e6:.1f} MB -> {dest}", flush=True)
+            print(f"layer {i}: {info['bytes'] / 1e6:.1f} MB -> {dest}", flush=True)
     (args.outdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"packed {len(manifest['layers'])} blocks; runtime support is still experimental", flush=True)
 

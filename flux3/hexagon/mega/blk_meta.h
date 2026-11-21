@@ -22,6 +22,8 @@ typedef struct { int off[8], fmt[8], nb[8], kb[8], voff; } te_hdr_t;
 /* Krea 2 Turbo DiT block pack, mode 71 (krea/pack_krea.py), version K2B1. */
 #define KREA_MODE 71
 #define KREA_MAGIC 0x3142324Bu /* little-endian bytes "K2B1" */
+#define KREA_Q8_MODE 72
+#define KREA_Q8_MAGIC 0x3242324Bu /* little-endian bytes "K2B2" */
 enum { KREA_QKV, KREA_GATE, KREA_ATTN_OUT, KREA_FFN_GU, KREA_FFN_DOWN, KREA_GAIN, KREA_MOD, KREA_UNUSED };
 typedef struct { uint32_t magic, off[8], fmt[8], nb[8], kb[8]; } krea_hdr_t;
 

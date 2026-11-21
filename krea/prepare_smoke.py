@@ -25,8 +25,11 @@ def main():
         raise SystemExit("ntok must be a positive multiple of 32")
     args.directory.mkdir(parents=True, exist_ok=True)
 
-    # Small nonzero, finite signal catches NaNs and buffer/layout mistakes.
-    x = [0.05 * math.sin(i * 0.001) for i in range(n * D)]
+    # Small nonzero, finite signal in the DSP's [feature tile][token][feature] layout.
+    x = [0.05 * math.sin((r * D + c) * 0.001)
+         for slab in range(n // 32) for cb in range(D // 32)
+         for r in range(slab * 32, (slab + 1) * 32)
+         for c in range(cb * 32, (cb + 1) * 32)]
     write_f32(args.directory / "x32.bin", x)
     # Position zero is identity RoPE; remaining positions use identity too so
     # the smoke check isolates dispatch, tensor geometry and kernel execution.
