@@ -996,16 +996,37 @@ public class Main extends MainEdit {
         ex2.submit(() -> { if (moss) MossLora.clearSelection(getFilesDir()); else MossLora.deleteTree(ld); ui.post(this::refreshLora); });
     }
     void importLora(Uri uri) {
+        if (isMage()) { Toast.makeText(this, L.s("Mage no admite LoRAs en esta versión", "Mage does not support LoRAs in this version"), Toast.LENGTH_LONG).show(); return; }
+        if (isQwen()) { importQwenSafetensors(uri); return; }
         String nm = "LoRA";
         try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) { if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME); if (i >= 0) nm = c.getString(i); } } catch (Exception ignored) { }
         final String name = nm;
         final boolean moss = isMoss(); final String pre = lp(); final File src = moss ? loraSrc() : new File(AnimaLora.dir(getFilesDir()), AnimaLora.fileName(name));
         loraInfo.setTextColor(WARN); loraInfo.setText(L.s("Проверяю файл…", "Checking the file…"));
         ex2.submit(() -> {
+            String early = null;
+            try (InputStream header = getContentResolver().openInputStream(uri)) {
+                if (header == null) throw new IOException("cannot open selected file");
+                early = SafetensorsFamily.loraMismatch(SafetensorsFamily.inspect(header), moss ? SafetensorsFamily.Kind.MOSS_LORA : SafetensorsFamily.Kind.ANIMA_LORA);
+            } catch (Exception e) { early = L.f("No se pudo identificar el archivo: %s", "Could not identify the file: %s", e.getMessage()); }
+            final String earlyError = early;
+            if (earlyError != null) { ui.post(() -> { refreshLora(); loraFail(name, earlyError); }); return; }
+            if (moss) {
+                long size = -1;
+                try (android.content.res.AssetFileDescriptor afd = getContentResolver().openAssetFileDescriptor(uri, "r")) { if (afd != null) size = afd.getLength(); } catch (Exception ignored) { }
+                if (size > MossLora.MAX_IMPORT_BYTES) {
+                    ui.post(() -> { refreshLora(); loraFail(name, L.s("Esta LoRA MOSS supera 2 GB y no se puede importar.", "This MOSS LoRA is larger than 2 GB and cannot be imported.")); }); return;
+                }
+                if (size > 0 && getFilesDir().getUsableSpace() < size * 2 + 300_000_000L) {
+                    String need = String.format(java.util.Locale.US, "%.1f", (size * 2 + 300_000_000L) / 1e9);
+                    ui.post(() -> { refreshLora(); loraFail(name, L.f("Falta espacio para importar y seleccionar esta LoRA MOSS: hacen falta unos %s GB libres.", "Not enough space to import and select this MOSS LoRA: about %s GB free is needed.", need)); }); return;
+                }
+            }
             final File dir = loraDir(); dir.mkdirs(); final File tmp = new File(dir, "new.safetensors");
             try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(tmp)) {
                 byte[] b = new byte[1 << 16]; long total = 0;
-                for (int n; (n = in.read(b)) > 0; ) { o.write(b, 0, n); total += n; if (total > (1L << 30)) throw new IOException(L.s("файл больше 1 ГБ", "the file is larger than 1 GB")); }
+                long maxBytes = moss ? MossLora.MAX_IMPORT_BYTES : (1L << 30);
+                for (int n; (n = in.read(b)) > 0; ) { o.write(b, 0, n); total += n; if (total > maxBytes) throw new IOException(moss ? L.s("Esta LoRA MOSS supera 2 GB y no se puede importar.", "This MOSS LoRA is larger than 2 GB and cannot be imported.") : L.s("El archivo supera 1 GB.", "The file is larger than 1 GB.")); }
             } catch (Exception e) { tmp.delete(); ui.post(() -> { refreshLora(); loraFail(name, L.f("Не удалось прочитать файл: %s", "Cannot read the file: %s", e.getMessage())); }); return; }
             final boolean ok; final String msg;
             if (moss) { MossLora.Check c = MossLora.check(BIN, tmp); ok = c.ok; msg = c.message(); } else { AnimaLora.Check c = AnimaLora.check(tmp); ok = c.ok; msg = c.message(); }
@@ -1268,6 +1289,16 @@ public class Main extends MainEdit {
         final String display = nm.replaceFirst("(?i)\\.safetensors$", ""), id = Qwen.safeId(nm);
         final AlertDialog copying = builder().setMessage(L.s("Copiando y revisando la LoRA…", "Copying and checking the LoRA…")).setCancelable(false).show();
         ex2.submit(() -> {
+            String familyError = null;
+            try (InputStream header = getContentResolver().openInputStream(uri)) {
+                if (header == null) throw new IOException("cannot open selected file");
+                familyError = SafetensorsFamily.loraMismatch(SafetensorsFamily.inspect(header), SafetensorsFamily.Kind.QWEN_LORA);
+            } catch (Exception e) { familyError = L.f("No se pudo identificar el archivo: %s", "Could not identify the file: %s", e.getMessage()); }
+            final String detectedError = familyError;
+            if (detectedError != null) {
+                ui.post(() -> { copying.dismiss(); builder().setTitle(display).setMessage(detectedError).setPositiveButton("OK", null).show(); });
+                return;
+            }
             File dst = Qwen.srcFile(getFilesDir(), id), tmp = new File(dst.getPath() + ".part"); dst.getParentFile().mkdirs();
             String err = null;
             try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(tmp)) {

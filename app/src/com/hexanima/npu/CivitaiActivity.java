@@ -187,7 +187,7 @@ public class CivitaiActivity extends Base {
         final boolean moss = Civitai.moss(ver.optString("baseModel"));
         final boolean qwen = Civitai.qwen(ver.optString("baseModel"));
         long fileBytes = (long) (f.optDouble("sizeKB") * 1024);
-        if (moss && fileBytes > (1L << 30)) { builder().setMessage(L.s("Este LoRA supera 1 GB; el importador MOSS no lo admite.", "This LoRA is larger than 1 GB; the MOSS importer does not support it.")).setPositiveButton("OK", null).show(); return; }
+        if (moss && fileBytes > MossLora.MAX_IMPORT_BYTES) { builder().setMessage(L.s("Este LoRA MOSS supera 2 GB y no se puede importar.", "This MOSS LoRA is larger than 2 GB and cannot be imported.")).setPositiveButton("OK", null).show(); return; }
         if (moss && getFilesDir().getUsableSpace() < fileBytes * 2 + 300_000_000L) { builder().setMessage(L.f("Falta espacio para descargar y seleccionar este LoRA: se necesitan unos %s GB libres.", "Not enough free space to download and select this LoRA: about %s GB is needed.", String.format(Locale.US, "%.1f", fileBytes * 2.0 / 1e9))).setPositiveButton("OK", null).show(); return; }
         if (qwen && getFilesDir().getUsableSpace() < fileBytes * 2 + 300_000_000L) { builder().setMessage(L.f("Falta espacio para descargar y exportar esta LoRA: se necesitan unos %s GB libres.", "Not enough free space to download and export this LoRA: about %s GB is needed.", String.format(Locale.US, "%.1f", fileBytes * 2.0 / 1e9))).setPositiveButton("OK", null).show(); return; }
         String[] why = {""};

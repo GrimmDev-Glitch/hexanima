@@ -1090,3 +1090,15 @@ Krea needs at least 5 GB of available RAM to start. Close other apps and try aga
 Krea needs at least 8 GB free for temporary files.	Krea necesita al menos 8 GB libres para los archivos temporales.
 The phone is too warm to start. Let it cool down first.	El teléfono está demasiado caliente para empezar. Espera a que se enfríe.
 Generation stopped because the phone reached 45 °C.	La generación se detuvo porque el teléfono alcanzó 45 °C.
+This looks like a MOSS-Image DiT checkpoint (including Kromoss). HexAnima cannot convert MOSS checkpoints into its V73 pack yet; the file was not copied.	Este archivo parece un checkpoint DiT de MOSS-Image (incluido Kromoss). HexAnima aún no convierte checkpoints MOSS a su pack V73; no se copió el archivo.
+This looks like a Qwen checkpoint. The local importer only converts Anima checkpoints yet; the file was not copied.	Este archivo parece un checkpoint Qwen. El importador local todavía solo convierte checkpoints Anima; no se copió el archivo.
+This looks like a Mage checkpoint. Mage is installed as a catalog pack; local Mage checkpoint import is not implemented yet.	Este archivo parece un checkpoint Mage. Mage se instala como pack del catálogo; la importación local de checkpoints Mage aún no está implementada.
+This looks like a LoRA, not a full checkpoint. Import it from the compatible model's LoRA section.	El archivo parece una LoRA, no un checkpoint completo. Impórtalo desde la sección LoRA del modelo compatible.
+The checkpoint architecture was not recognized. Only compatible Anima checkpoints can be converted here.	No se reconoció la arquitectura del checkpoint. Aquí solo se convierten checkpoints Anima compatibles.
+This looks like a full %s checkpoint, not a LoRA. The file was not copied.	El archivo parece un checkpoint completo de %s, no una LoRA. No se copió.
+This LoRA appears to be for %s, but the active model uses %s. The file was not copied.	Esta LoRA parece ser para %s, pero el modelo activo usa %s. No se copió el archivo.
+Could not identify the file: %s	No se pudo identificar el archivo: %s
+Mage does not support LoRAs in this version	Mage no admite LoRAs en esta versión
+This MOSS LoRA is larger than 2 GB and cannot be imported.	Esta LoRA MOSS supera 2 GB y no se puede importar.
+Not enough space to import and select this MOSS LoRA: about %s GB free is needed.	Falta espacio para importar y seleccionar esta LoRA MOSS: hacen falta unos %s GB libres.
+The file is larger than 1 GB.	El archivo supera 1 GB.

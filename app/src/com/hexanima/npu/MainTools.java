@@ -528,15 +528,27 @@ abstract class MainTools extends MainRun {
         if (loaded) ex.submit(() -> { su("sh " + D + "/anima.sh stop < /dev/null >/dev/null 2>&1", false); loaded = false; setModelUi(false, false, ""); });   // the conversion needs the RAM
         ex2.submit(() -> {
             File dir = AnimaImport.importDir(getFilesDir()); dir.mkdirs(); File src = new File(dir, AnimaLora.fileName(name));
-            String err = null;
-            try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream o = new FileOutputStream(src)) {
-                long total = -1; try (android.content.res.AssetFileDescriptor a = getContentResolver().openAssetFileDescriptor(uri, "r")) { if (a != null) total = a.getLength(); } catch (Exception ignored) { }
-                byte[] b = new byte[1 << 16]; long done = 0, last = 0; final long tt = total;
-                for (int n; (n = in.read(b)) > 0; ) { if (stop.get()) throw new IOException(L.s("Отменено", "Cancelled")); o.write(b, 0, n); done += n; if (done - last > (32 << 20)) { last = done; final long dd = done; ui.post(() -> { if (tt > 0) pb.setProgress((int) (1000 * dd / tt)); pt.setText(String.format(java.util.Locale.US, "%.1f GB", dd / 1e9)); }); } }
-            } catch (Exception e) { err = e.getMessage(); }
+            String err = null; boolean copied = false;
+            try (InputStream header = getContentResolver().openInputStream(uri)) {
+                if (header == null) throw new IOException("cannot open selected file");
+                SafetensorsFamily.Kind kind = SafetensorsFamily.inspect(header);
+                if (kind != SafetensorsFamily.Kind.ANIMA) err = SafetensorsFamily.checkpointMessage(kind);
+            } catch (Exception e) { err = L.f("No se pudo identificar el archivo: %s", "Could not identify the file: %s", e.getMessage()); }
+            if (err == null) {
+                try (InputStream in = getContentResolver().openInputStream(uri)) {
+                    if (in == null) throw new IOException("cannot open selected file");
+                    try (FileOutputStream o = new FileOutputStream(src)) {
+                    copied = true;
+                    long total = -1; try (android.content.res.AssetFileDescriptor a = getContentResolver().openAssetFileDescriptor(uri, "r")) { if (a != null) total = a.getLength(); } catch (Exception ignored) { }
+                    byte[] b = new byte[1 << 16]; long done = 0, last = 0; final long tt = total;
+                    for (int n; (n = in.read(b)) > 0; ) { if (stop.get()) throw new IOException(L.s("Отменено", "Cancelled")); o.write(b, 0, n); done += n; if (done - last > (32 << 20)) { last = done; final long dd = done; ui.post(() -> { if (tt > 0) pb.setProgress((int) (1000 * dd / tt)); pt.setText(String.format(java.util.Locale.US, "%.1f GB", dd / 1e9)); }); } }
+                    }
+                }
+                catch (Exception e) { err = e.getMessage(); }
+            }
             if (err == null) err = AnimaImport.convert(getFilesDir(), BIN, DEFAULT_BASE, src, "cv" + Long.toHexString(System.currentTimeMillis()), name,
                 (d, t, what) -> ui.post(() -> { pb.setProgress(1000 * d / Math.max(1, t)); pt.setText(what + " " + d + "/" + t); }), stop);
-            if (err != null) src.delete();
+            if (err != null && copied) src.delete();
             final String e2 = err;
             ui.post(() -> {
                 dl.dismiss();

@@ -5,6 +5,8 @@ import java.util.*;
 
 /** User MOSS adapters. A/B LoRAs are folded into turbo slots; LoKr is baked into a copy of the DiT blocks (no DSP kernel change). */
 final class MossLora {
+    /** Covers the official 1.19 GB MOSS DMD adapters; callers should reserve room for library + active copy. */
+    static final long MAX_IMPORT_BYTES = 2L << 30;
     static File dir(File home) { return new File(Moss.dir(home), "lora"); }
     static File civitaiDir(File home) { return new File(dir(home), "civitai"); }
     static File src(File home) { return new File(dir(home), "user.safetensors"); }
