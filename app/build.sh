@@ -58,7 +58,7 @@ BT=/sdk/build-tools/34.0.0; AJ=/sdk/platforms/android-34/android.jar; cd /app
 rm -rf out; mkdir -p out/cls
 cp AndroidManifest.xml out/AndroidManifest.xml
 if [ "$BUILD_DEV" = 1 ]; then
-  sed -i -e "s/package=\"com.hexanima.npu\"/package=\"com.hexanima.npu.dev\"/" -e "s/android:name=\"\./android:name=\"com.hexanima.npu./g" -e "s/com.hexanima.npu.gallery/com.hexanima.npu.dev.gallery/g" -e "s/android:label=\"HexAnima\"/android:label=\"HexAnima Dev\"/" out/AndroidManifest.xml
+  sed -i -e "s/package=\"com.hexanima.npu\"/package=\"com.hexanima.npu.dev\"/" -e "s/android:name=\"\./android:name=\"com.hexanima.npu./g" -e "s/com.hexanima.npu.gallery/com.hexanima.npu.dev.gallery/g" -e "s/com.hexanima.npu.updates/com.hexanima.npu.dev.updates/g" -e "s/android:label=\"HexAnima\"/android:label=\"HexAnima Dev\"/" out/AndroidManifest.xml
 fi
 $BT/aapt2 compile --dir res -o out/res.zip
 $BT/aapt2 link -o out/base.apk -I "$AJ" -A assets --manifest out/AndroidManifest.xml --min-sdk-version 29 --target-sdk-version 34 $DEBUG_FLAG out/res.zip
