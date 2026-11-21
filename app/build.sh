@@ -15,6 +15,22 @@ if [[ "${BUILD_DEV:-0}" == 1 ]]; then APK_NAME=hexanima-dev.apk; fi
 cp ../phone/anima.sh assets/anima.sh
 cp ../phone/moss.sh assets/moss.sh
 cp ../phone/qwen.sh assets/qwen.sh
+# Krea runners are small, source-built ARM64 executables; model weights stay user-provided.
+KREA_OUT=../krea/out
+KREA_SKEL=../flux3/hexagon/mega/out/libmega_skel_v73.so
+if [[ -x "$KREA_OUT/krea_phone_sampler" && -x "$KREA_OUT/krea_text_fuse_cpu" && -x "$KREA_OUT/krea_vae_cpu" && -x "$KREA_OUT/krea_blk_smoke" && -f "$KREA_SKEL" ]]; then
+  mkdir -p jnilibs/lib/arm64-v8a
+  cp "$KREA_OUT/krea_phone_sampler" jnilibs/lib/arm64-v8a/libkrea_phone_sampler.so
+  cp "$KREA_OUT/krea_text_fuse_cpu" jnilibs/lib/arm64-v8a/libkrea_text_fuse_cpu.so
+  cp "$KREA_OUT/krea_vae_cpu" jnilibs/lib/arm64-v8a/libkrea_vae_cpu.so
+  cp "$KREA_OUT/krea_blk_smoke" jnilibs/lib/arm64-v8a/libkrea_blk_smoke.so
+  cp "$KREA_SKEL" jnilibs/lib/arm64-v8a/libkrea_skel_v73.so
+elif [[ "$BUILD_TYPE" == release ]]; then
+  echo "Krea runners/skeleton missing. Build krea/out and flux3/hexagon/mega/out/libmega_skel_v73.so before a release build." >&2
+  exit 2
+else
+  echo "Krea runners not staged; the Krea screen will remain unavailable in this Dev build." >&2
+fi
 # every L.s/L.f English string needs its Spanish line in assets/lang/es.tsv (tools/check_translations.py lists the missing ones)
 command -v python3 >/dev/null || { echo "python3 is needed for the translation check" >&2; exit 1; }
 python3 ../tools/check_translations.py >&2 || { echo "Untranslated strings: add them to app/assets/lang/es.tsv (python3 tools/add_es.py FILE.java fills the ones written in Spanish)" >&2; exit 1; }

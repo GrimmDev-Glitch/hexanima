@@ -17,6 +17,7 @@
         <activity android:name=".History" android:exported="false"/>
         <activity android:name=".Viewer" android:exported="false"/>
         <activity android:name=".ModelsActivity" android:exported="false"/>
+        <activity android:name=".KreaActivity" android:exported="false" android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".CivitaiActivity" android:exported="false" android:windowSoftInputMode="adjustResize"/>
         <receiver android:name=".RamWidget" android:exported="false" android:label="HexAnima RAM">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>

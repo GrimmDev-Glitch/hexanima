@@ -26,7 +26,7 @@ The phone's Mage Qwen3-VL encoder extracted the selected hidden states for the p
 
 The first 768-token run exposed a large mismatch in the DSP attention when the full 512 padded text positions were retained. Compacting the 22 active text tokens to 32 rows, padding only to the DSP slab boundary and preserving their order/positions fixed the first-block comparison: Q8 DSP vs CPU Q8 reference at 288 total tokens was **1.01% relative L2** (cosine **0.999971**) on real prompt/image activations. Keep this compact form for the current phone runner; the long padded mask case still needs a kernel-level fix.
 
-This is a research vertical slice, not an app integration: Qwen encoding, text fusion, initial Gaussian noise, Q8 DiT denoising, and VAE decoding have now all run on the phone. The sampler run used one conditional pass and an on-device deterministic seed-42 noise generator (SplitMix64 plus Box–Muller). CFG parity, application integration, long-mask behavior, and license/content-filter requirements remain open. The checkpoint, Q8 packs and output remain under ignored `work/` paths and must not be published.
+This is still an experimental route: Qwen encoding, text fusion, initial Gaussian noise, Q8 DiT denoising, and VAE decoding have run on the phone. HexAnima now has an isolated Krea screen/importer and a wired 256×256 route with prompt checks and WD Tagger rating checks before saving. That app route has not yet been installed or generated from on-device in this work session. CFG parity, long-mask behavior, output-filter review, thermal/cancel behavior and license review remain open. Checkpoints, Q8 packs and images remain under ignored `work/` paths and must not be published.
 
 ### Complete phone generation (21 November 2026)
 
@@ -77,8 +77,17 @@ The pack layout is a port-development artifact. These earlier q4a comparisons co
 2. Fix long padded masks; measure memory, storage streaming, speed and thermals on V73.
 3. Build production error handling, cancellation and storage management around the phone-side runner.
 4. Resolve license-compliant distribution and content safeguards before registering Krea or distributing weights/packs.
-5. Integrate Krea into the app only after the preceding correctness, runtime and licensing work.
+5. Install the Dev APK on the POCO, verify import and a complete generation, and review safe and blocked prompts/results plus cancellation and thermal behavior.
+6. Compare complete device generation against the official pipeline on matched inputs, then validate CFG and image quality at larger resolutions.
 
 ## Distribution conditions
 
-The weights use Krea's Community License, separately from the Apache-2.0 inference code. See the [official license](https://www.krea.ai/krea-2-licensing): deployments must implement appropriate content filtering; distribution of the model or derivatives has agreement, recipient-binding and attribution/notice requirements. Do not publish weights or packs until the license and app flow satisfy those requirements.
+The weights use Krea's Community License, separately from the Apache-2.0 inference code. See the [official license](https://www.krea.ai/krea-2-licensing): deployments must implement appropriate content filtering; distribution of the model or derivatives has agreement, recipient-binding and attribution/notice requirements. The app importer does not redistribute weights, and its current prompt/rating checks do not establish that all prohibited uses are detected. Do not publish weights or packs; complete policy, device and license review before a public release.
+
+## HexAnima app route (21 November 2026)
+
+The app menu opens a separate Krea screen. It imports the user-provided weights into `files/krea/active`, validates the 28 Q8 blocks and three pack files, and keeps any previous Krea pack until the new import validates. The Mage encoder is reused without changing Mage's model directory. The output is passed through WD Tagger v3 rating scores before it can be saved to History. Prompt checks cover a small set of prohibited cases; classifier ratings cannot detect every policy violation.
+
+The selected folder must contain `dit/blk00.bin` through `dit/blk27.bin`, `sampler.kft`, `text-fusion.kft`, and `krea-vae.kva` (the importer searches nested folders for the three pack files). Mage and WD Tagger v3 must already be installed. The screen exposes only 256×256 with 8 steps. Krea weights stay outside the APK and Git.
+
+Build the native app runners into `krea/out` with `krea/build_text_fusion.sh`, `krea/build_vae_cpu.sh`, and `krea/build_krea_runner.sh`; the last runner also needs `flux3/hexagon/mega/out/libmega_skel_v73.so` from the V73 Snapdragon toolchain. `app/build.sh` stages them automatically when present and refuses a release build if they are missing. The Dev APK was built and signature-checked; physical-device generation and safety tests remain outstanding.

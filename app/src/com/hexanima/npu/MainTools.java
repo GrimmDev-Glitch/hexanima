@@ -282,6 +282,7 @@ abstract class MainTools extends MainRun {
         final boolean video = Ltx.SHOWN;   // the Video screen is hidden while the engine is reworked (LTX quality too low, Wan in progress)
         final List<String> items = new ArrayList<>(); final List<Runnable> acts = new ArrayList<>();
         items.add(L.s("Модели", "Models")); acts.add(this::openModels);
+        items.add("Krea 2 Turbo (experimental)"); acts.add(() -> startActivity(new Intent(this, KreaActivity.class)));
         if (video) { items.add(L.s("Видео (экспериментально)", "Video (experimental)")); acts.add(() -> { if (busy) Toast.makeText(this, L.s("Дождитесь окончания генерации", "Wait for the generation to finish"), Toast.LENGTH_SHORT).show(); else startActivity(new Intent(this, VideoActivity.class)); }); }
         items.add("Civitai"); acts.add(() -> startActivityForResult(new Intent(this, CivitaiActivity.class), 14));
         items.add(L.s("Plantillas de configuración", "Configuration templates")); acts.add(this::presets);

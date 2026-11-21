@@ -1056,3 +1056,37 @@ Hexagon V79 experimental · MOSS/Mage	Hexagon V79 experimental · MOSS/Mage
 Anima does not have V79 contexts in this Dev APK yet. Try MOSS or Mage.	Anima todavía no tiene contextos V79 en esta Dev APK. Prueba MOSS o Mage.
 This V79 Dev build only includes experimental MOSS and Mage routes; Anima/Qwen are not ported yet.	Esta Dev V79 solo incluye rutas experimentales para MOSS y Mage; Anima/Qwen aún no están porteados.
 MOSS V79 context is missing; stage it with tools/stage_jnilibs.sh.	Falta el contexto MOSS V79; inclúyelo con tools/stage_jnilibs.sh.
+Experimental · 256 × 256 · 8 steps	Experimental · 256 × 256 · 8 pasos
+Full generation runs on-device and may take several minutes. Krea keeps separate files and does not alter Anima, MOSS, Qwen or Mage.	La generación completa corre en el teléfono y puede tardar varios minutos. Krea guarda sus archivos por separado; no modifica Anima, MOSS, Qwen ni Mage.
+Import Krea pack from folder…	Importar pack Krea desde carpeta…
+Describe the image…	Describe la imagen…
+Generate · experimental	Generar · experimental
+Using Krea means accepting the Krea 2 license and acceptable-use policy. HexAnima filters prompts and results; the model and local filter cannot detect every prohibited use.	Al usar Krea, acepta la licencia de Krea 2 y su política de uso. HexAnima aplica filtros al prompt y al resultado; el modelo y el filtro local no detectan todos los usos prohibidos.
+License: https://www.krea.ai/krea-2-licensing\nAcceptable use: https://www.krea.ai/acceptable-use-policy\n\nImporting a pack means you obtained the model under its license and accept these terms.	Licencia: https://www.krea.ai/krea-2-licensing\nPolítica de uso: https://www.krea.ai/acceptable-use-policy\n\nImportar un pack significa que usted obtuvo el modelo conforme a la licencia y acepta estos términos.
+This phone does not have a validated Krea route yet (Snapdragon 8 Gen 2 / V73 required).	Este teléfono todavía no tiene una ruta Krea validada (se requiere Snapdragon 8 Gen 2 / V73).
+Pack installed. Mage and the safety detector are also required.	Pack instalado. Se requiere Mage instalado y el detector de seguridad.
+The local model pack (~15 GB) is not installed.	Falta instalar el pack local (~15 GB).
+Copying to Krea's private storage…	Copiando a almacenamiento privado de Krea…
+Import Krea	Importar Krea
+Import cancelled; existing models remain untouched.	Importación cancelada; los modelos anteriores siguen intactos.
+Could not import pack: %s	No se pudo importar el pack: %s
+Copying %s · %.1f GB	Copiando %s · %.1f GB
+Confirm that you have read and accept the Krea 2 license and acceptable-use policy. Sexual content involving minors, non-consensual intimate imagery, impersonation, harm, and weapons development are prohibited.	Confirma que leíste y aceptas la licencia de Krea 2 y su política de uso. No se permite contenido sexual con menores, imágenes íntimas sin consentimiento, suplantación, daño o desarrollo de armas.
+Accept	Acepto
+Prompt blocked: sexual content involving minors or age-ambiguous people is not allowed.	Prompt bloqueado: no se permite contenido sexual que incluya menores o personas de edad ambigua.
+Prompt blocked: creating intimate images of people without consent is not allowed.	Prompt bloqueado: no se permite crear imágenes íntimas de personas sin consentimiento.
+Prompt blocked: assistance to make weapons or explosives is not allowed.	Prompt bloqueado: no se permite ayudar a fabricar armas o explosivos.
+The screen and isolated installer are ready. The full generation and automatic output review still need to be connected here; for safety, this build does not start Krea generations yet.	La pantalla y el instalador aislado están listos. Falta conectar aquí la ejecución completa y la revisión automática del resultado; por seguridad, esta compilación aún no inicia generaciones Krea.
+Prompt exceeds the experimental 27-token limit; shorten it.	El prompt supera el límite experimental de 27 tokens; acórtalo.
+Fusing text context…	Fusionando el contexto…
+Generating on the NPU · 8 steps…	Generando en la NPU · 8 pasos…
+Checking the result…	Revisando el resultado…
+The local filter flagged this image; it was not saved. Check files/krea/run/krea.log.	El filtro local marcó la imagen; no se guardó. Puedes consultar el registro files/krea/run/krea.log.
+Generation cancelled; no partial image was saved.	Generación cancelada; no se guardó una imagen parcial.
+Image saved to History	Generación guardada en el historial
+Generation error: %s (log files/krea/run/krea.log)	Error de generación: %s (registro files/krea/run/krea.log)
+This APK does not include the Krea runners.	Esta APK no incluye los ejecutables Krea.
+Krea needs at least 5 GB of available RAM to start. Close other apps and try again.	Krea necesita al menos 5 GB de RAM disponible para iniciar. Cierra otras apps y vuelve a probar.
+Krea needs at least 8 GB free for temporary files.	Krea necesita al menos 8 GB libres para los archivos temporales.
+The phone is too warm to start. Let it cool down first.	El teléfono está demasiado caliente para empezar. Espera a que se enfríe.
+Generation stopped because the phone reached 45 °C.	La generación se detuvo porque el teléfono alcanzó 45 °C.

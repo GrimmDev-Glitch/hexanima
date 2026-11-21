@@ -52,6 +52,10 @@ final class Tagger {
     static List<Tag> tag(Context c, Bitmap src) throws Exception { return tag(c, src, 0.35f); }
     /** thr: the lowest score of a general tag (copying an outfit reads more of its details: bows, trims, straps) */
     static List<Tag> tag(Context c, Bitmap src, float thr) throws Exception {
+        return tag(c, src, thr, null);
+    }
+    /** Optionally returns WD Tagger rating scores in [general,sensitive,questionable,explicit] slots. */
+    static List<Tag> tag(Context c, Bitmap src, float thr, float[] ratings) throws Exception {
         final int S = 448, w = src.getWidth(), h = src.getHeight(), m = Math.max(w, h);
         Bitmap sq = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888); Canvas cv = new Canvas(sq); cv.drawColor(Color.WHITE);
         float s = (float) S / m; float nw = w * s, nh = h * s;
@@ -80,6 +84,11 @@ final class Tagger {
         List<Tag> t = new ArrayList<>();
         for (int i = 0; i < o.length; i++) {
             int cat = Integer.parseInt(names.get(i)[1]);
+            if (ratings != null && cat == 9) {
+                String n = names.get(i)[0].toLowerCase(Locale.ROOT);
+                int slot = n.contains("explicit") ? 3 : n.contains("questionable") ? 2 : n.contains("sensitive") ? 1 : n.contains("general") ? 0 : -1;
+                if (slot >= 0 && slot < ratings.length) ratings[slot] = Math.max(ratings[slot], o[i]);
+            }
             if ((cat == 0 && o[i] >= thr) || (cat == 4 && o[i] >= 0.85f)) t.add(new Tag(names.get(i)[0], cat, o[i]));
         }
         t.sort((a, b) -> Float.compare(b.p, a.p));
